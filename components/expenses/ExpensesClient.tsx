@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Download, RefreshCw, Trash2, Receipt } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw, Trash2, Receipt, X } from 'lucide-react'
 import { supabase, type Expense } from '@/lib/supabase'
 import { formatCurrency, formatDate, getCurrentMonth } from '@/lib/utils'
 
@@ -12,6 +12,7 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
   const [filterBy, setFilterBy] = useState('')
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
 
   const filtered = useMemo(() => {
     return expenses.filter(e => {
@@ -56,6 +57,7 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
     if (!confirm('Delete this expense?')) return
     await supabase.from('expenses').delete().eq('id', id)
     setExpenses(prev => prev.filter(e => e.id !== id))
+    setSelectedExpense(null)
     showToast('Deleted')
   }
 
@@ -164,7 +166,7 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
-                    {['Date', 'Store', 'Items', 'Total', 'By', ''].map(h => (
+                    {['Date', 'Store', 'Items', 'Total', 'By'].map(h => (
                       <th key={h} className="text-left text-xs font-medium text-stone-400 uppercase tracking-wider px-4 py-3">{h}</th>
                     ))}
                   </tr>
@@ -174,7 +176,11 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
                     const items = e.items ?? []
                     const preview = items.slice(0, 2).map(i => i.name).join(', ')
                     return (
-                      <tr key={e.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50 transition-colors">
+                      <tr
+                        key={e.id}
+                        onClick={() => setSelectedExpense(e)}
+                        className="border-b border-stone-100 last:border-0 hover:bg-stone-50 transition-colors cursor-pointer"
+                      >
                         <td className="px-4 py-3 text-sm text-stone-500 whitespace-nowrap">{formatDate(e.date)}</td>
                         <td className="px-4 py-3">
                           <p className="text-sm font-medium text-stone-900">{e.store ?? '—'}</p>
@@ -188,14 +194,6 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${memberBadge(e.logged_by)}`}>
                             {e.logged_by ?? '—'}
                           </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => deleteExpense(e.id)}
-                            className="text-stone-300 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
                         </td>
                       </tr>
                     )
@@ -213,8 +211,98 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
         </div>
       </main>
 
+      {/* Backdrop */}
+      <div
+        onClick={() => setSelectedExpense(null)}
+        className={`fixed inset-0 z-20 bg-black/25 transition-opacity duration-300 ${selectedExpense ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      />
+
+      {/* Slide-over panel: slides from bottom on mobile, from right on desktop */}
+      <div className={`fixed z-30 bg-white border-stone-200 shadow-2xl transition-transform duration-300 ease-in-out overflow-y-auto
+        bottom-0 left-0 right-0 max-h-[90vh] rounded-t-2xl border-t
+        md:top-0 md:bottom-auto md:left-auto md:right-0 md:h-full md:w-96 md:max-h-none md:rounded-none md:border-t-0 md:border-l
+        ${selectedExpense ? 'translate-y-0 md:translate-y-0 md:translate-x-0' : 'translate-y-full md:translate-y-0 md:translate-x-full'}`}
+      >
+        {selectedExpense && (
+          <div className="flex flex-col h-full">
+            {/* Panel header */}
+            <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-stone-100">
+              <div>
+                <h2 className="text-xl text-stone-900 leading-tight" style={{ fontFamily: 'DM Serif Display, serif' }}>
+                  {selectedExpense.store ?? 'Expense'}
+                </h2>
+                <p className="text-sm text-stone-400 mt-0.5">{formatDate(selectedExpense.date)}</p>
+              </div>
+              <button
+                onClick={() => setSelectedExpense(null)}
+                className="text-stone-400 hover:text-stone-600 transition-colors mt-0.5 ml-4 shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Panel body */}
+            <div className="flex-1 px-5 py-4 space-y-5">
+              {/* Items */}
+              {(selectedExpense.items ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Items</p>
+                  <div className="space-y-1.5">
+                    {(selectedExpense.items ?? []).map((item, i) => (
+                      <div key={i} className="flex justify-between items-baseline">
+                        <span className="text-sm text-stone-700">{item.name}</span>
+                        {item.price != null && (
+                          <span className="text-sm text-stone-500 ml-4 shrink-0">
+                            {formatCurrency(item.price, selectedExpense.currency)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Total */}
+              <div className="flex justify-between items-center border-t border-stone-100 pt-4">
+                <span className="text-sm font-medium text-stone-500">Total</span>
+                <span className="text-xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
+                  {formatCurrency(Number(selectedExpense.total), selectedExpense.currency)}
+                </span>
+              </div>
+
+              {/* Logged by */}
+              <div>
+                <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1.5">Logged by</p>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${memberBadge(selectedExpense.logged_by)}`}>
+                  {selectedExpense.logged_by ?? '—'}
+                </span>
+              </div>
+
+              {/* Notes */}
+              {selectedExpense.notes && (
+                <div>
+                  <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1.5">Notes</p>
+                  <p className="text-sm text-stone-600 leading-relaxed">{selectedExpense.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Delete button */}
+            <div className="px-5 py-4 border-t border-stone-100">
+              <button
+                onClick={() => deleteExpense(selectedExpense.id)}
+                className="flex items-center gap-2 w-full justify-center px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={14} />
+                Delete expense
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-stone-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-40 bg-stone-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-in fade-in slide-in-from-bottom-2">
           {toast}
         </div>
       )}
