@@ -1,5 +1,7 @@
 import Link from 'next/link'
-import { Receipt, Calendar, ShoppingCart, Plus } from 'lucide-react'
+import { cookies } from 'next/headers'
+import { Receipt, Calendar, ShoppingCart, Plus, LogOut } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 const features = [
   {
@@ -15,7 +17,6 @@ const features = [
     label: 'Calendar',
     description: 'Family schedule',
     color: 'bg-blue-50 text-blue-600',
-    soon: true,
   },
   {
     href: '/shopping',
@@ -23,39 +24,55 @@ const features = [
     label: 'Shopping',
     description: 'Shared grocery lists',
     color: 'bg-green-50 text-green-600',
-    soon: true,
   },
 ]
 
-export default function Home() {
+export default async function Home() {
+  const cookieStore = await cookies()
+  const userId = cookieStore.get('hs_session')?.value
+
+  let userName = ''
+  if (userId) {
+    const { data } = await supabase.from('users').select('name').eq('id', userId).single()
+    userName = data?.name ?? ''
+  }
+
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-10">
-        <h1 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
-          home<span className="text-orange-500 italic">space</span>
-        </h1>
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
+            home<span className="text-orange-500 italic">space</span>
+          </h1>
+          <form action="/api/auth/logout" method="POST">
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-stone-600 transition-colors"
+            >
+              <LogOut size={15} />
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-stone-500 text-sm mb-8">Good to have you back. What would you like to manage today?</p>
+        <p className="text-stone-500 text-sm mb-8">
+          {userName ? `Welcome back, ${userName}. What would you like to manage today?` : 'Good to have you back. What would you like to manage today?'}
+        </p>
 
         <div className="grid gap-4">
-          {features.map(({ href, icon: Icon, label, description, color, soon }) => (
+          {features.map(({ href, icon: Icon, label, description, color }) => (
             <Link
               key={href}
-              href={soon ? '#' : href}
-              className={`group flex items-center gap-4 bg-white border border-stone-200 rounded-2xl p-5 transition-all hover:border-stone-300 hover:shadow-sm ${soon ? 'opacity-60 cursor-not-allowed' : ''}`}
+              href={href}
+              className="group flex items-center gap-4 bg-white border border-stone-200 rounded-2xl p-5 transition-all hover:border-stone-300 hover:shadow-sm"
             >
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
                 <Icon size={22} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-stone-900">{label}</span>
-                  {soon && (
-                    <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Soon</span>
-                  )}
-                </div>
+                <span className="font-medium text-stone-900">{label}</span>
                 <p className="text-sm text-stone-500 mt-0.5">{description}</p>
               </div>
               <span className="text-stone-300 group-hover:text-stone-400 transition-colors">→</span>

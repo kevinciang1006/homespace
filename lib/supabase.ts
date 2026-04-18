@@ -16,3 +16,32 @@ export type Expense = {
   notes: string | null
   created_at: string
 }
+
+export type User = {
+  id: string
+  name: string
+  phone: string
+  email: string | null
+  google_calendar_id: string | null
+}
+
+export type CalendarEvent = {
+  id: string
+  title: string
+  description: string | null
+  start_at: string
+  end_at: string
+  location: string | null
+  guests: { name: string; email: string }[] | null
+  google_event_id: string | null
+  created_by: string | null
+}
+
+export type ShoppingItem = {
+  id: string
+  name: string
+  quantity: string | null
+  category: string | null
+  checked: boolean
+  added_by: string | null
+}
