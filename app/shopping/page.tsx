@@ -16,11 +16,34 @@ export default async function ShoppingPage() {
     } catch {}
   }
 
-  const { data } = await supabase
-    .from('shopping_groups')
-    .select('*, shopping_items(*)')
-    .order('archived', { ascending: true })
-    .order('created_at', { ascending: false })
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+  const cutoffDate = cutoff.toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
 
-  return <ShoppingClient initialGroups={(data as ShoppingGroup[]) ?? []} currentUser={currentUser} />
+  const [{ data: groups }, { data: ungroupedItems }] = await Promise.all([
+    supabase
+      .from('shopping_groups')
+      .select('*, shopping_items(*)')
+      .gte('shopping_date', cutoffDate)
+      .order('archived', { ascending: true })
+      .order('shopping_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('shopping_items')
+      .select('*')
+      .is('group_id', null),
+  ])
+
+  // Merge legacy null-group items into today's General group if present
+  const generalToday = (groups ?? []).find(
+    g => g.name === 'General' && g.shopping_date === today && !g.archived
+  )
+  const data = (groups ?? []).map(g =>
+    generalToday && g.id === generalToday.id
+      ? { ...g, shopping_items: [...(g.shopping_items ?? []), ...(ungroupedItems ?? [])] }
+      : g
+  )
+
+  return <ShoppingClient initialGroups={(data as ShoppingGroup[]) ?? []} currentUser={currentUser} initialDays={7} />
 }

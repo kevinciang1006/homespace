@@ -1,9 +1,27 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2, Archive, RotateCcw, ShoppingCart, ChevronDown } from 'lucide-react'
 import type { ShoppingItem, ShoppingGroup } from '@/lib/supabase'
+
+type FilterDays = 7 | 30 | 'all'
+
+function today(): string {
+  return new Date().toISOString().split('T')[0]
+}
+
+function formatGroupDate(dateStr: string | null): string | null {
+  if (!dateStr) return null
+  // Parse as local date to avoid timezone shift
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0)
+  const yesterdayDate = new Date(todayDate); yesterdayDate.setDate(todayDate.getDate() - 1)
+  if (date.getTime() === todayDate.getTime()) return 'Today'
+  if (date.getTime() === yesterdayDate.getTime()) return 'Yesterday'
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
 function parseItemInput(input: string): { name: string; quantity: string | null } {
   const trimmed = input.trim()
@@ -142,6 +160,7 @@ function GroupCard({ group, currentUserId, onUpdate, onArchive, onItemAdd, onIte
   const items = group.shopping_items
   const checkedCount = items.filter(i => i.checked).length
   const allChecked = items.length > 0 && checkedCount === items.length
+  const dateLabel = formatGroupDate(group.shopping_date)
 
   function saveName() {
     setEditingName(false)
@@ -170,28 +189,33 @@ function GroupCard({ group, currentUserId, onUpdate, onArchive, onItemAdd, onIte
   return (
     <div className="bg-white border border-stone-200 rounded-xl shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-stone-100">
-        {editingName ? (
-          <input
-            ref={nameRef}
-            value={nameVal}
-            onChange={e => setNameVal(e.target.value)}
-            onBlur={saveName}
-            onKeyDown={e => {
-              if (e.key === 'Enter') saveName()
-              if (e.key === 'Escape') { setNameVal(group.name); setEditingName(false) }
-            }}
-            className="flex-1 text-base font-semibold bg-stone-100 rounded px-2 py-0.5 text-stone-900 outline-none"
-            style={{ fontFamily: 'DM Serif Display, serif' }}
-          />
-        ) : (
-          <h3
-            onClick={() => { setNameVal(group.name); setEditingName(true) }}
-            className="flex-1 text-base font-semibold text-stone-900 cursor-text"
-            style={{ fontFamily: 'DM Serif Display, serif' }}
-          >
-            {group.name}
-          </h3>
-        )}
+        <div className="flex-1 min-w-0">
+          {editingName ? (
+            <input
+              ref={nameRef}
+              value={nameVal}
+              onChange={e => setNameVal(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveName()
+                if (e.key === 'Escape') { setNameVal(group.name); setEditingName(false) }
+              }}
+              className="w-full text-base font-semibold bg-stone-100 rounded px-2 py-0.5 text-stone-900 outline-none"
+              style={{ fontFamily: 'DM Serif Display, serif' }}
+            />
+          ) : (
+            <h3
+              onClick={() => { setNameVal(group.name); setEditingName(true) }}
+              className="text-base font-semibold text-stone-900 cursor-text"
+              style={{ fontFamily: 'DM Serif Display, serif' }}
+            >
+              {group.name}
+            </h3>
+          )}
+          {dateLabel && !editingName && (
+            <p className="text-xs text-stone-400 mt-0.5">{dateLabel}</p>
+          )}
+        </div>
 
         <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full shrink-0">
           {checkedCount}/{items.length} done
@@ -247,11 +271,15 @@ function GroupCard({ group, currentUserId, onUpdate, onArchive, onItemAdd, onIte
 export default function ShoppingClient({
   initialGroups,
   currentUser,
+  initialDays,
 }: {
   initialGroups: ShoppingGroup[]
   currentUser: { id: string; name: string } | null
+  initialDays: FilterDays
 }) {
   const [groups, setGroups] = useState<ShoppingGroup[]>(initialGroups)
+  const [filterDays, setFilterDays] = useState<FilterDays>(initialDays)
+  const [loadingFilter, setLoadingFilter] = useState(false)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
@@ -259,6 +287,18 @@ export default function ShoppingClient({
   const newGroupRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { if (showNewGroup) newGroupRef.current?.focus() }, [showNewGroup])
+
+  const fetchGroups = useCallback(async (days: FilterDays) => {
+    setLoadingFilter(true)
+    const res = await fetch(`/api/shopping/groups?days=${days}`)
+    if (res.ok) setGroups(await res.json())
+    setLoadingFilter(false)
+  }, [])
+
+  async function changeFilter(days: FilterDays) {
+    setFilterDays(days)
+    await fetchGroups(days)
+  }
 
   const activeGroups = groups.filter(g => !g.archived)
   const archivedGroups = groups
@@ -272,7 +312,7 @@ export default function ShoppingClient({
     const res = await fetch('/api/shopping/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, created_by: currentUser?.id ?? null }),
+      body: JSON.stringify({ name, created_by: currentUser?.id ?? null, shopping_date: today() }),
     })
     if (res.ok) {
       const group = await res.json()
@@ -353,6 +393,12 @@ export default function ShoppingClient({
     await fetch(`/api/shopping/items/${itemId}`, { method: 'DELETE' })
   }
 
+  const filterButtons: { label: string; value: FilterDays }[] = [
+    { label: 'This week', value: 7 },
+    { label: 'This month', value: 30 },
+    { label: 'All', value: 'all' },
+  ]
+
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-10">
@@ -375,6 +421,29 @@ export default function ShoppingClient({
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-8 space-y-4">
+        {/* Filter bar */}
+        <div className="bg-white border border-stone-200 rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-sm font-medium text-stone-500 mr-1">Show</span>
+          {filterButtons.map(({ label, value }) => (
+            <button
+              key={value}
+              onClick={() => changeFilter(value)}
+              disabled={loadingFilter}
+              className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                filterDays === value
+                  ? 'bg-stone-900 text-white'
+                  : 'text-stone-500 hover:bg-stone-100'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {loadingFilter && (
+            <span className="text-xs text-stone-400 ml-auto">Loading…</span>
+          )}
+        </div>
+
+        {/* New group input */}
         {showNewGroup && (
           <div className="bg-white border-2 border-stone-900 rounded-xl px-4 py-3 flex gap-2 items-center">
             <input
@@ -399,11 +468,14 @@ export default function ShoppingClient({
           </div>
         )}
 
+        {/* Active groups */}
         {activeGroups.length === 0 && !showNewGroup ? (
           <div className="flex flex-col items-center justify-center py-20 text-stone-400">
             <ShoppingCart size={36} className="mb-3 opacity-30" />
             <p className="font-medium">No shopping lists</p>
-            <p className="text-sm mt-1">Hit "New Group" to create one</p>
+            <p className="text-sm mt-1">
+              {filterDays !== 'all' ? 'Try a wider date range, or create a new group' : 'Hit "New Group" to create one'}
+            </p>
           </div>
         ) : (
           activeGroups.map(group => (
@@ -421,6 +493,7 @@ export default function ShoppingClient({
           ))
         )}
 
+        {/* Archived section */}
         {archivedGroups.length > 0 && (
           <div className="pt-2">
             <button
