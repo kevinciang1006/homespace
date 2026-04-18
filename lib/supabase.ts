@@ -44,4 +44,16 @@ export type ShoppingItem = {
   category: string | null
   checked: boolean
   added_by: string | null
+  group_id: string
+  created_at: string
+}
+
+export type ShoppingGroup = {
+  id: string
+  name: string
+  archived: boolean
+  archived_at: string | null
+  created_by: string | null
+  created_at: string
+  shopping_items: ShoppingItem[]
 }
