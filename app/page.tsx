@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { Receipt, Calendar, ShoppingCart, Plus, LogOut } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 const features = [
   {
@@ -29,21 +28,28 @@ const features = [
 
 export default async function Home() {
   const cookieStore = await cookies()
-  const userId = cookieStore.get('hs_session')?.value
+  const sessionCookie = cookieStore.get('hs_session')?.value
 
   let userName = ''
-  if (userId) {
-    const { data } = await supabase.from('users').select('name').eq('id', userId).single()
-    userName = data?.name ?? ''
+  if (sessionCookie) {
+    try {
+      const session = JSON.parse(sessionCookie)
+      userName = session.name ?? ''
+    } catch {}
   }
 
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
-            home<span className="text-orange-500 italic">space</span>
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
+              home<span className="text-orange-500 italic">space</span>
+            </h1>
+            {userName && (
+              <span className="text-sm text-stone-500">Hi, {userName}</span>
+            )}
+          </div>
           <form action="/api/auth/logout" method="POST">
             <button
               type="submit"
@@ -58,7 +64,7 @@ export default async function Home() {
 
       <main className="max-w-2xl mx-auto px-6 py-10">
         <p className="text-stone-500 text-sm mb-8">
-          {userName ? `Welcome back, ${userName}. What would you like to manage today?` : 'Good to have you back. What would you like to manage today?'}
+          What would you like to manage today?
         </p>
 
         <div className="grid gap-4">

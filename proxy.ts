@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const session = request.cookies.get('hs_session')?.value
 
-  const isPublic =
-    pathname === '/login' ||
-    pathname.startsWith('/api/auth/')
+  const isPublic = pathname === '/login' || pathname.startsWith('/api/auth/')
+  if (isPublic) return NextResponse.next()
 
-  if (!session && !isPublic) {
+  const sessionCookie = request.cookies.get('hs_session')?.value
+  if (!sessionCookie) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  return NextResponse.next()
+  try {
+    JSON.parse(sessionCookie)
+    return NextResponse.next()
+  } catch {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 }
 
 export const config = {
