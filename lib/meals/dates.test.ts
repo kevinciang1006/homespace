@@ -1,0 +1,18 @@
+import { describe, it, expect } from 'vitest'
+import { isoDate, weekDates, daysBetween } from './dates'
+
+describe('date helpers', () => {
+  it('weekDates returns 7 consecutive local dates from Monday', () => {
+    expect(weekDates('2026-08-10')).toEqual([
+      '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13',
+      '2026-08-14', '2026-08-15', '2026-08-16',
+    ])
+  })
+  it('daysBetween counts whole days, b minus a', () => {
+    expect(daysBetween('2026-08-10', '2026-08-13')).toBe(3)
+    expect(daysBetween('2026-08-13', '2026-08-10')).toBe(-3)
+  })
+  it('isoDate formats a local Date as YYYY-MM-DD', () => {
+    expect(isoDate(new Date(2026, 7, 3))).toBe('2026-08-03')
+  })
+})
