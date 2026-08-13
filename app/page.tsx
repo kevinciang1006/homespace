@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
-import { Receipt, Calendar, ShoppingCart, Plus, LogOut } from 'lucide-react'
+import { Receipt, Calendar, ShoppingCart, UtensilsCrossed, Plus, LogOut } from 'lucide-react'
 
 const features = [
   {
@@ -23,6 +23,13 @@ const features = [
     label: 'Shopping',
     description: 'Shared grocery lists',
     color: 'bg-green-50 text-green-600',
+  },
+  {
+    href: '/meals',
+    icon: UtensilsCrossed,
+    label: 'Meals',
+    description: 'Weekly meal planner',
+    color: 'bg-amber-50 text-amber-600',
   },
 ]
 
