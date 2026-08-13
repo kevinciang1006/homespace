@@ -123,3 +123,61 @@ describe('spicyOk', () => {
     expect(spicyOk(d, c)).toBe(true)
   })
 })
+
+import { freshnessFactor, weightFor, weightedPick, pickForSlot, type Rng } from './engine'
+
+const seq = (vals: number[]): Rng => { let i = 0; return () => vals[i++ % vals.length] }
+
+describe('freshnessFactor', () => {
+  it('is 2 for a never-served dish', () => {
+    const d = dish({ id: 'a', slot: 'kuah' })
+    const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [d] })
+    expect(freshnessFactor(d, c)).toBe(2)
+  })
+  it('scales days_since_last / window, capped at 2 and floored at 1', () => {
+    const d = dish({ id: 'a', slot: 'kuah' }) // window 7
+    const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [d],
+      priorPlans: [plan({ plan_date: '2026-08-06', slot: 'kuah', dish_id: 'a' })] }) // 7 days
+    expect(freshnessFactor(d, c)).toBe(1) // 7/7 = 1
+  })
+})
+
+describe('weightFor', () => {
+  it('is rating squared times freshness', () => {
+    const d = dish({ id: 'a', slot: 'kuah', rating: 5 })
+    const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [d] })
+    expect(weightFor(d, c)).toBe(25 * 2) // never served -> freshness 2
+  })
+})
+
+describe('weightedPick', () => {
+  it('is deterministic under a seeded rng', () => {
+    const a = dish({ id: 'a', slot: 'kuah', rating: 1 })
+    const b = dish({ id: 'b', slot: 'kuah', rating: 5 })
+    const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [a, b] })
+    // rng near 1 lands in the heavier (b) bucket
+    expect(weightedPick([a, b], c, seq([0.99]))?.id).toBe('b')
+    expect(weightedPick([a, b], c, seq([0.0]))?.id).toBe('a')
+  })
+})
+
+describe('pickForSlot relaxation ladder', () => {
+  it('relaxes spicy floor when the only candidate is spicy', () => {
+    const onlySpicy = dish({ id: 'sp', slot: 'desert', spicy: true })
+    // day already has 4 spicy picks -> spicyOk would reject at level 0
+    const runPicks = ['utama','kuah','pelengkap','sayuran'].map(
+      (s) => pick({ plan_date: '2026-08-13', slot: s as Slot, dish_id: 'x-' + s }))
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [onlySpicy], runPicks })
+    for (const s of ['utama','kuah','pelengkap','sayuran'])
+      c.dishById.set('x-' + s, dish({ id: 'x-' + s, slot: 'utama', spicy: true }))
+    const result = pickForSlot([onlySpicy], c, seq([0.5]))
+    expect(result.dish_id).toBe('sp')
+    expect(result.note).toContain('spicy')
+  })
+  it('returns a null pick with a note when no dish exists at all', () => {
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [] })
+    const result = pickForSlot([], c, seq([0.5]))
+    expect(result.dish_id).toBeNull()
+    expect(result.note).toBeTruthy()
+  })
+})

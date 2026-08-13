@@ -99,6 +99,73 @@ export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
   )
 }
 
+export type Rng = () => number
+
+export function freshnessFactor(dish: Dish, ctx: PickContext): number {
+  const base = dish.no_repeat_days ?? DEFAULT_NO_REPEAT[dish.slot]
+  const uses = [
+    ...ctx.priorPlans.filter(p => p.dish_id === dish.id),
+    ...ctx.runPicks.filter(p => p.dish_id === dish.id),
+  ]
+  if (uses.length === 0) return 2
+  const mostRecent = uses.reduce((min, u) => {
+    const gap = Math.abs(daysBetween(u.plan_date, ctx.date))
+    return gap < min ? gap : min
+  }, Infinity)
+  return Math.min(2, Math.max(1, mostRecent / base))
+}
+
+export function weightFor(dish: Dish, ctx: PickContext): number {
+  return dish.rating * dish.rating * freshnessFactor(dish, ctx)
+}
+
+export function weightedPick(dishes: Dish[], ctx: PickContext, rng: Rng): Dish | undefined {
+  if (dishes.length === 0) return undefined
+  const weights = dishes.map(d => weightFor(d, ctx))
+  const total = weights.reduce((a, b) => a + b, 0)
+  if (total <= 0) return dishes[Math.floor(rng() * dishes.length)]
+  let r = rng() * total
+  for (let i = 0; i < dishes.length; i++) {
+    r -= weights[i]
+    if (r < 0) return dishes[i]
+  }
+  return dishes[dishes.length - 1]
+}
+
+export function candidates(slotDishes: Dish[], ctx: PickContext): Dish[] {
+  return slotDishes.filter(d => passesHardRules(d, ctx))
+}
+
+const RELAX_LADDER: { relax: PickContext['relax']; note?: string }[] = [
+  { relax: { spicy: false, fried: false, noRepeatFactor: 1 } },
+  { relax: { spicy: true, fried: false, noRepeatFactor: 1 }, note: 'relaxed: spicy floor' },
+  { relax: { spicy: true, fried: true, noRepeatFactor: 1 }, note: 'relaxed: spicy + fried cap' },
+  { relax: { spicy: true, fried: true, noRepeatFactor: 0.5 }, note: 'relaxed: spicy + fried + short no-repeat' },
+]
+
+export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
+  for (const level of RELAX_LADDER) {
+    const c: PickContext = { ...ctx, relax: level.relax }
+    const pool = candidates(slotDishes, c)
+    if (pool.length > 0) {
+      const chosen = weightedPick(pool, c, rng)!
+      return toPick(ctx, chosen, level.note)
+    }
+  }
+  // last resort: any active dish of the slot, keep min no-repeat (factor 0.5)
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, noRepeatFactor: 0.5 } }
+  const anyActive = slotDishes.filter(d => d.active && d.slot === ctx.slot && noRepeatOk(d, lastCtx))
+  if (anyActive.length > 0) {
+    const chosen = weightedPick(anyActive, lastCtx, rng)!
+    return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
+  }
+  return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null, locked: false, note: 'no candidate available' }
+}
+
+function toPick(ctx: PickContext, dish: Dish, note?: string): Pick {
+  return { plan_date: ctx.date, slot: ctx.slot, dish_id: dish.id, dish_name: dish.name, locked: false, note }
+}
+
 function prevDay(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
