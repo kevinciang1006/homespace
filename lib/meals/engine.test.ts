@@ -83,6 +83,14 @@ describe('specialOk', () => {
       specialDays: new Set(['2026-08-13']) })
     expect(specialOk(d, c)).toBe(true)
   })
+  it('forces a special-tier utama on a pre-assigned special day', () => {
+    const everyday = dish({ id: 'e', slot: 'utama', tier: 'everyday' })
+    const special = dish({ id: 's', slot: 'utama', tier: 'special' })
+    const c = ctx({ date: '2026-08-13', slot: 'utama', dishes: [everyday, special],
+      specialDays: new Set(['2026-08-13']) })
+    expect(specialOk(everyday, c)).toBe(false) // everyday not allowed on a special day
+    expect(specialOk(special, c)).toBe(true)
+  })
   it('rejects any special when the day already has a special', () => {
     const kuahSpecial = dish({ id: 'ks', slot: 'kuah', tier: 'special' })
     const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [kuahSpecial],
@@ -228,7 +236,7 @@ describe('generateWeek', () => {
     expect(lockedPick.dish_id).toBe('kuah-3')
     expect(lockedPick.locked).toBe(true)
   })
-  it('places at most 2 special mains, on non-adjacent days', () => {
+  it('places exactly 2 special mains, on non-adjacent days', () => {
     const mk = (slot: Slot, n: number) =>
       Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot,
         tier: slot === 'utama' && i < 3 ? 'special' : 'everyday',
@@ -240,7 +248,7 @@ describe('generateWeek', () => {
     const byId = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
     const specialMainDays = picks.filter(p => p.slot === 'utama' && byId.get(p.dish_id!)?.tier === 'special')
       .map(p => WEEK.indexOf(p.plan_date)).sort((a,b)=>a-b)
-    expect(specialMainDays.length).toBeLessThanOrEqual(2)
-    if (specialMainDays.length === 2) expect(specialMainDays[1] - specialMainDays[0]).toBeGreaterThanOrEqual(2)
+    expect(specialMainDays.length).toBe(2)
+    expect(specialMainDays[1] - specialMainDays[0]).toBeGreaterThanOrEqual(2)
   })
 })

@@ -58,6 +58,10 @@ export function specialOk(dish: Dish, ctx: PickContext): boolean {
   const dayHasSpecial = picksForDate(ctx, ctx.date).some(
     p => resolveDish(ctx, p.dish_id)?.tier === 'special'
   )
+  // Pre-assigned special day: the utama MUST be special (drives the 2/week quota).
+  if (ctx.slot === 'utama' && ctx.specialDays.has(ctx.date)) {
+    return dish.tier === 'special' && !dayHasSpecial
+  }
   if (dish.tier === 'special') {
     if (dayHasSpecial) return false
     if (ctx.slot === 'utama' && !ctx.specialDays.has(ctx.date)) return false
