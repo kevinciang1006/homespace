@@ -181,3 +181,66 @@ describe('pickForSlot relaxation ladder', () => {
     expect(result.note).toBeTruthy()
   })
 })
+
+import { preassignSpecialDays, generateWeek } from './engine'
+
+const WEEK = ['2026-08-10','2026-08-11','2026-08-12','2026-08-13','2026-08-14','2026-08-15','2026-08-16']
+
+describe('preassignSpecialDays', () => {
+  it('returns exactly 2 non-adjacent days', () => {
+    const specialUtama = [dish({ id: 'su', slot: 'utama', tier: 'special' })]
+    const dishById = new Map(specialUtama.map(d => [d.id, d]))
+    const days = preassignSpecialDays(WEEK, [], dishById, seq([0.1, 0.4, 0.7, 0.2, 0.9, 0.3, 0.6]))
+    expect(days.size).toBe(2)
+    const idx = [...days].map(d => WEEK.indexOf(d)).sort((a,b)=>a-b)
+    expect(idx[1] - idx[0]).toBeGreaterThanOrEqual(2)
+  })
+  it('honors a locked special utama day', () => {
+    const dishById = new Map([['su', dish({ id: 'su', slot: 'utama', tier: 'special' })]])
+    const locked = [plan({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'su', locked: true })]
+    const days = preassignSpecialDays(WEEK, locked, dishById, seq([0.5]))
+    expect(days.has('2026-08-13')).toBe(true)
+  })
+})
+
+describe('generateWeek', () => {
+  it('fills 35 cells and never overwrites a locked cell', () => {
+    // small but sufficient pools per slot
+    const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
+      Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
+        protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
+    const dishesBySlot = {
+      utama: mk('utama', 10), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
+      sayuran: mk('sayuran', 8), desert: mk('desert', 8),
+    }
+    // ensure some special utama exist
+    dishesBySlot.utama[0].tier = 'special'
+    dishesBySlot.utama[1].tier = 'special'
+    dishesBySlot.utama[2].tier = 'special'
+    const allDishes = Object.values(dishesBySlot).flat()
+    const locked = [plan({ plan_date: '2026-08-12', slot: 'kuah', dish_id: 'kuah-3', dish_name: 'kuah-3', locked: true })]
+    const picks = generateWeek({
+      weekStart: '2026-08-10', days: WEEK, dishesBySlot, allDishes,
+      priorPlans: [], lockedCells: locked, rng: seq([0.3, 0.6, 0.1, 0.8, 0.5, 0.2, 0.9, 0.4, 0.7, 0.05]),
+    })
+    expect(picks.length).toBe(35)
+    const lockedPick = picks.find(p => p.plan_date === '2026-08-12' && p.slot === 'kuah')!
+    expect(lockedPick.dish_id).toBe('kuah-3')
+    expect(lockedPick.locked).toBe(true)
+  })
+  it('places at most 2 special mains, on non-adjacent days', () => {
+    const mk = (slot: Slot, n: number) =>
+      Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot,
+        tier: slot === 'utama' && i < 3 ? 'special' : 'everyday',
+        protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
+    const dishesBySlot = { utama: mk('utama',10), kuah: mk('kuah',8), pelengkap: mk('pelengkap',9), sayuran: mk('sayuran',8), desert: mk('desert',8) }
+    const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
+      allDishes: Object.values(dishesBySlot).flat(), priorPlans: [], lockedCells: [],
+      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
+    const byId = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
+    const specialMainDays = picks.filter(p => p.slot === 'utama' && byId.get(p.dish_id!)?.tier === 'special')
+      .map(p => WEEK.indexOf(p.plan_date)).sort((a,b)=>a-b)
+    expect(specialMainDays.length).toBeLessThanOrEqual(2)
+    if (specialMainDays.length === 2) expect(specialMainDays[1] - specialMainDays[0]).toBeGreaterThanOrEqual(2)
+  })
+})

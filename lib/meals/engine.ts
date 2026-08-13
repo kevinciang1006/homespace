@@ -166,6 +166,71 @@ function toPick(ctx: PickContext, dish: Dish, note?: string): Pick {
   return { plan_date: ctx.date, slot: ctx.slot, dish_id: dish.id, dish_name: dish.name, locked: false, note }
 }
 
+export function preassignSpecialDays(
+  days: string[], lockedCells: MealPlan[], dishById: Map<string, Dish>, rng: Rng,
+): Set<string> {
+  const result = new Set<string>()
+  // days that already hold ANY locked special count toward the cap
+  for (const lc of lockedCells) {
+    if (dishById.get(lc.dish_id ?? '')?.tier === 'special') result.add(lc.plan_date)
+  }
+  const specialPool = [...dishById.values()].some(d => d.slot === 'utama' && d.tier === 'special' && d.active)
+  if (!specialPool) return result
+
+  const isAdjacent = (d: string) =>
+    [...result].some(r => Math.abs(days.indexOf(r) - days.indexOf(d)) < 2)
+  // days with no locked special (day cap = 1 special) and not already chosen
+  const lockedSpecialDays = new Set(
+    lockedCells.filter(lc => dishById.get(lc.dish_id ?? '')?.tier === 'special').map(lc => lc.plan_date))
+  const shuffled = shuffle(days.filter(d => !lockedSpecialDays.has(d)), rng)
+  for (const d of shuffled) {
+    if (result.size >= 2) break
+    if (!isAdjacent(d)) result.add(d)
+  }
+  return result
+}
+
+function shuffle<T>(arr: T[], rng: Rng): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+export function generateWeek(input: {
+  weekStart: string; days: string[]; dishesBySlot: Record<Slot, Dish[]>
+  allDishes: Dish[]; priorPlans: MealPlan[]; lockedCells: MealPlan[]; rng: Rng
+}): Pick[] {
+  const { days, dishesBySlot, allDishes, priorPlans, lockedCells, rng } = input
+  const dishById = new Map(allDishes.map(d => [d.id, d]))
+  const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
+
+  const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
+  const runPicks: Pick[] = lockedCells.map(l => ({
+    plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name, locked: true,
+  }))
+
+  for (const date of days) {
+    for (const slot of SLOTS) {
+      const key = `${date}|${slot}`
+      if (lockedByCell.has(key)) continue
+      const ctx: PickContext = {
+        date, slot, priorPlans, runPicks, dishById, specialDays,
+        relax: { spicy: false, fried: false, noRepeatFactor: 1 },
+      }
+      const pick = pickForSlot(dishesBySlot[slot] ?? [], ctx, rng)
+      runPicks.push(pick)
+    }
+  }
+
+  const slotOrder = (s: Slot) => SLOTS.indexOf(s)
+  return runPicks.sort((a, b) =>
+    a.plan_date === b.plan_date ? slotOrder(a.slot) - slotOrder(b.slot)
+      : a.plan_date < b.plan_date ? -1 : 1)
+}
+
 function prevDay(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
