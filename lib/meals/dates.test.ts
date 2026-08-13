@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isoDate, weekDates, daysBetween } from './dates'
+import { isoDate, weekDates, daysBetween, currentMonday, shiftWeek, mondayOf } from './dates'
 
 describe('date helpers', () => {
   it('weekDates returns 7 consecutive local dates from Monday', () => {
@@ -14,5 +14,21 @@ describe('date helpers', () => {
   })
   it('isoDate formats a local Date as YYYY-MM-DD', () => {
     expect(isoDate(new Date(2026, 7, 3))).toBe('2026-08-03')
+  })
+})
+
+describe('week helpers', () => {
+  it('shiftWeek adds days across a month boundary', () => {
+    expect(shiftWeek('2026-08-31', 7)).toBe('2026-09-07')
+    expect(shiftWeek('2026-09-07', -7)).toBe('2026-08-31')
+  })
+  it('mondayOf maps any weekday to that week Monday', () => {
+    expect(mondayOf('2026-08-13')).toBe('2026-08-10') // Thu -> Mon
+    expect(mondayOf('2026-08-10')).toBe('2026-08-10') // Mon -> Mon
+    expect(mondayOf('2026-08-16')).toBe('2026-08-10') // Sun -> Mon
+  })
+  it('currentMonday returns a Monday (getDay === 1)', () => {
+    const [y, m, d] = currentMonday().split('-').map(Number)
+    expect(new Date(y, m - 1, d).getDay()).toBe(1)
   })
 })

@@ -1,17 +1,9 @@
 import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot } from '@/lib/meals/types'
 import { candidates, pickForSlot, weightFor, type PickContext } from '@/lib/meals/engine'
-import { weekDates } from '@/lib/meals/dates'
+import { weekDates, mondayOf } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
-
-function mondayOf(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(y, m - 1, d)
-  const dow = (dt.getDay() + 6) % 7 // Mon=0
-  dt.setDate(dt.getDate() - dow)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
 
 async function buildContext(plan_date: string, slot: Slot) {
   const week = weekDates(mondayOf(plan_date))

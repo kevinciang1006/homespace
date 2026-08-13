@@ -2,18 +2,8 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle } from 'lucide-react'
 import { SLOTS, SLOT_LABELS, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
-import { weekDates } from '@/lib/meals/dates'
+import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 
-function shiftWeek(weekStart: string, deltaDays: number): string {
-  const [y, m, d] = weekStart.split('-').map(Number)
-  const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + deltaDays)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
-function currentMonday(): string {
-  const now = new Date(); const dow = (now.getDay() + 6) % 7
-  now.setDate(now.getDate() - dow)
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
