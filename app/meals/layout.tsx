@@ -1,0 +1,29 @@
+import { cookies } from 'next/headers'
+import Link from 'next/link'
+import MealsTabs from '@/components/meals/MealsTabs'
+
+export default async function MealsLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('hs_session')?.value
+  let userName = ''
+  if (sessionCookie) {
+    try { userName = JSON.parse(sessionCookie).name ?? '' } catch {}
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <header className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
+              home<span className="text-orange-500 italic">space</span>
+            </Link>
+            {userName && <span className="text-sm text-stone-500">Hi, {userName}</span>}
+          </div>
+          <MealsTabs />
+        </div>
+      </header>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">{children}</main>
+    </div>
+  )
+}
