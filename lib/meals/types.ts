@@ -34,6 +34,25 @@ export type MealPlan = {
   dishes?: { tier: Tier; spicy: boolean } | null
 }
 
+export type MealShoppingList = {
+  id: string
+  week_start: string
+  generated_at: string | null
+  archived: boolean
+}
+
+export type MealShoppingItem = {
+  id: string
+  list_id: string
+  ingredient: string
+  quantity: string | null
+  category: string // 'protein' | 'vegetable' | 'pantry' | 'other' | 'dish'
+  already_have: boolean
+  checked: boolean
+  from_dishes: { dish: string; quantity?: string | null }[] | null
+  created_at: string
+}
+
 // A pick produced by the engine before it is persisted.
 export type Pick = {
   plan_date: string
