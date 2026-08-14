@@ -82,6 +82,7 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
                 <thead>
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
                     <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">Group</th>
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -94,7 +95,7 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} />)}
-                  {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -134,6 +135,12 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus }: {
             onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
             className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
         </div>
+      </td>
+      <td className="px-3 py-1.5">
+        <select value={dish.slot} onChange={e => onPatch(dish.id, { slot: e.target.value as Slot })}
+          className="bg-transparent text-stone-600 focus:outline-none">
+          {SLOTS.map(s => <option key={s} value={s}>{SLOT_LABELS[s]}</option>)}
+        </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}

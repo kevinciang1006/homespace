@@ -125,7 +125,7 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
         <div className="flex flex-wrap gap-2">
           {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} />)}
           {soupSkipped && (
-            <div className="grow basis-[calc(50%-0.25rem)] min-w-0 text-[11px] text-stone-400 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-2 flex items-center leading-tight">
+            <div className="basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 text-[11px] text-stone-400 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-2 flex items-center leading-tight">
               🥣 broth from the main — no extra soup
             </div>
           )}
@@ -216,7 +216,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
     setOpen(false)
   }
   return (
-    <div className="relative grow basis-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+    <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-none" iconSize={26} />
