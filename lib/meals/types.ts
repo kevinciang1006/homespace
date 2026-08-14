@@ -1,3 +1,5 @@
+import type { DishIngredient } from './shopping'
+
 export const SLOTS = ['utama', 'kuah', 'pelengkap', 'sayuran', 'desert'] as const
 export type Slot = (typeof SLOTS)[number]
 
@@ -6,6 +8,8 @@ export const SLOT_LABELS: Record<Slot, string> = {
 }
 
 export type Tier = 'everyday' | 'nice' | 'special'
+export type Role = 'main' | 'support' | 'optional'
+export type Richness = 'light' | 'medium' | 'heavy'
 
 export const DEFAULT_NO_REPEAT: Record<Slot, number> = {
   utama: 14, kuah: 7, pelengkap: 7, sayuran: 7, desert: 10,
@@ -22,6 +26,11 @@ export type Dish = {
   rating: number
   active: boolean
   no_repeat_days: number | null
+  ingredients: DishIngredient[] | null
+  recipe_steps: string[] | null
+  recipe_image_url: string | null
+  richness: Richness
+  provides_soup: boolean
 }
 
 export type MealPlan = {
@@ -31,7 +40,9 @@ export type MealPlan = {
   dish_id: string | null
   dish_name: string | null
   locked: boolean
-  dishes?: { tier: Tier; spicy: boolean } | null
+  role: Role
+  skipped: boolean
+  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null } | null
 }
 
 export type MealShoppingList = {
@@ -60,5 +71,7 @@ export type Pick = {
   dish_id: string | null
   dish_name: string | null
   locked: boolean
+  role: Role
+  skipped: boolean
   note?: string
 }

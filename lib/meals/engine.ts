@@ -1,4 +1,4 @@
-import type { Dish, MealPlan, Pick, Slot } from './types'
+import type { Dish, MealPlan, Pick, Slot, Role } from './types'
 import { SLOTS, DEFAULT_NO_REPEAT } from './types'
 import { daysBetween } from './dates'
 
@@ -10,6 +10,9 @@ export type PickContext = {
   dishById: Map<string, Dish>
   specialDays: Set<string>
   relax: { spicy: boolean; fried: boolean; noRepeatFactor: number }
+  role: Role
+  spicyFloor: number
+  plannedRemaining: number
 }
 
 export function resolveDish(ctx: PickContext, dishId: string | null): Dish | undefined {
@@ -81,14 +84,11 @@ export function friedOk(dish: Dish, ctx: PickContext): boolean {
 export function spicyOk(dish: Dish, ctx: PickContext): boolean {
   if (ctx.relax.spicy) return true
   if (!dish.spicy) return true
-  // slots not yet filled today AFTER this one (this pick counts as spicy)
-  const filledSlots = new Set(picksForDate(ctx, ctx.date).map(p => p.slot))
-  const remaining = SLOTS.filter(s => s !== ctx.slot && !filledSlots.has(s)).length
-  const nonSpicySoFar = picksForDate(ctx, ctx.date).filter(
-    p => resolveDish(ctx, p.dish_id)?.spicy === false
-  ).length
-  // if we pick spicy here, best case non-spicy = nonSpicySoFar + remaining
-  return nonSpicySoFar + remaining >= 2
+  if (ctx.role === 'optional') return true // desert exempt from the floor
+  const counted = picksForDate(ctx, ctx.date).filter(p => !p.skipped && p.role !== 'optional')
+  const nonSpicySoFar = counted.filter(p => resolveDish(ctx, p.dish_id)?.spicy === false).length
+  // if we pick spicy here, achievable non-spicy = nonSpicySoFar + plannedRemaining
+  return nonSpicySoFar + ctx.plannedRemaining >= ctx.spicyFloor
 }
 
 export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
@@ -163,11 +163,13 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
     const chosen = weightedPick(anyActive, lastCtx, rng)!
     return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
   }
-  return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null, locked: false, note: 'no candidate available' }
+  return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null,
+    locked: false, role: ctx.role, skipped: false, note: 'no candidate available' }
 }
 
 function toPick(ctx: PickContext, dish: Dish, note?: string): Pick {
-  return { plan_date: ctx.date, slot: ctx.slot, dish_id: dish.id, dish_name: dish.name, locked: false, note }
+  return { plan_date: ctx.date, slot: ctx.slot, dish_id: dish.id, dish_name: dish.name,
+    locked: false, role: ctx.role, skipped: false, note }
 }
 
 export function preassignSpecialDays(
@@ -203,6 +205,81 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
   return a
 }
 
+export function composeDay(input: {
+  date: string
+  dishesBySlot: Record<Slot, Dish[]>
+  dishById: Map<string, Dish>
+  priorPlans: MealPlan[]
+  runPicks: Pick[]                       // appended in place with the day's created picks
+  lockedByCell: Map<string, MealPlan>    // keyed `${date}|${slot}`
+  specialDays: Set<string>
+  rng: Rng
+}): Pick[] {
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, rng } = input
+  const created: Pick[] = []
+  const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
+    date, slot, priorPlans, runPicks, dishById, specialDays,
+    relax: { spicy: false, fried: false, noRepeatFactor: 1 },
+    role, spicyFloor: 1, plannedRemaining,
+  })
+  const push = (p: Pick) => { runPicks.push(p); created.push(p) }
+  const isLocked = (slot: Slot) => lockedByCell.has(`${date}|${slot}`)
+  const lockedDish = (slot: Slot): Dish | undefined => {
+    const lc = lockedByCell.get(`${date}|${slot}`)
+    return lc?.dish_id ? dishById.get(lc.dish_id) : undefined
+  }
+
+  // 1. MAIN
+  let main: Dish | undefined
+  if (isLocked('utama')) {
+    main = lockedDish('utama')
+  } else {
+    const p = pickForSlot(dishesBySlot.utama ?? [], mkCtx('utama', 'main', 1), rng)
+    push(p)
+    main = p.dish_id ? dishById.get(p.dish_id) : undefined
+  }
+  const richness = main?.richness ?? 'medium'
+  const extra = richness === 'heavy' ? 0 : 1
+  const providesSoup = main?.provides_soup ?? false
+
+  // 3. SOUP skip (only when the main provides soup and kuah isn't locked)
+  if (providesSoup && !isLocked('kuah')) {
+    push({ plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
+  }
+
+  // 4a. VEG — always, free
+  if (!isLocked('sayuran')) {
+    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', extra), rng))
+  }
+
+  // 4b/c. one extra support: a side, or a soup fallback only if no side fits
+  if (extra >= 1 && !isLocked('pelengkap')) {
+    const preferNonFried = main?.method === 'fried'
+    const side = pickPreferNonFried(dishesBySlot.pelengkap ?? [], mkCtx('pelengkap', 'support', 0), rng, preferNonFried)
+    if (side.dish_id) push(side)
+    else if (!providesSoup && !isLocked('kuah')) {
+      const soup = pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 0), rng)
+      if (soup.dish_id) push(soup)
+    }
+  }
+
+  // 5. DESERT — always, optional
+  if (!isLocked('desert')) {
+    push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
+  }
+
+  return created
+}
+
+function pickPreferNonFried(slotDishes: Dish[], ctx: PickContext, rng: Rng, prefer: boolean): Pick {
+  if (prefer) {
+    const nonFried = slotDishes.filter(d => d.method !== 'fried')
+    const p = pickForSlot(nonFried, ctx, rng)
+    if (p.dish_id) return p
+  }
+  return pickForSlot(slotDishes, ctx, rng)
+}
+
 export function generateWeek(input: {
   weekStart: string; days: string[]; dishesBySlot: Record<Slot, Dish[]>
   allDishes: Dish[]; priorPlans: MealPlan[]; lockedCells: MealPlan[]; rng: Rng
@@ -210,23 +287,14 @@ export function generateWeek(input: {
   const { days, dishesBySlot, allDishes, priorPlans, lockedCells, rng } = input
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
-
   const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
   const runPicks: Pick[] = lockedCells.map(l => ({
-    plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name, locked: true,
+    plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name,
+    locked: true, role: l.role ?? 'support', skipped: l.skipped ?? false,
   }))
 
   for (const date of days) {
-    for (const slot of SLOTS) {
-      const key = `${date}|${slot}`
-      if (lockedByCell.has(key)) continue
-      const ctx: PickContext = {
-        date, slot, priorPlans, runPicks, dishById, specialDays,
-        relax: { spicy: false, fried: false, noRepeatFactor: 1 },
-      }
-      const pick = pickForSlot(dishesBySlot[slot] ?? [], ctx, rng)
-      runPicks.push(pick)
-    }
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)

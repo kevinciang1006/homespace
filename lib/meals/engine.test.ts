@@ -8,14 +8,17 @@ import {
 function dish(over: Partial<Dish> & { id: string; slot: Slot }): Dish {
   return {
     name: over.id, protein: 'chicken', tier: 'everyday', method: null,
-    spicy: false, rating: 3, active: true, no_repeat_days: null, ...over,
+    spicy: false, rating: 3, active: true, no_repeat_days: null,
+    ingredients: null, recipe_steps: null, recipe_image_url: null,
+    richness: 'medium', provides_soup: false, ...over,
   } as Dish
 }
 function plan(over: Partial<MealPlan> & { plan_date: string; slot: Slot }): MealPlan {
-  return { id: 'p-' + Math.random(), dish_id: null, dish_name: null, locked: false, ...over } as MealPlan
+  return { id: 'p-' + Math.random(), dish_id: null, dish_name: null, locked: false,
+    role: 'support', skipped: false, ...over } as MealPlan
 }
 function pick(over: Partial<Pick> & { plan_date: string; slot: Slot }): Pick {
-  return { dish_id: null, dish_name: null, locked: false, ...over } as Pick
+  return { dish_id: null, dish_name: null, locked: false, role: 'support', skipped: false, ...over } as Pick
 }
 
 function ctx(over: Partial<PickContext> & { date: string; slot: Slot; dishes: Dish[] }): PickContext {
@@ -25,6 +28,8 @@ function ctx(over: Partial<PickContext> & { date: string; slot: Slot; dishes: Di
     priorPlans: over.priorPlans ?? [], runPicks: over.runPicks ?? [],
     dishById, specialDays: over.specialDays ?? new Set(),
     relax: over.relax ?? { spicy: false, fried: false, noRepeatFactor: 1 },
+    role: over.role ?? 'support', spicyFloor: over.spicyFloor ?? 1,
+    plannedRemaining: over.plannedRemaining ?? 5,
   }
 }
 
@@ -114,19 +119,28 @@ describe('friedOk', () => {
   })
 })
 
-describe('spicyOk', () => {
-  it('rejects a spicy dish when it would make <2 non-spicy possible', () => {
-    // day has 5 slots; utama,kuah,pelengkap,sayuran already spicy-picked; this is desert (last slot)
-    const d = dish({ id: 'sp', slot: 'desert', spicy: true })
-    const spicyPick = (slot: Slot, id: string) => pick({ plan_date: '2026-08-13', slot, dish_id: id })
-    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [d],
-      runPicks: [spicyPick('utama','a'), spicyPick('kuah','b'), spicyPick('pelengkap','c'), spicyPick('sayuran','e')] })
-    for (const id of ['a','b','c','e']) c.dishById.set(id, dish({ id, slot: 'utama', spicy: true }))
+describe('spicyOk (floor of 1 non-spicy among main+supports)', () => {
+  it('rejects a spicy dish that would make the plate all-spicy with none left', () => {
+    const d = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [d],
+      role: 'support', plannedRemaining: 0,
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm', role: 'main' })] })
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', spicy: true }))
     expect(spicyOk(d, c)).toBe(false)
   })
-  it('is not enforced when relax.spicy is true', () => {
+  it('allows a spicy dish when a non-spicy pick still remains', () => {
+    const d = dish({ id: 'sp', slot: 'utama', spicy: true })
+    const c = ctx({ date: '2026-08-13', slot: 'utama', dishes: [d], role: 'main', plannedRemaining: 1 })
+    expect(spicyOk(d, c)).toBe(true)
+  })
+  it('exempts the desert (optional role)', () => {
     const d = dish({ id: 'sp', slot: 'desert', spicy: true })
-    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [d],
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [d], role: 'optional', plannedRemaining: 0 })
+    expect(spicyOk(d, c)).toBe(true)
+  })
+  it('is not enforced when relax.spicy is true', () => {
+    const d = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [d], role: 'support', plannedRemaining: 0,
       relax: { spicy: true, fried: false, noRepeatFactor: 1 } })
     expect(spicyOk(d, c)).toBe(true)
   })
@@ -171,13 +185,12 @@ describe('weightedPick', () => {
 
 describe('pickForSlot relaxation ladder', () => {
   it('relaxes spicy floor when the only candidate is spicy', () => {
-    const onlySpicy = dish({ id: 'sp', slot: 'desert', spicy: true })
-    // day already has 4 spicy picks -> spicyOk would reject at level 0
-    const runPicks = ['utama','kuah','pelengkap','sayuran'].map(
-      (s) => pick({ plan_date: '2026-08-13', slot: s as Slot, dish_id: 'x-' + s }))
-    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [onlySpicy], runPicks })
-    for (const s of ['utama','kuah','pelengkap','sayuran'])
-      c.dishById.set('x-' + s, dish({ id: 'x-' + s, slot: 'utama', spicy: true }))
+    const onlySpicy = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
+    // spicy main already placed, no more picks planned -> a spicy side breaks the floor at level 0
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [onlySpicy],
+      role: 'support', plannedRemaining: 0,
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm', role: 'main' })] })
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', spicy: true }))
     const result = pickForSlot([onlySpicy], c, seq([0.5]))
     expect(result.dish_id).toBe('sp')
     expect(result.note).toContain('spicy')
@@ -190,7 +203,8 @@ describe('pickForSlot relaxation ladder', () => {
   })
 })
 
-import { preassignSpecialDays, generateWeek } from './engine'
+import { preassignSpecialDays, generateWeek, composeDay } from './engine'
+import type { Role } from './types'
 
 const WEEK = ['2026-08-10','2026-08-11','2026-08-12','2026-08-13','2026-08-14','2026-08-15','2026-08-16']
 
@@ -211,44 +225,83 @@ describe('preassignSpecialDays', () => {
   })
 })
 
-describe('generateWeek', () => {
-  it('fills 35 cells and never overwrites a locked cell', () => {
-    // small but sufficient pools per slot
-    const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
-      Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
-        protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
-    const dishesBySlot = {
-      utama: mk('utama', 10), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
-      sayuran: mk('sayuran', 8), desert: mk('desert', 8),
-    }
-    // ensure some special utama exist
-    dishesBySlot.utama[0].tier = 'special'
-    dishesBySlot.utama[1].tier = 'special'
-    dishesBySlot.utama[2].tier = 'special'
-    const allDishes = Object.values(dishesBySlot).flat()
-    const locked = [plan({ plan_date: '2026-08-12', slot: 'kuah', dish_id: 'kuah-3', dish_name: 'kuah-3', locked: true })]
-    const picks = generateWeek({
-      weekStart: '2026-08-10', days: WEEK, dishesBySlot, allDishes,
-      priorPlans: [], lockedCells: locked, rng: seq([0.3, 0.6, 0.1, 0.8, 0.5, 0.2, 0.9, 0.4, 0.7, 0.05]),
-    })
-    expect(picks.length).toBe(35)
-    const lockedPick = picks.find(p => p.plan_date === '2026-08-12' && p.slot === 'kuah')!
-    expect(lockedPick.dish_id).toBe('kuah-3')
-    expect(lockedPick.locked).toBe(true)
+function pools() {
+  const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
+    Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
+      protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
+  return {
+    utama: mk('utama', 12), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
+    sayuran: mk('sayuran', 8), desert: mk('desert', 8),
+  }
+}
+
+describe('composeDay', () => {
+  it('heavy main → main + veg + desert only (no side/soup dish)', () => {
+    const dishesBySlot = pools()
+    dishesBySlot.utama.forEach(d => { d.richness = 'heavy' })
+    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
+    const runPicks: Pick[] = []
+    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks,
+      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5]) })
+    expect(created.filter(p => p.role === 'main').length).toBe(1)
+    expect(created.some(p => p.slot === 'sayuran' && p.role === 'support')).toBe(true)
+    expect(created.some(p => p.slot === 'pelengkap')).toBe(false) // no side for heavy
+    expect(created.some(p => p.slot === 'kuah' && p.dish_id)).toBe(false) // no soup dish
+    expect(created.some(p => p.slot === 'desert' && p.role === 'optional')).toBe(true)
   })
-  it('places exactly 2 special mains, on non-adjacent days', () => {
-    const mk = (slot: Slot, n: number) =>
-      Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot,
-        tier: slot === 'utama' && i < 3 ? 'special' : 'everyday',
-        protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
-    const dishesBySlot = { utama: mk('utama',10), kuah: mk('kuah',8), pelengkap: mk('pelengkap',9), sayuran: mk('sayuran',8), desert: mk('desert',8) }
+
+  it('medium main → main + veg + one side + desert', () => {
+    const dishesBySlot = pools()
+    dishesBySlot.utama.forEach(d => { d.richness = 'medium'; d.provides_soup = false })
+    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
+    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
+      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+    expect(created.some(p => p.slot === 'sayuran' && p.dish_id)).toBe(true)
+    expect(created.some(p => p.slot === 'pelengkap' && p.dish_id)).toBe(true)
+    expect(created.some(p => p.slot === 'desert' && p.role === 'optional')).toBe(true)
+  })
+
+  it('main that provides soup → skipped kuah row, no soup dish', () => {
+    const dishesBySlot = pools()
+    dishesBySlot.utama.forEach(d => { d.richness = 'medium'; d.provides_soup = true })
+    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
+    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
+      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+    const kuah = created.find(p => p.slot === 'kuah')!
+    expect(kuah.skipped).toBe(true)
+    expect(kuah.dish_id).toBeNull()
+    expect(created.some(p => p.slot === 'kuah' && p.dish_id)).toBe(false)
+  })
+})
+
+describe('generateWeek (compose)', () => {
+  it('each day has exactly one main and always a desert; specials 2/week non-adjacent', () => {
+    const dishesBySlot = pools()
+    dishesBySlot.utama[0].tier = 'special'; dishesBySlot.utama[1].tier = 'special'; dishesBySlot.utama[2].tier = 'special'
     const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
       allDishes: Object.values(dishesBySlot).flat(), priorPlans: [], lockedCells: [],
       rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
     const byId = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
-    const specialMainDays = picks.filter(p => p.slot === 'utama' && byId.get(p.dish_id!)?.tier === 'special')
+    for (const date of WEEK) {
+      const day = picks.filter(p => p.plan_date === date)
+      expect(day.filter(p => p.role === 'main').length).toBe(1)
+      expect(day.filter(p => p.slot === 'desert' && p.role === 'optional').length).toBe(1)
+    }
+    const specialDays = picks.filter(p => p.role === 'main' && byId.get(p.dish_id!)?.tier === 'special')
       .map(p => WEEK.indexOf(p.plan_date)).sort((a,b)=>a-b)
-    expect(specialMainDays.length).toBe(2)
-    expect(specialMainDays[1] - specialMainDays[0]).toBeGreaterThanOrEqual(2)
+    expect(specialDays.length).toBe(2)
+    expect(specialDays[1] - specialDays[0]).toBeGreaterThanOrEqual(2)
+  })
+
+  it('preserves a locked cell', () => {
+    const dishesBySlot = pools()
+    const locked = [{ id: 'L', plan_date: '2026-08-12', slot: 'sayuran' as Slot, dish_id: 'sayuran-3',
+      dish_name: 'sayuran-3', locked: true, role: 'support' as Role, skipped: false }]
+    const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
+      allDishes: Object.values(dishesBySlot).flat(), priorPlans: [], lockedCells: locked,
+      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
+    const cell = picks.find(p => p.plan_date === '2026-08-12' && p.slot === 'sayuran')!
+    expect(cell.dish_id).toBe('sayuran-3')
+    expect(cell.locked).toBe(true)
   })
 })
