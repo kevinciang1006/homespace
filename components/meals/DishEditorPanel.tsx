@@ -5,6 +5,7 @@ import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink } from 'lucide-re
 import { SHOP_CATEGORIES, type DishIngredient } from '@/lib/meals/shopping'
 import type { Dish } from '@/lib/meals/types'
 import DishImage from './DishImage'
+import PhotoUploadButton from './PhotoUploadButton'
 
 // Slide-over editor for a dish's photo, ingredients, and recipe steps.
 // Structural edits (add/remove/reorder/category) persist immediately; free-text
@@ -59,6 +60,11 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
                 onBlur={() => onPatch(dish.id, { recipe_image_url: imageUrl.trim() || null })}
                 placeholder="https://…"
                 className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+            </div>
+            <div className="mt-2">
+              <PhotoUploadButton dishId={dish.id}
+                label={imageUrl ? 'Change photo' : 'Add photo'}
+                onUploaded={url => setImageUrl(url)} />
             </div>
           </section>
 

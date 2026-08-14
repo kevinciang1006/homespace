@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCar
 import { SLOT_LABELS, type MealPlan, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import DishImage from './DishImage'
+import PhotoUploadButton from './PhotoUploadButton'
 
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -183,6 +184,13 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
         </button>
         <button onClick={openAlts} title="Want something else?" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-stone-800"><Shuffle size={14} /></button>
       </div>
+      {row.dish_id && (
+        <div className="absolute top-1.5 left-1.5 z-10">
+          <PhotoUploadButton dishId={row.dish_id} variant="overlay"
+            label={row.dishes?.recipe_image_url ? 'Change photo' : '📷 add photo'}
+            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none' }), recipe_image_url: url } })} />
+        </div>
+      )}
       {open && (
         <div className="absolute z-20 left-2 right-2 bottom-2 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
           <button onClick={() => { setOpen(false); onReroll() }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-orange-50 text-orange-700 font-medium text-sm">🎲 Surprise me (new plate)</button>
