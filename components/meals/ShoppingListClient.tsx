@@ -36,7 +36,8 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
   }
 
   async function generate() {
-    if (list && !window.confirm('Regenerate? This clears manually-added items and your ✓ marks.')) return
+    // Regenerate is non-destructive: it refreshes plan-derived items while
+    // keeping your ✓ marks, "already have" flags, and manually-added items.
     setBusy(true)
     try {
       const res = await fetch('/api/meals/shopping/generate', {

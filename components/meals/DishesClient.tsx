@@ -1,7 +1,9 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Plus, Star } from 'lucide-react'
+import { Plus, Star, BookOpen } from 'lucide-react'
 import { SLOTS, SLOT_LABELS, type Dish, type Slot, type Tier } from '@/lib/meals/types'
+import DishThumb from './DishThumb'
+import DishEditorPanel from './DishEditorPanel'
 
 const PROTEINS = ['fish', 'chicken', 'pork', 'beef', 'shrimp', 'squid', 'crab', 'duck', 'egg', 'tofu_tempe', 'none', 'mixed']
 const TIERS: Tier[] = ['everyday', 'nice', 'special']
@@ -11,6 +13,8 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
   const [dishes, setDishes] = useState<Dish[]>(initialDishes)
   const [slotFilter, setSlotFilter] = useState<Slot | 'all'>('all')
   const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const editing = dishes.find(d => d.id === editingId) ?? null
 
   async function patch(id: string, fields: Partial<Dish>) {
     const prev = dishes.find(d => d.id === id)
@@ -67,29 +71,38 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
                     <th className="px-3 py-2 font-medium">Spicy</th>
                     <th className="px-3 py-2 font-medium">Rating</th>
                     <th className="px-3 py-2 font-medium">Active</th>
+                    <th className="px-3 py-2 font-medium">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} />)}
-                  {rows.length === 0 && <tr><td colSpan={7} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)} />)}
+                  {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
           </section>
         )
       })}
+
+      {editing && (
+        <DishEditorPanel key={editing.id} dish={editing} onClose={() => setEditingId(null)} onPatch={patch} />
+      )}
     </div>
   )
 }
 
-function DishRow({ dish, onPatch }: { dish: Dish; onPatch: (id: string, f: Partial<Dish>) => void }) {
+function DishRow({ dish, onPatch, onEdit }: { dish: Dish; onPatch: (id: string, f: Partial<Dish>) => void; onEdit: () => void }) {
   const [name, setName] = useState(dish.name)
   return (
     <tr className="border-b border-stone-50 last:border-0">
       <td className="px-3 py-1.5">
-        <input value={name} onChange={e => setName(e.target.value)}
-          onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
-          className="w-full bg-transparent focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+        <div className="flex items-center gap-2">
+          <DishThumb imageUrl={dish.recipe_image_url} slot={dish.slot} name={dish.name}
+            className="w-7 h-7 shrink-0" rounded="rounded-md" emojiClass="text-sm" />
+          <input value={name} onChange={e => setName(e.target.value)}
+            onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
+            className="w-full min-w-[6rem] bg-transparent focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+        </div>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}
@@ -130,6 +143,12 @@ function DishRow({ dish, onPatch }: { dish: Dish; onPatch: (id: string, f: Parti
         <button onClick={() => onPatch(dish.id, { active: !dish.active })} aria-label="Toggle active"
           className={`w-9 h-5 rounded-full transition-colors relative ${dish.active ? 'bg-green-500' : 'bg-stone-200'}`}>
           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.active ? 'left-4' : 'left-0.5'}`} />
+        </button>
+      </td>
+      <td className="px-3 py-1.5">
+        <button onClick={onEdit}
+          className="flex items-center gap-1 text-xs text-stone-500 hover:text-orange-600 whitespace-nowrap">
+          <BookOpen size={14} /> Edit
         </button>
       </td>
     </tr>

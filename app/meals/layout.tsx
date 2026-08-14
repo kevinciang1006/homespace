@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import MealsTabs from '@/components/meals/MealsTabs'
+import MealsBottomNav from '@/components/meals/MealsBottomNav'
 
 export default async function MealsLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -23,7 +24,8 @@ export default async function MealsLayout({ children }: { children: React.ReactN
           <MealsTabs />
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">{children}</main>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 pb-24 sm:pb-6">{children}</main>
+      <MealsBottomNav />
     </div>
   )
 }

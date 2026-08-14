@@ -1,0 +1,1481 @@
+{
+  "Apple": {
+    "ingredients": [
+      { "name": "Apples", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Wash the apples well.",
+      "Slice into wedges, removing the core.",
+      "Serve chilled."
+    ]
+  },
+  "Banana": {
+    "ingredients": [
+      { "name": "Bananas", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Peel the bananas.",
+      "Serve whole or sliced."
+    ]
+  },
+  "Banana cake": {
+    "ingredients": [
+      { "name": "Ripe bananas", "quantity": "4", "category": "vegetable" },
+      { "name": "Flour", "quantity": "250 g", "category": "pantry" },
+      { "name": "Eggs", "quantity": "3", "category": "protein" },
+      { "name": "Sugar", "quantity": "180 g", "category": "pantry" },
+      { "name": "Butter, melted", "quantity": "150 g", "category": "pantry" },
+      { "name": "Baking powder", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Mash the bananas and preheat the oven to 175°C.",
+      "Whisk eggs and sugar until pale, then mix in the melted butter and mashed banana.",
+      "Fold in the flour and baking powder until just combined.",
+      "Pour into a lined tin and bake 40–45 minutes until a skewer comes out clean.",
+      "Cool before slicing."
+    ]
+  },
+  "Barley water": {
+    "ingredients": [
+      { "name": "Pearl barley", "quantity": "150 g", "category": "pantry" },
+      { "name": "Water", "quantity": "2 L", "category": "pantry" },
+      { "name": "Rock sugar", "quantity": "to taste", "category": "pantry" },
+      { "name": "Pandan leaves", "quantity": "2", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Rinse the barley and add to a pot with the water and pandan leaves.",
+      "Bring to a boil, then simmer 40–45 minutes until the barley is soft.",
+      "Add rock sugar to taste and stir to dissolve.",
+      "Serve warm or chilled."
+    ]
+  },
+  "Brownie": {
+    "ingredients": [
+      { "name": "Dark chocolate", "quantity": "200 g", "category": "pantry" },
+      { "name": "Butter", "quantity": "150 g", "category": "pantry" },
+      { "name": "Eggs", "quantity": "3", "category": "protein" },
+      { "name": "Sugar", "quantity": "180 g", "category": "pantry" },
+      { "name": "Flour", "quantity": "120 g", "category": "pantry" },
+      { "name": "Cocoa powder", "quantity": "2 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Preheat oven to 175°C and line a square tin.",
+      "Melt the chocolate and butter together and let cool slightly.",
+      "Whisk eggs and sugar, then stir in the chocolate mixture.",
+      "Fold in flour and cocoa until just combined.",
+      "Bake 25–30 minutes until the top is set but the centre is still fudgy.",
+      "Cool before cutting into squares."
+    ]
+  },
+  "Jeruk": {
+    "ingredients": [
+      { "name": "Oranges", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Wash and peel the oranges.",
+      "Separate into segments and serve."
+    ]
+  },
+  "Jus guava": {
+    "ingredients": [
+      { "name": "Guava", "quantity": "3", "category": "vegetable" },
+      { "name": "Water", "quantity": "300 ml", "category": "pantry" },
+      { "name": "Sugar or honey", "quantity": "to taste", "category": "pantry" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Peel and roughly chop the guava.",
+      "Blend with water until smooth.",
+      "Strain out the seeds.",
+      "Sweeten to taste, add a squeeze of lime, and serve over ice."
+    ]
+  },
+  "Kacang ijo": {
+    "ingredients": [
+      { "name": "Mung beans", "quantity": "250 g", "category": "pantry" },
+      { "name": "Coconut milk", "quantity": "400 ml", "category": "pantry" },
+      { "name": "Palm sugar", "quantity": "150 g", "category": "pantry" },
+      { "name": "Pandan leaves", "quantity": "2", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "2 cm", "category": "vegetable" },
+      { "name": "Salt", "quantity": "a pinch", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Soak the mung beans for a few hours, then drain.",
+      "Boil with pandan and ginger until the beans are soft and split, about 30–40 minutes.",
+      "Add palm sugar and a pinch of salt and stir to dissolve.",
+      "Pour in the coconut milk and warm through without boiling hard.",
+      "Serve warm."
+    ]
+  },
+  "Pear": {
+    "ingredients": [
+      { "name": "Pears", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Wash the pears.",
+      "Slice into wedges and serve chilled."
+    ]
+  },
+  "Pepaya": {
+    "ingredients": [
+      { "name": "Papaya", "quantity": "1", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Peel the papaya and scoop out the seeds.",
+      "Cut into cubes and serve chilled."
+    ]
+  },
+  "Yogurt": {
+    "ingredients": [
+      { "name": "Plain yogurt", "quantity": "500 g", "category": "pantry" },
+      { "name": "Honey", "quantity": "to taste", "category": "pantry" },
+      { "name": "Fresh fruit", "quantity": "to serve", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Spoon the yogurt into bowls.",
+      "Top with fresh fruit and a drizzle of honey."
+    ]
+  },
+
+  "Bak kut teh": {
+    "ingredients": [
+      { "name": "Pork ribs", "quantity": "800 g", "category": "protein" },
+      { "name": "Garlic", "quantity": "1 whole bulb", "category": "vegetable" },
+      { "name": "Bak kut teh spice packet", "quantity": "1", "category": "pantry" },
+      { "name": "White peppercorns", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Light soy sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Dark soy sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Water", "quantity": "2 L", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blanch the pork ribs in boiling water, then drain and rinse.",
+      "Add the ribs to a pot with water, whole garlic, cracked peppercorns and the spice packet.",
+      "Bring to a boil, then simmer covered for about 1.5 hours until tender.",
+      "Season with light and dark soy sauce.",
+      "Serve hot with rice."
+    ]
+  },
+  "Bakso ikan tahu": {
+    "ingredients": [
+      { "name": "Fish balls", "quantity": "300 g", "category": "protein" },
+      { "name": "Firm tofu", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Chicken stock", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "White pepper", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry minced garlic in a little oil until fragrant, then add the stock.",
+      "Bring to a boil and add the fish balls and cubed tofu.",
+      "Simmer a few minutes until everything is heated through.",
+      "Season with salt and white pepper.",
+      "Finish with sliced spring onion and serve."
+    ]
+  },
+  "Kacang merah": {
+    "ingredients": [
+      { "name": "Red kidney beans", "quantity": "300 g", "category": "pantry" },
+      { "name": "Pork bones or ribs", "quantity": "400 g", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Onion", "quantity": "1", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Soak the kidney beans overnight, then drain.",
+      "Blanch the pork bones, rinse, then simmer with the beans in fresh water.",
+      "Add garlic, onion and tomato and simmer until the beans are soft, about 1 hour.",
+      "Season with salt and serve hot."
+    ]
+  },
+  "Kacang tanah": {
+    "ingredients": [
+      { "name": "Raw peanuts", "quantity": "300 g", "category": "pantry" },
+      { "name": "Pork bones", "quantity": "400 g", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Soak the peanuts for an hour, then drain.",
+      "Blanch and rinse the pork bones.",
+      "Simmer the peanuts and bones together until soft, about 1–1.5 hours.",
+      "Season with garlic and salt and serve."
+    ]
+  },
+  "Kentang wortel": {
+    "ingredients": [
+      { "name": "Potatoes", "quantity": "3", "category": "vegetable" },
+      { "name": "Carrots", "quantity": "2", "category": "vegetable" },
+      { "name": "Chicken or pork bones", "quantity": "400 g", "category": "protein" },
+      { "name": "Onion", "quantity": "1", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "1 stalk", "category": "vegetable" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blanch the bones, rinse, then simmer to make a light stock.",
+      "Add chunked potatoes, carrots and onion.",
+      "Simmer until the vegetables are tender.",
+      "Season with salt and pepper, finish with spring onion, and serve."
+    ]
+  },
+  "Kuah lobak wortel": {
+    "ingredients": [
+      { "name": "Daikon radish", "quantity": "1", "category": "vegetable" },
+      { "name": "Carrots", "quantity": "2", "category": "vegetable" },
+      { "name": "Pork or chicken bones", "quantity": "400 g", "category": "protein" },
+      { "name": "White pepper", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blanch and rinse the bones, then simmer for a light stock.",
+      "Add chunked daikon and carrot.",
+      "Simmer until soft and sweet, about 40 minutes.",
+      "Season with salt and white pepper and serve."
+    ]
+  },
+  "Rumput laut": {
+    "ingredients": [
+      { "name": "Dried seaweed", "quantity": "20 g", "category": "pantry" },
+      { "name": "Egg", "quantity": "1", "category": "protein" },
+      { "name": "Garlic", "quantity": "2 cloves", "category": "vegetable" },
+      { "name": "Chicken stock", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "Sesame oil", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Bring the stock to a boil with smashed garlic.",
+      "Add the dried seaweed and simmer briefly until it unfurls.",
+      "Stream in the beaten egg while stirring to form ribbons.",
+      "Season with salt and a few drops of sesame oil and serve."
+    ]
+  },
+  "Sop bayam jagung": {
+    "ingredients": [
+      { "name": "Spinach", "quantity": "1 bunch", "category": "vegetable" },
+      { "name": "Sweetcorn", "quantity": "2 cobs", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "2 cloves", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "3", "category": "vegetable" },
+      { "name": "Water", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Boil the corn kernels with sliced garlic and shallots until sweet.",
+      "Add the spinach and cook just until wilted.",
+      "Season with salt and serve immediately."
+    ]
+  },
+  "Sop obat ayam": {
+    "ingredients": [
+      { "name": "Chicken", "quantity": "1/2, cut up", "category": "protein" },
+      { "name": "Chinese herbal soup packet", "quantity": "1", "category": "pantry" },
+      { "name": "Red dates", "quantity": "6", "category": "pantry" },
+      { "name": "Goji berries", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Water", "quantity": "2 L", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blanch the chicken pieces, then rinse.",
+      "Add to a pot with water, ginger, herbal packet and red dates.",
+      "Bring to a boil, then simmer covered for about 1.5 hours.",
+      "Add goji berries in the last 10 minutes.",
+      "Season lightly with salt and serve."
+    ]
+  },
+  "Sop sawi telur": {
+    "ingredients": [
+      { "name": "Choy sum or mustard greens", "quantity": "1 bunch", "category": "vegetable" },
+      { "name": "Eggs", "quantity": "2", "category": "protein" },
+      { "name": "Garlic", "quantity": "2 cloves", "category": "vegetable" },
+      { "name": "Chicken stock", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Bring the stock to a boil with smashed garlic.",
+      "Add the greens and cook briefly.",
+      "Stream in the beaten eggs while stirring gently.",
+      "Season with salt and pepper and serve."
+    ]
+  },
+  "Steamboat": {
+    "ingredients": [
+      { "name": "Assorted sliced meat", "quantity": "400 g", "category": "protein" },
+      { "name": "Prawns", "quantity": "300 g", "category": "protein" },
+      { "name": "Fish balls and meatballs", "quantity": "300 g", "category": "protein" },
+      { "name": "Leafy vegetables", "quantity": "2 bunches", "category": "vegetable" },
+      { "name": "Mushrooms", "quantity": "200 g", "category": "vegetable" },
+      { "name": "Tofu", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Steamboat soup base", "quantity": "1", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Prepare the soup base in a hot pot and bring to a simmer.",
+      "Arrange all the raw ingredients on platters around the pot.",
+      "Cook meats, seafood and balls in the broth until done.",
+      "Add vegetables and tofu towards the end.",
+      "Serve with dipping sauces."
+    ]
+  },
+  "Sup sirip kepiting": {
+    "ingredients": [
+      { "name": "Crab meat", "quantity": "200 g", "category": "protein" },
+      { "name": "Egg whites", "quantity": "3", "category": "protein" },
+      { "name": "Sweetcorn, creamed", "quantity": "1 can", "category": "pantry" },
+      { "name": "Chicken stock", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "Cornstarch", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "White pepper", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Bring the stock and creamed corn to a simmer.",
+      "Add the crab meat.",
+      "Thicken with cornstarch slurry until silky.",
+      "Stream in the egg whites while stirring to form ribbons.",
+      "Season with white pepper and serve hot."
+    ]
+  },
+  "Tahu bakso babi tahu": {
+    "ingredients": [
+      { "name": "Pork meatballs", "quantity": "300 g", "category": "protein" },
+      { "name": "Tofu, cubed", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Chicken stock", "quantity": "1.5 L", "category": "pantry" },
+      { "name": "Salt and white pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry minced garlic in a little oil, then add the stock.",
+      "Bring to a boil and add the pork meatballs and tofu.",
+      "Simmer until heated through.",
+      "Season with salt and pepper, finish with spring onion, and serve."
+    ]
+  },
+  "Tomyam bakso": {
+    "ingredients": [
+      { "name": "Mixed meatballs", "quantity": "300 g", "category": "protein" },
+      { "name": "Tom yum paste", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "3", "category": "vegetable" },
+      { "name": "Lime", "quantity": "2", "category": "vegetable" },
+      { "name": "Water", "quantity": "1.5 L", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Boil water with bruised lemongrass and lime leaves.",
+      "Stir in the tom yum paste.",
+      "Add the meatballs and simmer until cooked.",
+      "Finish with chili and a good squeeze of lime, and serve."
+    ]
+  },
+  "Tomyam kepala ikan": {
+    "ingredients": [
+      { "name": "Fish head", "quantity": "1 large", "category": "protein" },
+      { "name": "Tom yum paste", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "2", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Lime", "quantity": "2", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Clean the fish head and set aside.",
+      "Boil water with lemongrass, lime leaves and tom yum paste.",
+      "Add the fish head and tomato and simmer until the fish is cooked.",
+      "Finish with chili and lime juice, and serve."
+    ]
+  },
+  "Tomyam udang": {
+    "ingredients": [
+      { "name": "Prawns", "quantity": "500 g", "category": "protein" },
+      { "name": "Tom yum paste", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Mushrooms", "quantity": "150 g", "category": "vegetable" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Lime", "quantity": "2", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Boil water with lemongrass and lime leaves, then stir in the tom yum paste.",
+      "Add the mushrooms and simmer briefly.",
+      "Add the prawns and cook until just pink.",
+      "Finish with chili and lime juice, and serve."
+    ]
+  },
+
+  "Ayam pop corn": {
+    "ingredients": [
+      { "name": "Chicken breast, diced", "quantity": "500 g", "category": "protein" },
+      { "name": "Cornstarch", "quantity": "100 g", "category": "pantry" },
+      { "name": "Egg", "quantity": "1", "category": "protein" },
+      { "name": "Garlic powder", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season the diced chicken with salt, pepper and garlic powder.",
+      "Coat in beaten egg, then toss in cornstarch.",
+      "Deep-fry in hot oil until golden and crispy.",
+      "Drain and serve."
+    ]
+  },
+  "Baby cumi pedas": {
+    "ingredients": [
+      { "name": "Baby squid", "quantity": "400 g", "category": "protein" },
+      { "name": "Shallots", "quantity": "5", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Salt and sugar", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Clean the baby squid.",
+      "Blend shallots, garlic and chilies into a coarse paste.",
+      "Fry the paste until fragrant, then add tomato.",
+      "Add the squid and stir-fry quickly so it stays tender.",
+      "Season with kecap manis, salt and sugar, and serve."
+    ]
+  },
+  "Cumi goreng": {
+    "ingredients": [
+      { "name": "Squid, cut into rings", "quantity": "500 g", "category": "protein" },
+      { "name": "Cornstarch", "quantity": "100 g", "category": "pantry" },
+      { "name": "Garlic powder", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Pat the squid rings dry and season with salt, pepper and garlic powder.",
+      "Toss in cornstarch to coat.",
+      "Deep-fry in hot oil for a minute or two until golden.",
+      "Drain and serve with a squeeze of lime."
+    ]
+  },
+  "Jamur goreng tepung": {
+    "ingredients": [
+      { "name": "Oyster mushrooms", "quantity": "300 g", "category": "vegetable" },
+      { "name": "Flour", "quantity": "150 g", "category": "pantry" },
+      { "name": "Rice flour", "quantity": "50 g", "category": "pantry" },
+      { "name": "Garlic powder", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Tear the mushrooms into strips.",
+      "Mix the flours with garlic powder, salt and pepper.",
+      "Dip mushrooms in a little water, then dredge in the seasoned flour.",
+      "Deep-fry until golden and crisp, then drain."
+    ]
+  },
+  "Sambel tempe teri": {
+    "ingredients": [
+      { "name": "Tempe, diced", "quantity": "1 block", "category": "protein" },
+      { "name": "Anchovies (teri)", "quantity": "100 g", "category": "protein" },
+      { "name": "Shallots", "quantity": "5", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Palm sugar", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Tamarind", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the diced tempe and anchovies separately until crisp, then set aside.",
+      "Blend shallots, garlic and chilies into a coarse sambal.",
+      "Fry the sambal until fragrant and the raw smell is gone.",
+      "Season with palm sugar and tamarind.",
+      "Toss in the fried tempe and anchovies to coat, and serve."
+    ]
+  },
+  "Siobak": {
+    "ingredients": [
+      { "name": "Pork belly", "quantity": "800 g", "category": "protein" },
+      { "name": "Five spice powder", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Salt", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Sugar", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "White vinegar", "quantity": "2 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Score the pork belly skin and rub the meat side with garlic, five spice, salt and sugar.",
+      "Brush the skin with vinegar and leave uncovered in the fridge overnight to dry.",
+      "Roast at 200°C until the skin blisters into crackling, about 45–60 minutes.",
+      "Rest, then slice into pieces and serve."
+    ]
+  },
+  "Tahu goreng": {
+    "ingredients": [
+      { "name": "Firm tofu", "quantity": "3 blocks", "category": "protein" },
+      { "name": "Salt", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Cut the tofu into pieces and pat dry.",
+      "Sprinkle with a little salt.",
+      "Deep-fry in hot oil until golden and crisp on the outside.",
+      "Drain and serve with chili or sweet soy dip."
+    ]
+  },
+  "Tempe goreng": {
+    "ingredients": [
+      { "name": "Tempe", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Coriander", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Slice the tempe thinly.",
+      "Grind garlic, coriander and salt with a little water into a marinade.",
+      "Soak the tempe slices in the marinade briefly.",
+      "Deep-fry until golden and crisp, then drain."
+    ]
+  },
+  "Teri krispi": {
+    "ingredients": [
+      { "name": "Anchovies (teri)", "quantity": "200 g", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Sugar", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Rinse and dry the anchovies well.",
+      "Deep-fry until crisp and golden, then drain.",
+      "Briefly fry sliced garlic and chili, add a pinch of sugar.",
+      "Toss the crispy anchovies through and serve."
+    ]
+  },
+
+  "Ayam jahe": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "600 g", "category": "protein" },
+      { "name": "Ginger, julienned", "quantity": "5 cm", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Sesame oil", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the julienned ginger and garlic in oil until fragrant.",
+      "Add the chicken and stir-fry until it changes colour.",
+      "Season with oyster sauce and a splash of water; simmer until cooked.",
+      "Finish with spring onion and sesame oil, and serve."
+    ]
+  },
+  "Bayam tumis": {
+    "ingredients": [
+      { "name": "Spinach", "quantity": "2 bunches", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "3", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry sliced garlic and shallots until fragrant.",
+      "Add the spinach and stir-fry over high heat until just wilted.",
+      "Season with oyster sauce and salt, and serve immediately."
+    ]
+  },
+  "Cap cai": {
+    "ingredients": [
+      { "name": "Mixed vegetables (cabbage, carrot, cauliflower, choy sum)", "quantity": "600 g", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Cornstarch", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry minced garlic until fragrant.",
+      "Add the firmer vegetables first, then the leafy ones.",
+      "Add a splash of water and oyster sauce and stir-fry.",
+      "Thicken with a little cornstarch slurry, season, and serve."
+    ]
+  },
+  "Cap cai daging": {
+    "ingredients": [
+      { "name": "Pork, thinly sliced", "quantity": "250 g", "category": "protein" },
+      { "name": "Mixed vegetables", "quantity": "600 g", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Cornstarch", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry minced garlic, then stir-fry the pork until it changes colour.",
+      "Add the firmer vegetables, then the leafy ones.",
+      "Add water and oyster sauce and stir-fry until crisp-tender.",
+      "Thicken with cornstarch slurry, season, and serve."
+    ]
+  },
+  "Cha brokoli": {
+    "ingredients": [
+      { "name": "Broccoli", "quantity": "1 large head", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1.5 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blanch the broccoli florets briefly, then drain.",
+      "Fry minced garlic until fragrant.",
+      "Add the broccoli and stir-fry with oyster sauce and a splash of water.",
+      "Season with salt and serve."
+    ]
+  },
+  "Cha buncis": {
+    "ingredients": [
+      { "name": "Green beans", "quantity": "400 g", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Minced pork or dried shrimp", "quantity": "100 g", "category": "protein" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Trim and cut the green beans.",
+      "Fry garlic and minced pork until cooked.",
+      "Add the beans and stir-fry with a splash of water until crisp-tender.",
+      "Season with oyster sauce and salt, and serve."
+    ]
+  },
+  "Cha ginjal babi": {
+    "ingredients": [
+      { "name": "Pork kidney", "quantity": "300 g", "category": "protein" },
+      { "name": "Ginger", "quantity": "4 cm", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Rice wine", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Sesame oil", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Clean and score the kidney, then blanch quickly and drain.",
+      "Fry julienned ginger and garlic until fragrant.",
+      "Add the kidney and stir-fry over high heat with rice wine.",
+      "Finish with spring onion and sesame oil, and serve."
+    ]
+  },
+  "Cha hati babi": {
+    "ingredients": [
+      { "name": "Pork liver, sliced", "quantity": "300 g", "category": "protein" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Rice wine", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Rinse the liver slices and pat dry.",
+      "Fry ginger and garlic until fragrant.",
+      "Add the liver and stir-fry quickly over high heat so it stays tender.",
+      "Season with oyster sauce and rice wine, finish with spring onion, and serve."
+    ]
+  },
+  "Cha jagung muda": {
+    "ingredients": [
+      { "name": "Baby corn", "quantity": "300 g", "category": "vegetable" },
+      { "name": "Carrot", "quantity": "1", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Halve the baby corn and slice the carrot.",
+      "Fry minced garlic until fragrant.",
+      "Add the vegetables and stir-fry with a splash of water.",
+      "Season with oyster sauce and salt, and serve."
+    ]
+  },
+  "Cha poileng": {
+    "ingredients": [
+      { "name": "Poileng (Chinese spinach)", "quantity": "2 bunches", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry minced garlic until fragrant.",
+      "Add the greens and stir-fry over high heat until just wilted.",
+      "Season with salt and serve immediately."
+    ]
+  },
+  "Cha sawi telur": {
+    "ingredients": [
+      { "name": "Mustard greens (sawi)", "quantity": "2 bunches", "category": "vegetable" },
+      { "name": "Eggs", "quantity": "2", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Scramble the beaten eggs in a hot wok, then set aside.",
+      "Fry garlic until fragrant, add the greens and stir-fry.",
+      "Return the egg, season with oyster sauce and salt, and serve."
+    ]
+  },
+  "Kangkung pedas": {
+    "ingredients": [
+      { "name": "Water spinach (kangkung)", "quantity": "2 bunches", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "4", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Shrimp paste (terasi)", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic and chilies into a coarse paste.",
+      "Fry the paste with shrimp paste until fragrant.",
+      "Add the kangkung and stir-fry over high heat until just wilted.",
+      "Season with oyster sauce and serve immediately."
+    ]
+  },
+  "Kentang jahe": {
+    "ingredients": [
+      { "name": "Potatoes, diced", "quantity": "500 g", "category": "vegetable" },
+      { "name": "Ginger, julienned", "quantity": "4 cm", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the diced potatoes until golden, then set aside.",
+      "Fry ginger and garlic until fragrant.",
+      "Return the potatoes, season with kecap manis and salt, and toss to coat.",
+      "Serve hot."
+    ]
+  },
+  "Pak coi telur": {
+    "ingredients": [
+      { "name": "Pak choi", "quantity": "3 bunches", "category": "vegetable" },
+      { "name": "Eggs", "quantity": "2", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Scramble the beaten eggs and set aside.",
+      "Fry garlic until fragrant, then add the pak choi.",
+      "Stir-fry until just tender, return the egg.",
+      "Season with oyster sauce and salt, and serve."
+    ]
+  },
+  "Tahu kuning telur": {
+    "ingredients": [
+      { "name": "Yellow tofu, cubed", "quantity": "3 blocks", "category": "protein" },
+      { "name": "Eggs", "quantity": "3", "category": "protein" },
+      { "name": "Garlic", "quantity": "2 cloves", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the tofu cubes until lightly golden.",
+      "Add minced garlic and stir briefly.",
+      "Pour in the beaten eggs and stir until set around the tofu.",
+      "Season, finish with spring onion, and serve."
+    ]
+  },
+  "Telur bombai": {
+    "ingredients": [
+      { "name": "Eggs", "quantity": "4", "category": "protein" },
+      { "name": "Onions, sliced", "quantity": "2", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the eggs sunny-side up or make an omelette, then set aside.",
+      "Sauté the sliced onion until soft and sweet, add tomato.",
+      "Season with kecap manis, salt and pepper.",
+      "Spoon the onion over the eggs and serve."
+    ]
+  },
+  "Terong sambal": {
+    "ingredients": [
+      { "name": "Eggplant", "quantity": "3", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "5", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Palm sugar", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Cut the eggplant into wedges and fry until soft, then set aside.",
+      "Blend shallots, garlic, chilies and tomato into a sambal.",
+      "Fry the sambal until fragrant and season with palm sugar and salt.",
+      "Toss the fried eggplant through the sambal and serve."
+    ]
+  },
+  "Tim telur": {
+    "ingredients": [
+      { "name": "Eggs", "quantity": "3", "category": "protein" },
+      { "name": "Chicken stock or water", "quantity": "300 ml", "category": "pantry" },
+      { "name": "Spring onion", "quantity": "1 stalk", "category": "vegetable" },
+      { "name": "Light soy sauce", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Sesame oil", "quantity": "1 tsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Beat the eggs with the stock and a little salt until smooth, then strain.",
+      "Pour into a shallow bowl and cover with foil.",
+      "Steam over gentle heat for about 12–15 minutes until just set.",
+      "Drizzle with soy sauce and sesame oil, top with spring onion, and serve."
+    ]
+  },
+  "Toge tahu": {
+    "ingredients": [
+      { "name": "Bean sprouts", "quantity": "400 g", "category": "vegetable" },
+      { "name": "Firm tofu, cubed", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Chives or spring onion", "quantity": "1 handful", "category": "vegetable" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the tofu cubes until lightly golden, then set aside.",
+      "Fry garlic until fragrant.",
+      "Add the bean sprouts and stir-fry quickly over high heat.",
+      "Return the tofu, add chives, season, and serve while the sprouts are still crunchy."
+    ]
+  },
+
+  "Ayam bumbu bakar": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "1 kg", "category": "protein" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "5 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Salt and sugar", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic and chilies into a spice paste.",
+      "Fry the paste with bruised lemongrass until fragrant.",
+      "Add the chicken and kecap manis and braise until cooked and coated in bumbu.",
+      "Finish over a grill or in a hot pan until charred at the edges, and serve."
+    ]
+  },
+  "Ayam goreng cabe ijo": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "800 g", "category": "protein" },
+      { "name": "Green chilies", "quantity": "12", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and deep-fry the chicken until golden, then set aside.",
+      "Coarsely blend or chop the green chilies, shallots and garlic.",
+      "Fry the green chili mixture until fragrant and softened.",
+      "Toss the fried chicken through the green sambal, finish with lime, and serve."
+    ]
+  },
+  "Ayam goreng kalasan": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "1 kg", "category": "protein" },
+      { "name": "Garlic", "quantity": "5 cloves", "category": "vegetable" },
+      { "name": "Coriander seeds", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Coconut water", "quantity": "500 ml", "category": "pantry" },
+      { "name": "Palm sugar", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Grind garlic and coriander with salt.",
+      "Braise the chicken with the spice paste, coconut water and palm sugar until the liquid is almost gone.",
+      "Let the chicken cool and dry a little.",
+      "Deep-fry until golden and crisp, then serve."
+    ]
+  },
+  "Ayam goreng katsu": {
+    "ingredients": [
+      { "name": "Chicken breast fillets", "quantity": "600 g", "category": "protein" },
+      { "name": "Egg", "quantity": "2", "category": "protein" },
+      { "name": "Flour", "quantity": "100 g", "category": "pantry" },
+      { "name": "Panko breadcrumbs", "quantity": "200 g", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" },
+      { "name": "Oil for frying", "quantity": "as needed", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Flatten and season the chicken fillets.",
+      "Coat in flour, then beaten egg, then panko.",
+      "Deep-fry until golden and cooked through.",
+      "Drain, slice, and serve with katsu sauce."
+    ]
+  },
+  "Ayam goreng lada itam": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "800 g", "category": "protein" },
+      { "name": "Black pepper, crushed", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Onion", "quantity": "1", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Kecap manis", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and fry the chicken until golden, then set aside.",
+      "Sauté garlic and onion, then add plenty of crushed black pepper.",
+      "Stir in oyster sauce and kecap manis with a splash of water.",
+      "Toss the chicken through the peppery sauce and serve."
+    ]
+  },
+  "Ayam kecap telur goreng": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "800 g", "category": "protein" },
+      { "name": "Boiled eggs", "quantity": "4", "category": "protein" },
+      { "name": "Shallots", "quantity": "5", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Lightly fry the boiled eggs until the skins blister, then set aside.",
+      "Sauté shallots and garlic until fragrant.",
+      "Add the chicken and brown, then add kecap manis and a splash of water.",
+      "Braise until the chicken is cooked and glazed, add the eggs, and serve."
+    ]
+  },
+  "Babi bumbu bakar": {
+    "ingredients": [
+      { "name": "Pork, cut up", "quantity": "1 kg", "category": "protein" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "5 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Salt and sugar", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic and chilies into a spice paste.",
+      "Fry the paste with bruised lemongrass until fragrant.",
+      "Add the pork and kecap manis and braise until tender and coated.",
+      "Grill or pan-char until the edges caramelise, and serve."
+    ]
+  },
+  "Babi kecap telur tahu": {
+    "ingredients": [
+      { "name": "Pork belly, cubed", "quantity": "700 g", "category": "protein" },
+      { "name": "Boiled eggs", "quantity": "4", "category": "protein" },
+      { "name": "Firm tofu, cubed", "quantity": "2 blocks", "category": "protein" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Star anise", "quantity": "2", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Brown the pork belly with garlic.",
+      "Add kecap manis, star anise and enough water to cover.",
+      "Braise gently until the pork is tender, about 1 hour.",
+      "Add the boiled eggs and tofu in the last 20 minutes, and serve."
+    ]
+  },
+  "Bebek peking": {
+    "ingredients": [
+      { "name": "Whole duck", "quantity": "1", "category": "protein" },
+      { "name": "Maltose or honey", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Five spice powder", "quantity": "1 tsp", "category": "pantry" },
+      { "name": "Salt", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Spring onion", "quantity": "3 stalks", "category": "vegetable" },
+      { "name": "Cucumber", "quantity": "1", "category": "vegetable" },
+      { "name": "Thin pancakes", "quantity": "to serve", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Rub the duck inside with salt and five spice.",
+      "Scald the skin, then brush with maltose glaze and air-dry overnight in the fridge.",
+      "Roast at 200°C until the skin is deep brown and crisp, about 1–1.5 hours.",
+      "Carve and serve with pancakes, cucumber, spring onion and hoisin."
+    ]
+  },
+  "Cumi cabe setan": {
+    "ingredients": [
+      { "name": "Squid, cut into rings", "quantity": "500 g", "category": "protein" },
+      { "name": "Bird's eye chilies", "quantity": "15", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" },
+      { "name": "Salt and sugar", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Quickly blanch or fry the squid, then set aside.",
+      "Coarsely grind the bird's eye chilies, shallots and garlic.",
+      "Fry the chili paste until very fragrant and the raw smell is gone.",
+      "Toss the squid through the fiery sambal, finish with lime, and serve."
+    ]
+  },
+  "Cumi nestum": {
+    "ingredients": [
+      { "name": "Squid, cut into rings", "quantity": "500 g", "category": "protein" },
+      { "name": "Nestum cereal", "quantity": "100 g", "category": "pantry" },
+      { "name": "Butter", "quantity": "50 g", "category": "pantry" },
+      { "name": "Curry leaves", "quantity": "2 sprigs", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Cornstarch", "quantity": "50 g", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Dust the squid in cornstarch and deep-fry until crisp, then drain.",
+      "Melt butter and fry curry leaves and chili until fragrant.",
+      "Add the Nestum cereal and stir until sandy and toasty.",
+      "Toss the fried squid through the cereal mixture and serve."
+    ]
+  },
+  "Cumi telur asin": {
+    "ingredients": [
+      { "name": "Squid, cut into rings", "quantity": "500 g", "category": "protein" },
+      { "name": "Salted egg yolks", "quantity": "4", "category": "protein" },
+      { "name": "Butter", "quantity": "50 g", "category": "pantry" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Curry leaves", "quantity": "2 sprigs", "category": "vegetable" },
+      { "name": "Cornstarch", "quantity": "50 g", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Dust the squid in cornstarch and deep-fry until crisp, then drain.",
+      "Steam and mash the salted egg yolks.",
+      "Melt butter, fry garlic and curry leaves, then stir in the yolk until foamy.",
+      "Toss the fried squid through the salted egg sauce and serve."
+    ]
+  },
+  "Curry thai chicken katsu": {
+    "ingredients": [
+      { "name": "Chicken breast fillets", "quantity": "600 g", "category": "protein" },
+      { "name": "Panko breadcrumbs", "quantity": "200 g", "category": "pantry" },
+      { "name": "Egg", "quantity": "2", "category": "protein" },
+      { "name": "Flour", "quantity": "100 g", "category": "pantry" },
+      { "name": "Thai red curry paste", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Coconut milk", "quantity": "400 ml", "category": "pantry" },
+      { "name": "Kaffir lime leaves", "quantity": "3", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Bread the chicken (flour, egg, panko) and deep-fry until golden, then slice.",
+      "Fry the curry paste until fragrant.",
+      "Add coconut milk and lime leaves and simmer into a sauce.",
+      "Pour the Thai curry over the sliced katsu and serve with rice."
+    ]
+  },
+  "Curry thai seafood": {
+    "ingredients": [
+      { "name": "Mixed seafood (prawns, squid, fish)", "quantity": "600 g", "category": "protein" },
+      { "name": "Thai red curry paste", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Coconut milk", "quantity": "500 ml", "category": "pantry" },
+      { "name": "Thai eggplant", "quantity": "150 g", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" },
+      { "name": "Thai basil", "quantity": "1 handful", "category": "vegetable" },
+      { "name": "Fish sauce", "quantity": "2 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the curry paste until fragrant.",
+      "Add coconut milk and lime leaves and bring to a simmer.",
+      "Add the eggplant, then the seafood, and cook until just done.",
+      "Season with fish sauce, finish with Thai basil, and serve."
+    ]
+  },
+  "Gulai ayam + tahu tempe fry": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "800 g", "category": "protein" },
+      { "name": "Tofu and tempe", "quantity": "2 blocks each", "category": "protein" },
+      { "name": "Coconut milk", "quantity": "500 ml", "category": "pantry" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Turmeric and ginger", "quantity": "3 cm each", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Deep-fry the tofu and tempe until golden and set aside.",
+      "Blend shallots, garlic, turmeric, ginger and chilies into a paste.",
+      "Fry the paste until fragrant, add the chicken, then the coconut milk.",
+      "Simmer until the chicken is cooked and the gulai thickens; serve with the fried tofu and tempe."
+    ]
+  },
+  "Gulai ikan + tahu tempe fry": {
+    "ingredients": [
+      { "name": "Fish steaks", "quantity": "700 g", "category": "protein" },
+      { "name": "Tofu and tempe", "quantity": "2 blocks each", "category": "protein" },
+      { "name": "Coconut milk", "quantity": "500 ml", "category": "pantry" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Turmeric and ginger", "quantity": "3 cm each", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Deep-fry the tofu and tempe until golden and set aside.",
+      "Blend shallots, garlic, turmeric, ginger and chilies into a paste.",
+      "Fry the paste until fragrant, then add the coconut milk and bring to a simmer.",
+      "Slip in the fish and simmer gently until cooked; serve with the fried tofu and tempe."
+    ]
+  },
+  "Iga bumbu bakar": {
+    "ingredients": [
+      { "name": "Beef ribs", "quantity": "1 kg", "category": "protein" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "5 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Boil or pressure-cook the beef ribs until tender, reserving some stock.",
+      "Blend shallots, garlic and chilies and fry into a fragrant bumbu with lemongrass.",
+      "Add the ribs and kecap manis with a little stock and braise until glazed.",
+      "Finish over a grill until charred, and serve."
+    ]
+  },
+  "Ikan bumbu bakar": {
+    "ingredients": [
+      { "name": "Whole fish", "quantity": "1 large", "category": "protein" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "6", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" },
+      { "name": "Turmeric", "quantity": "2 cm", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Clean and score the fish and rub with turmeric, salt and lime.",
+      "Blend shallots, garlic and chilies into a bumbu and mix with kecap manis.",
+      "Coat the fish with the bumbu.",
+      "Grill, basting with bumbu, until charred and cooked through, and serve."
+    ]
+  },
+  "Ikan goreng asam manis": {
+    "ingredients": [
+      { "name": "Whole fish or fillets", "quantity": "700 g", "category": "protein" },
+      { "name": "Onion", "quantity": "1", "category": "vegetable" },
+      { "name": "Bell pepper", "quantity": "1", "category": "vegetable" },
+      { "name": "Tomato ketchup", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Vinegar", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Sugar", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Cornstarch", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and deep-fry the fish until crisp, then plate.",
+      "Sauté onion and bell pepper.",
+      "Add ketchup, vinegar, sugar and water and bring to a simmer.",
+      "Thicken with cornstarch slurry and pour the sweet-and-sour sauce over the fish."
+    ]
+  },
+  "Ikan goreng cabe pecak": {
+    "ingredients": [
+      { "name": "Whole fish", "quantity": "700 g", "category": "protein" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "5", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and deep-fry the fish until crisp, then set aside.",
+      "Grill or char the chilies, shallots, garlic and tomato, then pound into a rough sambal.",
+      "Season the sambal with salt and lime.",
+      "Spoon the sambal pecak over the fried fish and serve."
+    ]
+  },
+  "Ikan goreng saos thailand": {
+    "ingredients": [
+      { "name": "Whole fish or fillets", "quantity": "700 g", "category": "protein" },
+      { "name": "Thai sweet chili sauce", "quantity": "5 tbsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "3", "category": "vegetable" },
+      { "name": "Lime", "quantity": "1", "category": "vegetable" },
+      { "name": "Fish sauce", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and deep-fry the fish until crisp, then plate.",
+      "Warm the sweet chili sauce with garlic and chili.",
+      "Season with fish sauce and lime.",
+      "Pour the Thai sauce over the fish and serve."
+    ]
+  },
+  "Ikan goreng tausi": {
+    "ingredients": [
+      { "name": "Fish fillets", "quantity": "700 g", "category": "protein" },
+      { "name": "Fermented black beans (tausi)", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Light soy sauce", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and fry the fish until crisp, then set aside.",
+      "Fry garlic, ginger and rinsed black beans until fragrant.",
+      "Add a splash of water and soy sauce to make a sauce.",
+      "Spoon over the fish, top with spring onion, and serve."
+    ]
+  },
+  "Ikan steam hongkong": {
+    "ingredients": [
+      { "name": "Whole fish", "quantity": "1 (about 700 g)", "category": "protein" },
+      { "name": "Ginger, julienned", "quantity": "4 cm", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "3 stalks", "category": "vegetable" },
+      { "name": "Light soy sauce (steamed fish soy)", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Coriander", "quantity": "1 handful", "category": "vegetable" },
+      { "name": "Oil", "quantity": "2 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Clean the fish and lay it on a plate with some ginger.",
+      "Steam over high heat for 8–10 minutes until just cooked.",
+      "Pour off excess liquid, top with fresh ginger and spring onion.",
+      "Heat oil until smoking and pour over the aromatics, drizzle with soy sauce, and serve."
+    ]
+  },
+  "Ikan steam tomat": {
+    "ingredients": [
+      { "name": "Whole fish or fillets", "quantity": "700 g", "category": "protein" },
+      { "name": "Tomatoes", "quantity": "3", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Light soy sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Lay the fish on a plate with ginger and steam until just cooked.",
+      "Sauté garlic and tomato into a light sauce with soy sauce and a splash of water.",
+      "Pour the tomato sauce over the steamed fish.",
+      "Top with spring onion and serve."
+    ]
+  },
+  "Kapah saus padang": {
+    "ingredients": [
+      { "name": "Clams (kapah)", "quantity": "1 kg", "category": "protein" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Tomato sauce", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Egg", "quantity": "1", "category": "protein" }
+    ],
+    "recipe_steps": [
+      "Scrub the clams and blanch until they open, then drain.",
+      "Blend chilies, shallots and garlic and fry into a fragrant padang sauce.",
+      "Add tomato and oyster sauce with a splash of water.",
+      "Stir in a beaten egg to thicken, toss the clams through, and serve."
+    ]
+  },
+  "Kari ayam + tahu/tempe fry": {
+    "ingredients": [
+      { "name": "Chicken, cut up", "quantity": "800 g", "category": "protein" },
+      { "name": "Tofu and tempe", "quantity": "2 blocks each", "category": "protein" },
+      { "name": "Potatoes", "quantity": "2", "category": "vegetable" },
+      { "name": "Curry powder", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Coconut milk", "quantity": "500 ml", "category": "pantry" },
+      { "name": "Shallots and garlic", "quantity": "6 / 4 cloves", "category": "vegetable" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Deep-fry the tofu and tempe until golden and set aside.",
+      "Fry blended shallots and garlic with curry powder and lemongrass until fragrant.",
+      "Add the chicken and potatoes, then the coconut milk.",
+      "Simmer until the chicken and potatoes are tender; serve with the fried tofu and tempe."
+    ]
+  },
+  "Kepah cabe": {
+    "ingredients": [
+      { "name": "Clams (kepah)", "quantity": "1 kg", "category": "protein" },
+      { "name": "Bird's eye chilies", "quantity": "10", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Basil or spring onion", "quantity": "1 handful", "category": "vegetable" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Scrub the clams and blanch until they just open.",
+      "Coarsely grind chilies, shallots and garlic and fry until fragrant.",
+      "Add the clams and stir-fry with oyster sauce.",
+      "Finish with basil or spring onion and serve."
+    ]
+  },
+  "Kepiting saus padang": {
+    "ingredients": [
+      { "name": "Crab", "quantity": "1 kg", "category": "protein" },
+      { "name": "Red chilies", "quantity": "10", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "8", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "5 cloves", "category": "vegetable" },
+      { "name": "Tomato sauce", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Oyster sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Egg", "quantity": "1", "category": "protein" }
+    ],
+    "recipe_steps": [
+      "Clean and halve the crab.",
+      "Blend chilies, shallots and garlic and fry into a fragrant padang sauce.",
+      "Add tomato and oyster sauce with water and bring to a simmer.",
+      "Add the crab, cover and cook until done, thicken with beaten egg, and serve."
+    ]
+  },
+  "Rendang babi": {
+    "ingredients": [
+      { "name": "Pork, cut into pieces", "quantity": "1 kg", "category": "protein" },
+      { "name": "Coconut milk", "quantity": "800 ml", "category": "pantry" },
+      { "name": "Shallots", "quantity": "10", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "6 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Galangal, ginger, turmeric", "quantity": "3 cm each", "category": "vegetable" },
+      { "name": "Lemongrass and lime leaves", "quantity": "2 stalks / 4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic, chilies, galangal, ginger and turmeric into a paste.",
+      "Fry the paste with lemongrass and lime leaves until fragrant.",
+      "Add the pork and coconut milk and simmer, stirring often.",
+      "Cook down until the sauce is thick, dark and the oil separates, then serve."
+    ]
+  },
+  "Saksang babi": {
+    "ingredients": [
+      { "name": "Pork, cut into pieces", "quantity": "1 kg", "category": "protein" },
+      { "name": "Shallots", "quantity": "10", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "6 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Andaliman pepper", "quantity": "1 tbsp", "category": "pantry" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic, chilies and andaliman into a Batak spice paste.",
+      "Fry the paste with lemongrass and lime leaves until fragrant.",
+      "Add the pork and cook, adding water, until tender and richly spiced.",
+      "Reduce until thick and serve."
+    ]
+  },
+  "Sambal kentang udang tumis": {
+    "ingredients": [
+      { "name": "Prawns", "quantity": "400 g", "category": "protein" },
+      { "name": "Potatoes, diced", "quantity": "400 g", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Palm sugar", "quantity": "1 tbsp", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the diced potatoes until golden, then set aside.",
+      "Blend chilies, shallots and garlic into a sambal and fry until fragrant.",
+      "Add the prawns and cook until pink.",
+      "Return the potatoes, season with palm sugar and salt, toss, and serve."
+    ]
+  },
+  "Sambal merah ikan goreng": {
+    "ingredients": [
+      { "name": "Whole fish", "quantity": "700 g", "category": "protein" },
+      { "name": "Red chilies", "quantity": "10", "category": "vegetable" },
+      { "name": "Shallots", "quantity": "6", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "3 cloves", "category": "vegetable" },
+      { "name": "Tomato", "quantity": "1", "category": "vegetable" },
+      { "name": "Palm sugar and salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Season and deep-fry the fish until crisp, then set aside.",
+      "Blend chilies, shallots, garlic and tomato into a red sambal.",
+      "Fry the sambal until fragrant and season with palm sugar and salt.",
+      "Spoon the sambal over the fried fish and serve."
+    ]
+  },
+  "Samcan kecap telur goreng": {
+    "ingredients": [
+      { "name": "Pork belly (samcan), sliced", "quantity": "700 g", "category": "protein" },
+      { "name": "Boiled eggs", "quantity": "4", "category": "protein" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "4 tbsp", "category": "pantry" },
+      { "name": "Star anise", "quantity": "2", "category": "pantry" },
+      { "name": "Salt and pepper", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Fry the boiled eggs until the skins blister, then set aside.",
+      "Brown the pork belly with garlic.",
+      "Add kecap manis, star anise and water and braise until tender.",
+      "Add the eggs to glaze, and serve."
+    ]
+  },
+  "Tauco ikan mahal": {
+    "ingredients": [
+      { "name": "Premium fish fillets", "quantity": "700 g", "category": "protein" },
+      { "name": "Tauco (fermented soybean paste)", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "4", "category": "vegetable" },
+      { "name": "Spring onion", "quantity": "2 stalks", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Lightly fry or sear the fish and set aside.",
+      "Fry garlic, ginger and chili, then add the tauco.",
+      "Add a splash of water to make a savoury sauce.",
+      "Return the fish to warm through, top with spring onion, and serve."
+    ]
+  },
+  "Tauco ikan pare": {
+    "ingredients": [
+      { "name": "Fish fillets", "quantity": "600 g", "category": "protein" },
+      { "name": "Bitter melon (pare)", "quantity": "2", "category": "vegetable" },
+      { "name": "Tauco", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "4", "category": "vegetable" }
+    ],
+    "recipe_steps": [
+      "Slice the bitter melon, salt it briefly to reduce bitterness, then rinse.",
+      "Lightly fry the fish and set aside.",
+      "Fry garlic, ginger and chili with tauco, then add the bitter melon.",
+      "Add water, return the fish, simmer until cooked, and serve."
+    ]
+  },
+  "Udang gandum": {
+    "ingredients": [
+      { "name": "Prawns", "quantity": "500 g", "category": "protein" },
+      { "name": "Nestum / wheat cereal", "quantity": "100 g", "category": "pantry" },
+      { "name": "Butter", "quantity": "50 g", "category": "pantry" },
+      { "name": "Curry leaves", "quantity": "2 sprigs", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Cornstarch", "quantity": "50 g", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Dust the prawns in cornstarch and deep-fry until crisp, then drain.",
+      "Melt butter and fry curry leaves and chili until fragrant.",
+      "Add the cereal and stir until sandy and toasty.",
+      "Toss the prawns through the cereal and serve."
+    ]
+  },
+  "Udang kecap": {
+    "ingredients": [
+      { "name": "Prawns", "quantity": "500 g", "category": "protein" },
+      { "name": "Garlic", "quantity": "4 cloves", "category": "vegetable" },
+      { "name": "Onion", "quantity": "1", "category": "vegetable" },
+      { "name": "Kecap manis", "quantity": "3 tbsp", "category": "pantry" },
+      { "name": "Tomato sauce", "quantity": "2 tbsp", "category": "pantry" },
+      { "name": "Butter", "quantity": "30 g", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Sauté garlic and onion in butter until fragrant.",
+      "Add the prawns and cook until pink.",
+      "Stir in kecap manis and tomato sauce with a splash of water.",
+      "Simmer briefly until glazed and serve."
+    ]
+  },
+  "Udang nestum": {
+    "ingredients": [
+      { "name": "Prawns", "quantity": "500 g", "category": "protein" },
+      { "name": "Nestum cereal", "quantity": "100 g", "category": "pantry" },
+      { "name": "Butter", "quantity": "50 g", "category": "pantry" },
+      { "name": "Curry leaves", "quantity": "2 sprigs", "category": "vegetable" },
+      { "name": "Bird's eye chili", "quantity": "4", "category": "vegetable" },
+      { "name": "Cornstarch", "quantity": "50 g", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Dust the prawns in cornstarch and deep-fry until crisp, then drain.",
+      "Melt butter and fry curry leaves and chili until fragrant.",
+      "Add the Nestum cereal and stir until sandy and toasty.",
+      "Toss the prawns through the cereal and serve."
+    ]
+  },
+  "Rendang ayam": {
+    "ingredients": [
+      { "name": "Chicken, cut into pieces", "quantity": "1 kg", "category": "protein" },
+      { "name": "Coconut milk", "quantity": "800 ml", "category": "pantry" },
+      { "name": "Shallots", "quantity": "10", "category": "vegetable" },
+      { "name": "Garlic", "quantity": "6 cloves", "category": "vegetable" },
+      { "name": "Red chilies", "quantity": "8", "category": "vegetable" },
+      { "name": "Ginger", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Galangal", "quantity": "3 cm", "category": "vegetable" },
+      { "name": "Lemongrass", "quantity": "2 stalks", "category": "vegetable" },
+      { "name": "Kaffir lime leaves", "quantity": "4", "category": "vegetable" },
+      { "name": "Turmeric", "quantity": "2 cm", "category": "pantry" },
+      { "name": "Salt", "quantity": "to taste", "category": "pantry" }
+    ],
+    "recipe_steps": [
+      "Blend shallots, garlic, chilies, ginger, galangal and turmeric into a smooth spice paste.",
+      "Heat a little oil in a wok and fry the spice paste with bruised lemongrass and lime leaves until fragrant.",
+      "Add the chicken pieces and stir to coat in the paste.",
+      "Pour in the coconut milk, season with salt, and bring to a gentle simmer.",
+      "Cook uncovered on low heat, stirring often, until the sauce thickens and darkens and the oil separates, about 45–60 minutes.",
+      "Taste, adjust salt, and serve with steamed rice."
+    ]
+  }
+}

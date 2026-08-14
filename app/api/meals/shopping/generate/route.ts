@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { weekDates } from '@/lib/meals/dates'
-import { buildShoppingList, type DishIngredient } from '@/lib/meals/shopping'
+import { buildShoppingList, mergeShoppingItems, type DishIngredient, type ExistingShoppingItem } from '@/lib/meals/shopping'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
 
 export async function POST(request: Request) {
@@ -27,25 +27,35 @@ export async function POST(request: Request) {
     .select().single()
   if (listErr || !list) return Response.json({ error: listErr?.message ?? 'list upsert failed' }, { status: 500 })
 
-  // full replace: delete all existing items, then insert fresh
-  await supabase.from('meal_shopping_items').delete().eq('list_id', list.id)
+  // Non-destructive merge: refresh plan-derived rows, keep ✓ marks + "already have" + manual items.
+  const { data: existingRaw } = await supabase.from('meal_shopping_items')
+    .select('id, ingredient, from_dishes').eq('list_id', list.id)
+  const { toInsert, toUpdate, toDelete } = mergeShoppingItems(
+    (existingRaw ?? []) as ExistingShoppingItem[], built)
 
-  const rows = [
-    ...built.ingredients.map(i => ({
-      list_id: list.id, ingredient: i.ingredient, quantity: i.quantity, category: i.category,
-      already_have: false, checked: false, from_dishes: i.from_dishes,
-    })),
-    ...built.dishesWithoutIngredients.map(name => ({
-      list_id: list.id, ingredient: name, quantity: null, category: 'dish',
-      already_have: false, checked: false, from_dishes: [{ dish: name }],
-    })),
-  ]
-  let items: MealShoppingItem[] = []
-  if (rows.length) {
-    const { data, error } = await supabase.from('meal_shopping_items').insert(rows).select()
+  if (toDelete.length) {
+    const { error } = await supabase.from('meal_shopping_items').delete().in('id', toDelete)
     if (error) return Response.json({ error: error.message }, { status: 500 })
-    items = (data ?? []) as MealShoppingItem[]
+  }
+  if (toInsert.length) {
+    const rows = toInsert.map(r => ({
+      list_id: list.id, ingredient: r.ingredient, quantity: r.quantity, category: r.category,
+      already_have: false, checked: false, from_dishes: r.from_dishes,
+    }))
+    const { error } = await supabase.from('meal_shopping_items').insert(rows)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+  }
+  if (toUpdate.length) {
+    const results = await Promise.all(toUpdate.map(u =>
+      supabase.from('meal_shopping_items')
+        .update({ quantity: u.quantity, category: u.category, from_dishes: u.from_dishes })
+        .eq('id', u.id)))
+    const failed = results.find(r => r.error)
+    if (failed?.error) return Response.json({ error: failed.error.message }, { status: 500 })
   }
 
-  return Response.json({ list: list as MealShoppingList, items })
+  const { data: items } = await supabase.from('meal_shopping_items')
+    .select('*').eq('list_id', list.id).order('created_at', { ascending: true })
+
+  return Response.json({ list: list as MealShoppingList, items: (items ?? []) as MealShoppingItem[] })
 }

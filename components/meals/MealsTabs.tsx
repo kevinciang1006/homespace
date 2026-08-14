@@ -11,7 +11,7 @@ const tabs = [
 export default function MealsTabs() {
   const pathname = usePathname()
   return (
-    <nav className="flex gap-1">
+    <nav className="hidden sm:flex gap-1">
       {tabs.map(t => {
         const active = pathname === t.href
         return (

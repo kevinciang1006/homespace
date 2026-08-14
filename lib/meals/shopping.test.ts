@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildShoppingList, normalizeCategory, type DishIngredient } from './shopping'
+import {
+  buildShoppingList, normalizeCategory, mergeShoppingItems,
+  type DishIngredient, type BuiltList, type ExistingShoppingItem, type ShopCategory,
+} from './shopping'
 
 type D = { name: string; ingredients: DishIngredient[] | null }
 function map(dishes: (D & { id: string })[]): Map<string, D> {
@@ -84,5 +87,73 @@ describe('buildShoppingList', () => {
     const out = buildShoppingList([{ dish_id: null, dish_name: null }], map([]))
     expect(out.ingredients).toEqual([])
     expect(out.dishesWithoutIngredients).toEqual([])
+  })
+})
+
+// Build a BuiltList fixture concisely.
+function built(
+  ingredients: { ingredient: string; category?: ShopCategory; quantity?: string | null; from?: string[] }[],
+  noIng: string[] = [],
+): BuiltList {
+  return {
+    ingredients: ingredients.map(i => ({
+      ingredient: i.ingredient,
+      quantity: i.quantity ?? null,
+      category: i.category ?? 'other',
+      from_dishes: (i.from ?? ['Dish']).map(d => ({ dish: d })),
+    })),
+    dishesWithoutIngredients: noIng,
+  }
+}
+// Existing persisted item: auto (plan-derived) unless manual=true.
+function ex(id: string, ingredient: string, manual = false): ExistingShoppingItem {
+  return { id, ingredient, from_dishes: manual ? null : [{ dish: 'X' }] }
+}
+
+describe('mergeShoppingItems', () => {
+  it('refreshes a matching auto item instead of recreating it (keeps its id, so checked/already_have survive)', () => {
+    const m = mergeShoppingItems([ex('g1', 'Garlic')],
+      built([{ ingredient: 'Garlic', category: 'vegetable', quantity: '2 cloves', from: ['Dish A'] }]))
+    expect(m.toInsert).toEqual([])
+    expect(m.toDelete).toEqual([])
+    expect(m.toUpdate).toEqual([{ id: 'g1', quantity: '2 cloves', category: 'vegetable', from_dishes: [{ dish: 'Dish A' }] }])
+  })
+
+  it('leaves manual items (from_dishes null) untouched', () => {
+    const m = mergeShoppingItems([ex('m1', 'Salt', true)], built([{ ingredient: 'Garlic', category: 'vegetable' }]))
+    expect(m.toDelete).toEqual([])
+    expect(m.toUpdate).toEqual([])
+    expect(m.toInsert.map(r => r.ingredient)).toEqual(['Garlic'])
+  })
+
+  it('drops an auto item whose dish left the plan', () => {
+    const m = mergeShoppingItems([ex('b1', 'Beef'), ex('g1', 'Garlic')],
+      built([{ ingredient: 'Garlic', category: 'vegetable' }]))
+    expect(m.toDelete).toEqual(['b1'])
+    expect(m.toUpdate.map(u => u.id)).toEqual(['g1'])
+    expect(m.toInsert).toEqual([])
+  })
+
+  it('inserts brand-new built ingredients', () => {
+    const m = mergeShoppingItems([], built([{ ingredient: 'Onion', category: 'vegetable' }]))
+    expect(m.toInsert.map(r => r.ingredient)).toEqual(['Onion'])
+    expect(m.toUpdate).toEqual([])
+    expect(m.toDelete).toEqual([])
+  })
+
+  it('matches case-insensitively and removes duplicate auto rows', () => {
+    const m = mergeShoppingItems([ex('g1', 'Garlic'), ex('g2', 'garlic')],
+      built([{ ingredient: 'GARLIC', category: 'vegetable', from: ['D'] }]))
+    expect(m.toUpdate.map(u => u.id)).toEqual(['g1'])
+    expect(m.toDelete).toEqual(['g2'])
+    expect(m.toInsert).toEqual([])
+  })
+
+  it("removes a stale 'dish' placeholder once that dish has ingredients", () => {
+    const m = mergeShoppingItems([ex('d1', 'Sop Ayam')],
+      built([{ ingredient: 'Chicken', category: 'protein', from: ['Sop Ayam'] }]))
+    expect(m.toDelete).toEqual(['d1'])
+    expect(m.toInsert.map(r => r.ingredient)).toEqual(['Chicken'])
+    expect(m.toUpdate).toEqual([])
   })
 })

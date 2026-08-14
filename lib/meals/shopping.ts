@@ -66,3 +66,75 @@ export function buildShoppingList(
 
   return { ingredients, dishesWithoutIngredients: noIng }
 }
+
+// ---- Non-destructive regenerate --------------------------------------------
+// A row the shopping list should contain, derived from the current plan.
+export type ShoppingRow = {
+  ingredient: string
+  quantity: string | null
+  category: string
+  from_dishes: { dish: string; quantity?: string | null }[]
+}
+
+// Minimal shape the merge needs from an already-persisted item.
+export type ExistingShoppingItem = {
+  id: string
+  ingredient: string
+  from_dishes: { dish: string; quantity?: string | null }[] | null
+}
+
+export type ShoppingMerge = {
+  toInsert: ShoppingRow[]
+  toUpdate: { id: string; quantity: string | null; category: string; from_dishes: ShoppingRow['from_dishes'] }[]
+  toDelete: string[]
+}
+
+// Flatten a BuiltList into the concrete rows the list should hold: aggregated
+// ingredients, plus a 'dish' placeholder per dish that still has no ingredients.
+export function targetRows(built: BuiltList): ShoppingRow[] {
+  return [
+    ...built.ingredients.map(i => ({
+      ingredient: i.ingredient, quantity: i.quantity, category: i.category as string, from_dishes: i.from_dishes,
+    })),
+    ...built.dishesWithoutIngredients.map(name => ({
+      ingredient: name, quantity: null, category: 'dish', from_dishes: [{ dish: name }],
+    })),
+  ]
+}
+
+// Reconcile the freshly-built rows against what's already saved, WITHOUT wiping
+// user state. Manual items (from_dishes == null) are never touched. Plan-derived
+// ("auto") items are matched by normalized ingredient name: matches are refreshed
+// (checked/already_have are left alone by not updating them); unmatched auto rows
+// are deleted; brand-new built rows are inserted.
+export function mergeShoppingItems(existing: ExistingShoppingItem[], built: BuiltList): ShoppingMerge {
+  const norm = (s: string) => s.trim().toLowerCase()
+  const target = targetRows(built)
+
+  const auto = existing.filter(e => e.from_dishes != null)
+  const autoByKey = new Map<string, ExistingShoppingItem>()
+  for (const e of auto) {
+    const key = norm(e.ingredient)
+    if (!autoByKey.has(key)) autoByKey.set(key, e) // first wins; extras are dropped below
+  }
+  const keptIds = new Set([...autoByKey.values()].map(e => e.id))
+
+  const toInsert: ShoppingRow[] = []
+  const toUpdate: ShoppingMerge['toUpdate'] = []
+  const matchedKeys = new Set<string>()
+
+  for (const row of target) {
+    const key = norm(row.ingredient)
+    if (matchedKeys.has(key)) continue
+    matchedKeys.add(key)
+    const match = autoByKey.get(key)
+    if (match) toUpdate.push({ id: match.id, quantity: row.quantity, category: row.category, from_dishes: row.from_dishes })
+    else toInsert.push(row)
+  }
+
+  const toDelete = auto
+    .filter(e => !keptIds.has(e.id) || !matchedKeys.has(norm(e.ingredient)))
+    .map(e => e.id)
+
+  return { toInsert, toUpdate, toDelete }
+}

@@ -12,6 +12,8 @@ export async function POST(request: Request) {
     method: body.method ?? null, spicy: body.spicy ?? false,
     rating: body.rating ?? 3, active: body.active ?? true,
     no_repeat_days: body.no_repeat_days ?? null,
+    ingredients: body.ingredients ?? [], recipe_steps: body.recipe_steps ?? [],
+    recipe_image_url: body.recipe_image_url ?? null,
   }).select().single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
