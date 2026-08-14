@@ -10,3 +10,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+
+  // Clear the FK on meal_plans first: any plan cell using this dish becomes a
+  // skipped (empty) slot so past/planned days don't error or show a stale name.
+  const { error: mpErr } = await supabase.from('meal_plans')
+    .update({ dish_id: null, dish_name: null, skipped: true })
+    .eq('dish_id', id)
+  if (mpErr) return Response.json({ error: mpErr.message }, { status: 500 })
+
+  const { error } = await supabase.from('dishes').delete().eq('id', id)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ success: true })
+}
