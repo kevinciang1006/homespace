@@ -48,7 +48,7 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
             {SLOT_LABELS[s]}</button>
         ))}
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search dishes…"
-          className="ml-auto px-3 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+          className="ml-auto px-3 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
       </div>
 
       {SLOTS.filter(s => slotFilter === 'all' || s === slotFilter).map(slot => {
@@ -101,7 +101,7 @@ function DishRow({ dish, onPatch, onEdit }: { dish: Dish; onPatch: (id: string, 
             className="w-7 h-7 shrink-0" rounded="rounded-md" iconSize={14} />
           <input value={name} onChange={e => setName(e.target.value)}
             onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
-            className="w-full min-w-[6rem] bg-transparent focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+            className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
         </div>
       </td>
       <td className="px-3 py-1.5">
