@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ChevronLeft, Star, RotateCcw } from 'lucide-react'
 import { SLOT_LABELS, type Dish, type Tier } from '@/lib/meals/types'
 import DishImage from './DishImage'
+import PhotoUploadButton from './PhotoUploadButton'
 
 const TIER_STYLE: Record<Tier, string> = {
   everyday: 'bg-stone-100 text-stone-500',
@@ -12,6 +13,7 @@ const TIER_STYLE: Record<Tier, string> = {
 }
 
 export default function RecipeClient({ dish }: { dish: Dish }) {
+  const [imageUrl, setImageUrl] = useState(dish.recipe_image_url)
   const ingredients = dish.ingredients ?? []
   const steps = dish.recipe_steps ?? []
   // Ephemeral cooking checklist — "have I added this yet?" — resets on reload.
@@ -28,8 +30,14 @@ export default function RecipeClient({ dish }: { dish: Dish }) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 mb-7">
-        <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
-          className="w-full sm:w-52 h-44 sm:h-44 shrink-0" rounded="rounded-2xl" iconSize={56} />
+        <div className="sm:w-52 shrink-0">
+          <DishImage imageUrl={imageUrl} protein={dish.protein} name={dish.name}
+            className="w-full h-44 sm:h-44" rounded="rounded-2xl" iconSize={56} />
+          <div className="mt-2">
+            <PhotoUploadButton dishId={dish.id} label={imageUrl ? 'Change photo' : 'Add photo'}
+              onUploaded={url => setImageUrl(url)} />
+          </div>
+        </div>
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-stone-400 mb-1">{SLOT_LABELS[dish.slot]}</div>
           <h1 className="text-3xl text-stone-900 leading-tight" style={{ fontFamily: 'DM Serif Display, serif' }}>{dish.name}</h1>

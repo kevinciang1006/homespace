@@ -226,6 +226,12 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
         </div>
       </Link>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+        {row.dish_id && (
+          <PhotoUploadButton dishId={row.dish_id} variant="icon"
+            label={row.dishes?.recipe_image_url ? 'Change photo' : 'Add photo'}
+            className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
+            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none' }), recipe_image_url: url } })} />
+        )}
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
       </div>

@@ -11,7 +11,7 @@ export default function PhotoUploadButton({
   onUploaded: (url: string) => void
   label?: string
   className?: string
-  variant?: 'button' | 'overlay'
+  variant?: 'button' | 'overlay' | 'icon'
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -69,7 +69,12 @@ export default function PhotoUploadButton({
       <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
 
-      {variant === 'overlay' ? (
+      {variant === 'icon' ? (
+        <button type="button" onClick={() => setOpen(true)} disabled={busy} title={label} aria-label={label}
+          className={`p-0.5 rounded text-stone-300 hover:text-stone-600 disabled:opacity-60 ${className}`}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+        </button>
+      ) : variant === 'overlay' ? (
         <button type="button" onClick={() => setOpen(true)} disabled={busy}
           className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white/85 backdrop-blur text-stone-700 hover:bg-white disabled:opacity-70 transition-colors ${className}`}>
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
