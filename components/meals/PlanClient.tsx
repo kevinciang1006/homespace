@@ -86,7 +86,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
           <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
             onReplaceDay={replaceDay} onReplaceCell={replaceCell} />
@@ -115,7 +115,7 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
   }
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-3 flex flex-col gap-3">
+    <div className="min-w-0 bg-white border border-stone-200 rounded-2xl p-3 flex flex-col gap-3">
       <div className="text-xs font-semibold text-stone-500">{dayName} · <span className="text-stone-400">{label(date)}</span></div>
       {main
         ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} />
