@@ -1,6 +1,6 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { Plus, Star, BookOpen } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, Star, BookOpen, Trash2 } from 'lucide-react'
 import { SLOTS, SLOT_LABELS, type Dish, type Slot, type Tier } from '@/lib/meals/types'
 import DishImage from './DishImage'
 import DishEditorPanel from './DishEditorPanel'
@@ -14,6 +14,7 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
   const [slotFilter, setSlotFilter] = useState<Slot | 'all'>('all')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
   const editing = dishes.find(d => d.id === editingId) ?? null
 
   async function patch(id: string, fields: Partial<Dish>) {
@@ -26,11 +27,27 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
   }
 
   async function addDish(slot: Slot) {
+    // Insert a real, deletable row immediately (server defaults the name to
+    // "Untitled"), then focus its name field for inline editing.
     const res = await fetch('/api/meals/dishes', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'New dish', slot }),
+      body: JSON.stringify({ slot }),
     })
-    if (res.ok) { const d = await res.json(); setDishes(ds => [...ds, d as Dish]) }
+    if (res.ok) {
+      const d = await res.json() as Dish
+      setDishes(ds => [...ds, d])
+      setSlotFilter(slot)   // ensure the new row is visible even if a filter was set
+      setFocusId(d.id)
+    }
+  }
+
+  async function deleteDish(id: string, name: string) {
+    if (!window.confirm(`Delete ${name || 'this dish'}? This can't be undone.`)) return
+    const prev = dishes
+    setDishes(ds => ds.filter(d => d.id !== id)) // optimistic
+    if (editingId === id) setEditingId(null)
+    const res = await fetch(`/api/meals/dishes/${id}`, { method: 'DELETE' })
+    if (!res.ok) setDishes(prev) // rollback
   }
 
   const filtered = useMemo(() => dishes.filter(d =>
@@ -75,7 +92,8 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)} />)}
+                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
+                    onDelete={deleteDish} autoFocus={d.id === focusId} />)}
                   {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
@@ -91,15 +109,28 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
   )
 }
 
-function DishRow({ dish, onPatch, onEdit }: { dish: Dish; onPatch: (id: string, f: Partial<Dish>) => void; onEdit: () => void }) {
+function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus }: {
+  dish: Dish
+  onPatch: (id: string, f: Partial<Dish>) => void
+  onEdit: () => void
+  onDelete: (id: string, name: string) => void
+  autoFocus?: boolean
+}) {
   const [name, setName] = useState(dish.name)
+  const nameRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (autoFocus && nameRef.current) { nameRef.current.focus(); nameRef.current.select() }
+    // run once on mount for a freshly added row
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return (
     <tr className="border-b border-stone-50 last:border-0">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2">
           <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
             className="w-7 h-7 shrink-0" rounded="rounded-md" iconSize={14} />
-          <input value={name} onChange={e => setName(e.target.value)}
+          <input ref={nameRef} value={name} onChange={e => setName(e.target.value)}
+            placeholder="Dish name…"
             onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
             className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
         </div>
@@ -146,10 +177,16 @@ function DishRow({ dish, onPatch, onEdit }: { dish: Dish; onPatch: (id: string, 
         </button>
       </td>
       <td className="px-3 py-1.5">
-        <button onClick={onEdit}
-          className="flex items-center gap-1 text-xs text-stone-500 hover:text-orange-600 whitespace-nowrap">
-          <BookOpen size={14} /> Edit
-        </button>
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <button onClick={onEdit}
+            className="flex items-center gap-1 text-xs text-stone-500 hover:text-orange-600">
+            <BookOpen size={14} /> Edit
+          </button>
+          <button onClick={() => onDelete(dish.id, dish.name)} aria-label={`Delete ${dish.name}`}
+            className="p-1 text-stone-300 hover:text-red-500">
+            <Trash2 size={14} />
+          </button>
+        </div>
       </td>
     </tr>
   )
