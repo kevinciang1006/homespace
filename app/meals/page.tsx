@@ -15,7 +15,7 @@ function currentMonday(): string {
 export default async function MealsPlanPage() {
   const weekStart = currentMonday()
   const days = weekDates(weekStart)
-  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url)')
+  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
   return <PlanClient initialWeekStart={weekStart} initialWeek={(data ?? []) as MealPlan[]} />
 }

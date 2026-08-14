@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Star, RotateCcw } from 'lucide-react'
 import { SLOT_LABELS, type Dish, type Tier } from '@/lib/meals/types'
-import DishThumb from './DishThumb'
+import DishImage from './DishImage'
 
 const TIER_STYLE: Record<Tier, string> = {
   everyday: 'bg-stone-100 text-stone-500',
@@ -28,8 +28,8 @@ export default function RecipeClient({ dish }: { dish: Dish }) {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 mb-7">
-        <DishThumb imageUrl={dish.recipe_image_url} slot={dish.slot} name={dish.name}
-          className="w-full sm:w-52 h-44 sm:h-44 shrink-0" rounded="rounded-2xl" emojiClass="text-6xl" />
+        <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
+          className="w-full sm:w-52 h-44 sm:h-44 shrink-0" rounded="rounded-2xl" iconSize={56} />
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-stone-400 mb-1">{SLOT_LABELS[dish.slot]}</div>
           <h1 className="text-3xl text-stone-900 leading-tight" style={{ fontFamily: 'DM Serif Display, serif' }}>{dish.name}</h1>

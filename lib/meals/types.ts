@@ -42,7 +42,7 @@ export type MealPlan = {
   locked: boolean
   role: Role
   skipped: boolean
-  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null } | null
+  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string } | null
 }
 
 export type MealShoppingList = {

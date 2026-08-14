@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart } from 'lucide-react'
 import { SLOT_LABELS, type MealPlan, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
-import DishThumb from './DishThumb'
+import DishImage from './DishImage'
 
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -166,8 +166,8 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
   return (
     <div className={`relative rounded-xl overflow-hidden border ${tier === 'special' ? 'border-orange-300 ring-1 ring-orange-200' : 'border-stone-200'}`}>
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
-        <DishThumb imageUrl={row.dishes?.recipe_image_url ?? null} slot="utama" name={row.dish_name ?? undefined}
-          className="w-full aspect-video" rounded="rounded-none" emojiClass="text-4xl" />
+        <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
+          className="w-full aspect-video" rounded="rounded-none" iconSize={34} showName={!row.dishes?.recipe_image_url} />
         <div className="p-2.5">
           <div className="text-stone-900 font-medium leading-snug" style={{ fontFamily: 'DM Serif Display, serif' }}>{row.dish_name ?? '—'}</div>
           <div className="flex items-center gap-1.5 mt-1">
@@ -210,8 +210,8 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
   return (
     <div className="relative shrink-0 w-32 bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
-        <DishThumb imageUrl={row.dishes?.recipe_image_url ?? null} slot={row.slot} name={row.dish_name ?? undefined}
-          className="w-full h-14" rounded="rounded-none" emojiClass="text-lg" />
+        <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
+          className="w-full h-14" rounded="rounded-none" iconSize={18} />
         <div className="px-2 pt-1 pb-1.5">
           <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.slot]}</div>
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>

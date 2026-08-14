@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Plus, Star, BookOpen } from 'lucide-react'
 import { SLOTS, SLOT_LABELS, type Dish, type Slot, type Tier } from '@/lib/meals/types'
-import DishThumb from './DishThumb'
+import DishImage from './DishImage'
 import DishEditorPanel from './DishEditorPanel'
 
 const PROTEINS = ['fish', 'chicken', 'pork', 'beef', 'shrimp', 'squid', 'crab', 'duck', 'egg', 'tofu_tempe', 'none', 'mixed']
@@ -97,8 +97,8 @@ function DishRow({ dish, onPatch, onEdit }: { dish: Dish; onPatch: (id: string, 
     <tr className="border-b border-stone-50 last:border-0">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2">
-          <DishThumb imageUrl={dish.recipe_image_url} slot={dish.slot} name={dish.name}
-            className="w-7 h-7 shrink-0" rounded="rounded-md" emojiClass="text-sm" />
+          <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
+            className="w-7 h-7 shrink-0" rounded="rounded-md" iconSize={14} />
           <input value={name} onChange={e => setName(e.target.value)}
             onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
             className="w-full min-w-[6rem] bg-transparent focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
 import { SHOP_CATEGORIES, type DishIngredient } from '@/lib/meals/shopping'
 import type { Dish } from '@/lib/meals/types'
-import DishThumb from './DishThumb'
+import DishImage from './DishImage'
 
 // Slide-over editor for a dish's photo, ingredients, and recipe steps.
 // Structural edits (add/remove/reorder/category) persist immediately; free-text
@@ -53,8 +53,8 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
           <section>
             <label className="block text-sm font-medium text-stone-600 mb-2">Photo URL</label>
             <div className="flex items-center gap-3">
-              <DishThumb imageUrl={imageUrl.trim() || null} slot={dish.slot} name={dish.name}
-                className="w-14 h-14 shrink-0" rounded="rounded-xl" emojiClass="text-2xl" />
+              <DishImage imageUrl={imageUrl.trim() || null} protein={dish.protein} name={dish.name}
+                className="w-14 h-14 shrink-0" rounded="rounded-xl" iconSize={22} />
               <input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
                 onBlur={() => onPatch(dish.id, { recipe_image_url: imageUrl.trim() || null })}
                 placeholder="https://…"
