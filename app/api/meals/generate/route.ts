@@ -3,7 +3,6 @@ import { SLOTS, type Dish, type MealPlan, type Slot } from '@/lib/meals/types'
 import { generateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
 
-// Math.random-backed rng; engine stays pure/deterministic via injection.
 const rng = () => Math.random()
 
 export async function POST(request: Request) {
@@ -13,7 +12,6 @@ export async function POST(request: Request) {
   }
   const days = weekDates(weekStart)
 
-  // history window: 14 days (max no-repeat) before weekStart
   const start = new Date(days[0]); start.setDate(start.getDate() - 14)
   const historyStart = start.toISOString().split('T')[0]
 
@@ -26,25 +24,30 @@ export async function POST(request: Request) {
   const plans = (plansRaw ?? []) as MealPlan[]
   const weekSet = new Set(days)
   const lockedCells = plans.filter(p => weekSet.has(p.plan_date) && p.locked)
-  const priorPlans = plans.filter(p => !weekSet.has(p.plan_date)) // history before the week
+  const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
 
   const dishesBySlot = Object.fromEntries(
     SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
   ) as Record<Slot, Dish[]>
 
-  const picks = generateWeek({
-    weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng,
-  })
+  const picks = generateWeek({ weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng })
 
-  // Upsert non-locked picks only; locked rows are never overwritten.
-  const rows = picks
-    .filter(p => !p.locked)
-    .map(p => ({ plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name, locked: false }))
+  const rows = picks.filter(p => !p.locked).map(p => ({
+    plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,
+    locked: false, role: p.role, skipped: p.skipped,
+  }))
 
-  const { error } = await supabase.from('meal_plans').upsert(rows, { onConflict: 'plan_date,slot' })
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // variable row set: delete non-locked rows for the week, then insert the composed plate
+  await supabase.from('meal_plans').delete()
+    .gte('plan_date', days[0]).lte('plan_date', days[6]).eq('locked', false)
+  if (rows.length) {
+    const { error } = await supabase.from('meal_plans').insert(rows)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+  }
 
   const { data: week } = await supabase
-    .from('meal_plans').select('*, dishes(tier, spicy)').gte('plan_date', days[0]).lte('plan_date', days[6])
+    .from('meal_plans')
+    .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url)')
+    .gte('plan_date', days[0]).lte('plan_date', days[6])
   return Response.json({ week: (week ?? []) as MealPlan[] })
 }
