@@ -10,15 +10,16 @@ export type PickContext = {
   dishById: Map<string, Dish>
   specialDays: Set<string>
   hardDays: Set<string>
-  relax: { spicy: boolean; fried: boolean; saltyCap: boolean; hardDay: boolean; hardSpacing: boolean; noRepeatFactor: number }
+  relax: { spicy: boolean; fried: boolean; hardDay: boolean; hardSpacing: boolean; noRepeatFactor: number }
   role: Role
   spicyFloor: number
   plannedRemaining: number
 }
 
-// Default relax state: every rule enforced (false = ON, matching spicy/fried).
+// Default relax state: every relaxable rule enforced (false = ON, matching spicy/fried).
+// The saltiness cap (<=1 non-normal per day) is a hard rule and is NOT relaxable.
 export const ENFORCED: PickContext['relax'] =
-  { spicy: false, fried: false, saltyCap: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 }
+  { spicy: false, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 }
 
 export function resolveDish(ctx: PickContext, dishId: string | null): Dish | undefined {
   return dishId ? ctx.dishById.get(dishId) : undefined
@@ -97,7 +98,7 @@ export function spicyOk(dish: Dish, ctx: PickContext): boolean {
 }
 
 export function saltinessOk(dish: Dish, ctx: PickContext): boolean {
-  if (ctx.relax.saltyCap) return true
+  // Hard rule, never relaxed: at most one dish with saltiness !== 'normal' per day.
   if (dish.saltiness === 'normal') return true
   const dayHasNonNormal = picksForDate(ctx, ctx.date).some(p => {
     const d = resolveDish(ctx, p.dish_id)
@@ -183,10 +184,9 @@ const RELAX_LADDER: { relax: PickContext['relax']; note?: string }[] = [
   { relax: { ...ENFORCED } },
   { relax: { ...ENFORCED, hardSpacing: true }, note: 'relaxed: hard-day spacing' },
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true }, note: 'relaxed: hard-day restriction' },
-  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true }, note: 'relaxed: saltiness cap' },
-  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true, spicy: true }, note: 'relaxed: + spicy floor' },
-  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true, spicy: true, fried: true }, note: 'relaxed: + fried cap' },
-  { relax: { spicy: true, fried: true, saltyCap: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true }, note: 'relaxed: + spicy floor' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true }, note: 'relaxed: + fried cap' },
+  { relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
 ]
 
 export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
@@ -198,9 +198,10 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
       return toPick(ctx, chosen, level.note)
     }
   }
-  // last resort: any active dish of the slot, keep min no-repeat (factor 0.5)
-  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, saltyCap: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 } }
-  const anyActive = slotDishes.filter(d => d.active && d.slot === ctx.slot && noRepeatOk(d, lastCtx))
+  // last resort: any active dish of the slot, keep min no-repeat (factor 0.5).
+  // Saltiness cap is still enforced here — never place a 2nd salty dish, even at last resort.
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 } }
+  const anyActive = slotDishes.filter(d => d.active && d.slot === ctx.slot && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
   if (anyActive.length > 0) {
     const chosen = weightedPick(anyActive, lastCtx, rng)!
     return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
@@ -355,6 +356,39 @@ export function generateWeek(input: {
   return runPicks.sort((a, b) =>
     a.plan_date === b.plan_date ? slotOrder(a.slot) - slotOrder(b.slot)
       : a.plan_date < b.plan_date ? -1 : 1)
+}
+
+// Dev-only sanity check: scan a generated week and report any rule violations.
+export function validateWeek(
+  rows: { plan_date: string; dish_id: string | null; skipped?: boolean }[],
+  dishById: Map<string, Dish>,
+): string[] {
+  const viol: string[] = []
+  const byDate = new Map<string, Dish[]>()
+  for (const r of rows) {
+    if (!r.dish_id || r.skipped) continue
+    const d = dishById.get(r.dish_id)
+    if (!d) continue
+    if (!byDate.has(r.plan_date)) byDate.set(r.plan_date, [])
+    byDate.get(r.plan_date)!.push(d)
+  }
+  const dates = [...byDate.keys()].sort()
+  for (const date of dates) {
+    const ds = byDate.get(date)!
+    const salty = ds.filter(d => d.saltiness !== 'normal')
+    if (salty.length > 1) viol.push(`⚠️ ${date}: ${salty.length} salty dishes (${salty.map(d => d.name).join(', ')})`)
+    const fried = ds.filter(d => d.method === 'fried')
+    if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
+  }
+  const hardDates = dates.filter(date => byDate.get(date)!.some(d => d.difficulty === 'hard'))
+  const specialDates = dates.filter(date => byDate.get(date)!.some(d => d.tier === 'special'))
+  if (hardDates.length > 2) viol.push(`⚠️ week: ${hardDates.length} hard days (${hardDates.join(', ')})`)
+  if (specialDates.length > 2) viol.push(`⚠️ week: ${specialDates.length} special days (${specialDates.join(', ')})`)
+  const hasAdjacent = (arr: string[]) =>
+    arr.some((a, i) => arr.some((b, j) => i < j && Math.abs(daysBetween(a, b)) === 1))
+  if (hasAdjacent(hardDates)) viol.push(`⚠️ week: hard dishes on adjacent days (${hardDates.join(', ')})`)
+  if (hasAdjacent(specialDates)) viol.push(`⚠️ week: special dishes on adjacent days (${specialDates.join(', ')})`)
+  return viol
 }
 
 function prevDay(date: string): string {

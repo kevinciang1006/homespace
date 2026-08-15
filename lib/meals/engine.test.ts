@@ -29,7 +29,7 @@ function ctx(over: Partial<PickContext> & { date: string; slot: Slot; dishes: Di
     priorPlans: over.priorPlans ?? [], runPicks: over.runPicks ?? [],
     dishById, specialDays: over.specialDays ?? new Set(),
     hardDays: over.hardDays ?? new Set<string>(),
-    relax: over.relax ?? { spicy: false, fried: false, saltyCap: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
+    relax: over.relax ?? { spicy: false, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
     role: over.role ?? 'support', spicyFloor: over.spicyFloor ?? 1,
     plannedRemaining: over.plannedRemaining ?? 5,
   }
@@ -143,7 +143,7 @@ describe('spicyOk (floor of 1 non-spicy among main+supports)', () => {
   it('is not enforced when relax.spicy is true', () => {
     const d = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
     const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [d], role: 'support', plannedRemaining: 0,
-      relax: { spicy: true, fried: false, saltyCap: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 } })
+      relax: { spicy: true, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 } })
     expect(spicyOk(d, c)).toBe(true)
   })
 })
@@ -322,13 +322,12 @@ describe('saltinessOk (max 1 non-normal per day)', () => {
     c.dishById.set('v', dish({ id: 'v', slot: 'utama', saltiness: 'very_salty' }))
     expect(saltinessOk(salty, c)).toBe(false)
   })
-  it('is relaxable via relax.saltyCap', () => {
-    const salty = dish({ id: 's', slot: 'pelengkap', saltiness: 'salty' })
-    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [salty],
-      relax: { spicy: false, fried: false, saltyCap: true, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
-      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'v' })] })
-    c.dishById.set('v', dish({ id: 'v', slot: 'utama', saltiness: 'very_salty' }))
-    expect(saltinessOk(salty, c)).toBe(true)
+  it('treats very_salty the same as salty for the per-day cap', () => {
+    const vs = dish({ id: 'vs', slot: 'pelengkap', saltiness: 'very_salty' })
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [vs],
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'sm' })] })
+    c.dishById.set('sm', dish({ id: 'sm', slot: 'utama', saltiness: 'salty' }))
+    expect(saltinessOk(vs, c)).toBe(false)
   })
 })
 
@@ -357,7 +356,7 @@ describe('difficultyOk (hard: hard-days only, <=1/day, non-adjacent)', () => {
   it('is relaxable via relax.hardDay', () => {
     const d = dish({ id: 'h', slot: 'utama', difficulty: 'hard' })
     const c = ctx({ date: '2026-08-13', slot: 'utama', dishes: [d], hardDays: new Set(),
-      relax: { spicy: false, fried: false, saltyCap: false, hardDay: true, hardSpacing: true, noRepeatFactor: 1 } })
+      relax: { spicy: false, fried: false, hardDay: true, hardSpacing: true, noRepeatFactor: 1 } })
     expect(difficultyOk(d, c)).toBe(true)
   })
 })
@@ -414,5 +413,55 @@ describe('generateWeek (saltiness + difficulty)', () => {
     const hardDates = [...new Set(picks.filter(p => byId.get(p.dish_id ?? '')?.difficulty === 'hard').map(p => WEEK.indexOf(p.plan_date)))].sort((a,b)=>a-b)
     expect(hardDates.length).toBeLessThanOrEqual(2)
     if (hardDates.length === 2) expect(hardDates[1] - hardDates[0]).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('saltiness cap is absolute (regression: two salty dishes on one day)', () => {
+  it('never places a 2nd non-normal dish; relaxes no-repeat instead', () => {
+    const salty = dish({ id: 's1', slot: 'pelengkap', saltiness: 'salty' })      // never served
+    const normal = dish({ id: 'n1', slot: 'pelengkap', saltiness: 'normal' })     // blocked by no-repeat at factor 1
+    const main = dish({ id: 'm', slot: 'utama', saltiness: 'very_salty' })
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [salty, normal, main], role: 'support',
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm' })],
+      priorPlans: [plan({ plan_date: '2026-08-09', slot: 'pelengkap', dish_id: 'n1' })] }) // 4d ago: blocked@f1, ok@f0.5
+    const result = pickForSlot([salty, normal], c, seq([0.5]))
+    expect(result.dish_id).toBe('n1') // must NOT pick the 2nd salty dish
+  })
+  it('leaves the slot empty rather than adding a 2nd salty when only salty candidates exist', () => {
+    const salty = dish({ id: 's1', slot: 'pelengkap', saltiness: 'salty' })
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [salty], role: 'support',
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm' })] })
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', saltiness: 'very_salty' }))
+    const result = pickForSlot([salty], c, seq([0.5]))
+    expect(result.dish_id).toBeNull()
+  })
+})
+
+import { validateWeek } from './engine'
+
+describe('validateWeek', () => {
+  it('flags a day with two non-normal saltiness dishes', () => {
+    const byId = new Map<string, Dish>([
+      ['a', dish({ id: 'a', slot: 'utama', name: 'Cumi telur asin', saltiness: 'very_salty' })],
+      ['b', dish({ id: 'b', slot: 'pelengkap', name: 'Sambel tempe teri', saltiness: 'very_salty' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', dish_id: 'a' },
+      { plan_date: '2026-08-17', dish_id: 'b' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('2026-08-17') && v.includes('2 salty'))).toBe(true)
+  })
+  it('returns clean for a compliant week', () => {
+    const byId = new Map<string, Dish>([
+      ['a', dish({ id: 'a', slot: 'utama', saltiness: 'salty' })],
+      ['b', dish({ id: 'b', slot: 'pelengkap', saltiness: 'normal' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', dish_id: 'a' },
+      { plan_date: '2026-08-17', dish_id: 'b' },
+      { plan_date: '2026-08-18', dish_id: null, skipped: true },
+    ]
+    expect(validateWeek(rows, byId)).toEqual([])
   })
 })

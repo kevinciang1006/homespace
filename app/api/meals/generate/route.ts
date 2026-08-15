@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot } from '@/lib/meals/types'
-import { generateWeek } from '@/lib/meals/engine'
+import { generateWeek, validateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
@@ -31,6 +31,14 @@ export async function POST(request: Request) {
   ) as Record<Slot, Dish[]>
 
   const picks = generateWeek({ weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng })
+
+  // Dev-only self-audit: log any rule violations in the freshly composed week.
+  if (process.env.NODE_ENV !== 'production') {
+    const dishById = new Map(allDishes.map(d => [d.id, d]))
+    const report = validateWeek(picks, dishById)
+    if (report.length) console.warn(`[meal-gen] ${weekStart} rule violations:\n` + report.join('\n'))
+    else console.log(`[meal-gen] ${weekStart} validation: clean ✓`)
+  }
 
   const rows = picks.filter(p => !p.locked).map(p => ({
     plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,
