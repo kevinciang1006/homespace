@@ -25,6 +25,19 @@ function roleForSlot(slot: Slot): Role {
   return slot === 'utama' ? 'main' : slot === 'desert' ? 'optional' : 'support'
 }
 
+// Special days = week days whose utama is special; hard days = special days plus
+// any day already holding a hard dish (keeps the two quotas coordinated on reroll).
+function deriveDays(week: string[], plans: MealPlan[], dishById: Map<string, Dish>) {
+  const weekSet = new Set(week)
+  const specialDays = new Set(week.filter(d => plans.some(p =>
+    p.plan_date === d && p.slot === 'utama' && dishById.get(p.dish_id ?? '')?.tier === 'special')))
+  const hardDays = new Set<string>(specialDays)
+  for (const p of plans) {
+    if (weekSet.has(p.plan_date) && dishById.get(p.dish_id ?? '')?.difficulty === 'hard') hardDays.add(p.plan_date)
+  }
+  return { specialDays, hardDays }
+}
+
 function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], plans: MealPlan[], week: string[]) {
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const weekSet = new Set(week)
@@ -33,11 +46,10 @@ function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], pl
     .map(p => ({ plan_date: p.plan_date, slot: p.slot as Slot, dish_id: p.dish_id, dish_name: p.dish_name,
       locked: p.locked, role: p.role ?? 'support', skipped: p.skipped ?? false }))
   const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
-  const specialDays = new Set(
-    week.filter(d => plans.some(p => p.plan_date === d && p.slot === 'utama' && dishById.get(p.dish_id ?? '')?.tier === 'special')))
+  const { specialDays, hardDays } = deriveDays(week, plans, dishById)
   const ctx: PickContext = {
-    date: plan_date, slot, priorPlans, runPicks, dishById, specialDays,
-    relax: { spicy: false, fried: false, noRepeatFactor: 1 },
+    date: plan_date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
+    relax: { spicy: false, fried: false, saltyCap: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
     role: roleForSlot(slot), spicyFloor: 1, plannedRemaining: 5,
   }
   return { ctx, slotDishes: allDishes.filter(d => d.slot === slot) }
@@ -60,8 +72,7 @@ export async function POST(request: Request) {
     const dayLocked = plans.filter(p => p.plan_date === plan_date && p.locked)
     const lockedByCell = new Map(dayLocked.map(l => [`${l.plan_date}|${l.slot}`, l]))
     const weekSet = new Set(week)
-    const specialDays = new Set(
-      week.filter(d => plans.some(p => p.plan_date === d && p.slot === 'utama' && dishById.get(p.dish_id ?? '')?.tier === 'special')))
+    const { specialDays, hardDays } = deriveDays(week, plans, dishById)
 
     // runPicks = whole week EXCEPT this day's non-locked rows
     const runPicks = plans
@@ -86,7 +97,7 @@ export async function POST(request: Request) {
       SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
     ) as Record<Slot, Dish[]>
 
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, rng })
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
     const toInsert = [...created]
     if (fixedMain) toInsert.unshift({ plan_date, slot: 'utama' as Slot, dish_id: fixedMain.id,
       dish_name: fixedMain.name, locked: false, role: 'main' as Role, skipped: false })
