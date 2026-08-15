@@ -9,11 +9,16 @@ export type PickContext = {
   runPicks: Pick[]
   dishById: Map<string, Dish>
   specialDays: Set<string>
-  relax: { spicy: boolean; fried: boolean; noRepeatFactor: number }
+  hardDays: Set<string>
+  relax: { spicy: boolean; fried: boolean; saltyCap: boolean; hardDay: boolean; hardSpacing: boolean; noRepeatFactor: number }
   role: Role
   spicyFloor: number
   plannedRemaining: number
 }
+
+// Default relax state: every rule enforced (false = ON, matching spicy/fried).
+export const ENFORCED: PickContext['relax'] =
+  { spicy: false, fried: false, saltyCap: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 }
 
 export function resolveDish(ctx: PickContext, dishId: string | null): Dish | undefined {
   return dishId ? ctx.dishById.get(dishId) : undefined
@@ -91,6 +96,33 @@ export function spicyOk(dish: Dish, ctx: PickContext): boolean {
   return nonSpicySoFar + ctx.plannedRemaining >= ctx.spicyFloor
 }
 
+export function saltinessOk(dish: Dish, ctx: PickContext): boolean {
+  if (ctx.relax.saltyCap) return true
+  if (dish.saltiness === 'normal') return true
+  const dayHasNonNormal = picksForDate(ctx, ctx.date).some(p => {
+    const d = resolveDish(ctx, p.dish_id)
+    return !!d && d.saltiness !== 'normal'
+  })
+  return !dayHasNonNormal
+}
+
+export function difficultyOk(dish: Dish, ctx: PickContext): boolean {
+  if (dish.difficulty !== 'hard') return true
+  if (!ctx.relax.hardDay) {
+    if (!ctx.hardDays.has(ctx.date)) return false
+    const dayHasHard = picksForDate(ctx, ctx.date).some(p => resolveDish(ctx, p.dish_id)?.difficulty === 'hard')
+    if (dayHasHard) return false
+  }
+  if (!ctx.relax.hardSpacing) {
+    for (const ad of [prevDay(ctx.date), nextDay(ctx.date)]) {
+      const hardAdj = [...ctx.runPicks, ...ctx.priorPlans].some(
+        p => p.plan_date === ad && resolveDish(ctx, p.dish_id)?.difficulty === 'hard')
+      if (hardAdj) return false
+    }
+  }
+  return true
+}
+
 export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
   return (
     dish.active &&
@@ -99,7 +131,9 @@ export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
     proteinOk(dish, ctx) &&
     specialOk(dish, ctx) &&
     friedOk(dish, ctx) &&
-    spicyOk(dish, ctx)
+    spicyOk(dish, ctx) &&
+    saltinessOk(dish, ctx) &&
+    difficultyOk(dish, ctx)
   )
 }
 
@@ -119,8 +153,13 @@ export function freshnessFactor(dish: Dish, ctx: PickContext): number {
   return Math.min(2, Math.max(1, mostRecent / base))
 }
 
+function saltMainFactor(dish: Dish, ctx: PickContext): number {
+  if (ctx.role !== 'main') return 1
+  return dish.saltiness === 'normal' ? 1.4 : dish.saltiness === 'very_salty' ? 0.5 : 1
+}
+
 export function weightFor(dish: Dish, ctx: PickContext): number {
-  return dish.rating * dish.rating * freshnessFactor(dish, ctx)
+  return dish.rating * dish.rating * freshnessFactor(dish, ctx) * saltMainFactor(dish, ctx)
 }
 
 export function weightedPick(dishes: Dish[], ctx: PickContext, rng: Rng): Dish | undefined {
@@ -141,10 +180,13 @@ export function candidates(slotDishes: Dish[], ctx: PickContext): Dish[] {
 }
 
 const RELAX_LADDER: { relax: PickContext['relax']; note?: string }[] = [
-  { relax: { spicy: false, fried: false, noRepeatFactor: 1 } },
-  { relax: { spicy: true, fried: false, noRepeatFactor: 1 }, note: 'relaxed: spicy floor' },
-  { relax: { spicy: true, fried: true, noRepeatFactor: 1 }, note: 'relaxed: spicy + fried cap' },
-  { relax: { spicy: true, fried: true, noRepeatFactor: 0.5 }, note: 'relaxed: spicy + fried + short no-repeat' },
+  { relax: { ...ENFORCED } },
+  { relax: { ...ENFORCED, hardSpacing: true }, note: 'relaxed: hard-day spacing' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true }, note: 'relaxed: hard-day restriction' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true }, note: 'relaxed: saltiness cap' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true, spicy: true }, note: 'relaxed: + spicy floor' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, saltyCap: true, spicy: true, fried: true }, note: 'relaxed: + fried cap' },
+  { relax: { spicy: true, fried: true, saltyCap: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
 ]
 
 export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
@@ -157,7 +199,7 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
     }
   }
   // last resort: any active dish of the slot, keep min no-repeat (factor 0.5)
-  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, noRepeatFactor: 0.5 } }
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, saltyCap: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 } }
   const anyActive = slotDishes.filter(d => d.active && d.slot === ctx.slot && noRepeatOk(d, lastCtx))
   if (anyActive.length > 0) {
     const chosen = weightedPick(anyActive, lastCtx, rng)!
@@ -196,6 +238,16 @@ export function preassignSpecialDays(
   return result
 }
 
+export function preassignHardDays(days: string[], specialDays: Set<string>, rng: Rng): Set<string> {
+  const result = new Set<string>(specialDays)
+  const isAdjacent = (d: string) => [...result].some(r => Math.abs(days.indexOf(r) - days.indexOf(d)) < 2)
+  for (const d of shuffle(days.filter(x => !result.has(x)), rng)) {
+    if (result.size >= 2) break
+    if (!isAdjacent(d)) result.add(d)
+  }
+  return result
+}
+
 function shuffle<T>(arr: T[], rng: Rng): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -213,13 +265,14 @@ export function composeDay(input: {
   runPicks: Pick[]                       // appended in place with the day's created picks
   lockedByCell: Map<string, MealPlan>    // keyed `${date}|${slot}`
   specialDays: Set<string>
+  hardDays: Set<string>
   rng: Rng
 }): Pick[] {
-  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, rng } = input
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng } = input
   const created: Pick[] = []
   const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
-    date, slot, priorPlans, runPicks, dishById, specialDays,
-    relax: { spicy: false, fried: false, noRepeatFactor: 1 },
+    date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
+    relax: { ...ENFORCED },
     role, spicyFloor: 1, plannedRemaining,
   })
   const push = (p: Pick) => { runPicks.push(p); created.push(p) }
@@ -287,6 +340,7 @@ export function generateWeek(input: {
   const { days, dishesBySlot, allDishes, priorPlans, lockedCells, rng } = input
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
+  const hardDays = preassignHardDays(days, specialDays, rng)
   const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
   const runPicks: Pick[] = lockedCells.map(l => ({
     plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name,
@@ -294,7 +348,7 @@ export function generateWeek(input: {
   }))
 
   for (const date of days) {
-    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, rng })
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)
@@ -307,6 +361,16 @@ function prevDay(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
   dt.setDate(dt.getDate() - 1)
+  const yy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function nextDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + 1)
   const yy = dt.getFullYear()
   const mm = String(dt.getMonth() + 1).padStart(2, '0')
   const dd = String(dt.getDate()).padStart(2, '0')
