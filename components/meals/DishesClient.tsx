@@ -8,6 +8,12 @@ import DishEditorPanel from './DishEditorPanel'
 const PROTEINS = ['fish', 'chicken', 'pork', 'beef', 'shrimp', 'squid', 'crab', 'duck', 'egg', 'tofu_tempe', 'none', 'mixed']
 const TIERS: Tier[] = ['everyday', 'nice', 'special']
 const METHODS = ['', 'fried', 'boiled', 'grilled', 'steamed', 'sauteed', 'braised', 'raw', 'baked', 'soup']
+const SALTINESS: { value: string; label: string }[] = [
+  { value: 'normal', label: 'normal' }, { value: 'salty', label: 'salty' }, { value: 'very_salty', label: 'very salty' },
+]
+const DIFFICULTY = ['easy', 'medium', 'hard'] as const
+const DIFF_LEVEL: Record<string, number> = { easy: 1, medium: 2, hard: 3 }
+const DIFF_COLOR: Record<string, string> = { easy: 'bg-green-400', medium: 'bg-amber-400', hard: 'bg-red-400' }
 
 export default function DishesClient({ initialDishes, initialEditId = null }:
   { initialDishes: Dish[]; initialEditId?: string | null }) {
@@ -96,6 +102,8 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
+                    <th className="px-3 py-2 font-medium">Salt</th>
+                    <th className="px-3 py-2 font-medium">Difficulty</th>
                     <th className="px-3 py-2 font-medium">Spicy</th>
                     <th className="px-3 py-2 font-medium">Rating</th>
                     <th className="px-3 py-2 font-medium">Active</th>
@@ -105,7 +113,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={11} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -172,6 +180,21 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
           {METHODS.map(m => <option key={m} value={m}>{m || '—'}</option>)}
           {dish.method && !METHODS.includes(dish.method) && <option value={dish.method}>{dish.method}</option>}
         </select>
+      </td>
+      <td className="px-3 py-1.5">
+        <select value={dish.saltiness} onChange={e => onPatch(dish.id, { saltiness: e.target.value as Dish['saltiness'] })}
+          className="bg-transparent text-stone-600 focus:outline-none">
+          {SALTINESS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </td>
+      <td className="px-3 py-1.5">
+        <div className="flex items-center gap-1" role="group" aria-label="Difficulty">
+          {DIFFICULTY.map((lvl, i) => (
+            <button key={lvl} onClick={() => onPatch(dish.id, { difficulty: lvl })} aria-label={lvl} title={lvl}
+              className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                DIFF_LEVEL[dish.difficulty] >= i + 1 ? DIFF_COLOR[dish.difficulty] : 'bg-stone-200'}`} />
+          ))}
+        </div>
       </td>
       <td className="px-3 py-1.5">
         <button onClick={() => onPatch(dish.id, { spicy: !dish.spicy })} aria-label="Toggle spicy"
