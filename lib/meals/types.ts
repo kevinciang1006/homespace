@@ -10,6 +10,8 @@ export const SLOT_LABELS: Record<Slot, string> = {
 export type Tier = 'everyday' | 'nice' | 'special'
 export type Role = 'main' | 'support' | 'optional'
 export type Richness = 'light' | 'medium' | 'heavy'
+export type Saltiness = 'normal' | 'salty' | 'very_salty'
+export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export const DEFAULT_NO_REPEAT: Record<Slot, number> = {
   utama: 14, kuah: 7, pelengkap: 7, sayuran: 7, desert: 10,
@@ -31,6 +33,8 @@ export type Dish = {
   recipe_image_url: string | null
   richness: Richness
   provides_soup: boolean
+  saltiness: Saltiness
+  difficulty: Difficulty
 }
 
 export type MealPlan = {

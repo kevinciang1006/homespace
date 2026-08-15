@@ -10,7 +10,8 @@ function dish(over: Partial<Dish> & { id: string; slot: Slot }): Dish {
     name: over.id, protein: 'chicken', tier: 'everyday', method: null,
     spicy: false, rating: 3, active: true, no_repeat_days: null,
     ingredients: null, recipe_steps: null, recipe_image_url: null,
-    richness: 'medium', provides_soup: false, ...over,
+    richness: 'medium', provides_soup: false,
+    saltiness: 'normal', difficulty: 'medium', ...over,
   } as Dish
 }
 function plan(over: Partial<MealPlan> & { plan_date: string; slot: Slot }): MealPlan {
