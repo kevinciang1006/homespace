@@ -9,13 +9,23 @@ const PROTEINS = ['fish', 'chicken', 'pork', 'beef', 'shrimp', 'squid', 'crab', 
 const TIERS: Tier[] = ['everyday', 'nice', 'special']
 const METHODS = ['', 'fried', 'boiled', 'grilled', 'steamed', 'sauteed', 'braised', 'raw', 'baked', 'soup']
 
-export default function DishesClient({ initialDishes }: { initialDishes: Dish[] }) {
+export default function DishesClient({ initialDishes, initialEditId = null }:
+  { initialDishes: Dish[]; initialEditId?: string | null }) {
   const [dishes, setDishes] = useState<Dish[]>(initialDishes)
   const [slotFilter, setSlotFilter] = useState<Slot | 'all'>('all')
   const [search, setSearch] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(initialEditId)
   const [focusId, setFocusId] = useState<string | null>(null)
   const editing = dishes.find(d => d.id === editingId) ?? null
+
+  // Arriving from a recipe page ("Edit in Dishes") opens the editor for that
+  // dish and scrolls its row into view.
+  useEffect(() => {
+    if (!initialEditId) return
+    const el = document.getElementById(`dish-${initialEditId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function patch(id: string, fields: Partial<Dish>) {
     const prev = dishes.find(d => d.id === id)
@@ -94,7 +104,7 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
                 </thead>
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
-                    onDelete={deleteDish} autoFocus={d.id === focusId} />)}
+                    onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
                   {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
@@ -110,12 +120,13 @@ export default function DishesClient({ initialDishes }: { initialDishes: Dish[] 
   )
 }
 
-function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus }: {
+function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
   dish: Dish
   onPatch: (id: string, f: Partial<Dish>) => void
   onEdit: () => void
   onDelete: (id: string, name: string) => void
   autoFocus?: boolean
+  highlight?: boolean
 }) {
   const [name, setName] = useState(dish.name)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -125,7 +136,7 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <tr className="border-b border-stone-50 last:border-0">
+    <tr id={`dish-${dish.id}`} className={`border-b border-stone-50 last:border-0 ${highlight ? 'bg-orange-50/60' : ''}`}>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2">
           <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}

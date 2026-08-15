@@ -53,7 +53,7 @@ export default function RecipeClient({ dish }: { dish: Dish }) {
               ))}
             </span>
           </div>
-          <Link href="/meals/dishes" className="text-sm text-orange-600 hover:text-orange-700 mt-3 inline-block">Edit in Dishes →</Link>
+          <Link href={`/meals/dishes?edit=${dish.id}`} className="text-sm text-orange-600 hover:text-orange-700 mt-3 inline-block">Edit in Dishes →</Link>
         </div>
       </div>
 
