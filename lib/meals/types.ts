@@ -1,4 +1,5 @@
 import type { DishIngredient } from './shopping'
+import type { RecipeLink } from './recipeLinks'
 
 export const SLOTS = ['utama', 'kuah', 'pelengkap', 'sayuran', 'desert'] as const
 export type Slot = (typeof SLOTS)[number]
@@ -36,6 +37,7 @@ export type Dish = {
   saltiness: Saltiness
   difficulty: Difficulty
   is_garnish: boolean
+  recipe_links: RecipeLink[] | null
 }
 
 export type MealPlan = {
@@ -47,7 +49,7 @@ export type MealPlan = {
   locked: boolean
   role: Role
   skipped: boolean
-  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null } | null
+  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; recipe_links?: RecipeLink[] | null } | null
 }
 
 export type MealShoppingList = {

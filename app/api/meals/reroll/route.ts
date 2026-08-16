@@ -4,7 +4,7 @@ import { candidates, composeDay, pickForSlot, weightFor, type PickContext } from
 import { weekDates, mondayOf } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
-const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method)'
+const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, recipe_links)'
 
 async function loadWeek(plan_date: string) {
   const week = weekDates(mondayOf(plan_date))

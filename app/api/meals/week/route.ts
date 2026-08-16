@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'weekStart required' }, { status: 400 })
   }
   const days = weekDates(weekStart)
-  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method)')
+  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, recipe_links)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
   return Response.json({ week: (data ?? []) as MealPlan[] })
 }
