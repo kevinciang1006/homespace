@@ -4,8 +4,11 @@ import Link from 'next/link'
 import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
 import { SHOP_CATEGORIES, type DishIngredient } from '@/lib/meals/shopping'
 import type { Dish } from '@/lib/meals/types'
+import { detectSource, type RecipeLink } from '@/lib/meals/recipeLinks'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
+
+const SOURCE_EMOJI: Record<string, string> = { youtube: '▶️', instagram: '📸', tiktok: '🎵', web: '🔗' }
 
 // Slide-over editor for a dish's photo, ingredients, and recipe steps.
 // Structural edits (add/remove/reorder/category) persist immediately; free-text
@@ -18,9 +21,19 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
   const [imageUrl, setImageUrl] = useState(dish.recipe_image_url ?? '')
   const [ingredients, setIngredients] = useState<DishIngredient[]>(dish.ingredients ?? [])
   const [steps, setSteps] = useState<string[]>(dish.recipe_steps ?? [])
+  const [links, setLinks] = useState<RecipeLink[]>(dish.recipe_links ?? [])
+  const [newUrl, setNewUrl] = useState('')
+  const [newTitle, setNewTitle] = useState('')
 
   function saveIngredients(next: DishIngredient[]) { setIngredients(next); onPatch(dish.id, { ingredients: next }) }
   function saveSteps(next: string[]) { setSteps(next); onPatch(dish.id, { recipe_steps: next }) }
+  function saveLinks(next: RecipeLink[]) { setLinks(next); onPatch(dish.id, { recipe_links: next }) }
+  function addLink() {
+    const url = newUrl.trim(); if (!url) return
+    saveLinks([...links, { url, title: newTitle.trim() || undefined, source: detectSource(url) }])
+    setNewUrl(''); setNewTitle('')
+  }
+  const removeLink = (i: number) => saveLinks(links.filter((_, idx) => idx !== i))
 
   const addIng = () => saveIngredients([...ingredients, { name: '', quantity: '', category: 'other' }])
   const removeIng = (i: number) => saveIngredients(ingredients.filter((_, idx) => idx !== i))
@@ -115,6 +128,30 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
                   <button onClick={() => removeStep(i)} className="p-1 mt-1 text-stone-300 hover:text-red-500 shrink-0" aria-label="Remove step"><Trash2 size={15} /></button>
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* recipe links */}
+          <section>
+            <h3 className="text-sm font-medium text-stone-600 mb-2">Recipe links</h3>
+            {links.length === 0 && <p className="text-sm text-stone-400">No links yet.</p>}
+            <div className="space-y-1.5">
+              {links.map((l, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="shrink-0">{SOURCE_EMOJI[l.source]}</span>
+                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline truncate min-w-0 flex-1">{l.title || l.url}</a>
+                  <button onClick={() => removeLink(i)} className="text-stone-300 hover:text-stone-600 shrink-0" aria-label="Remove link">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 space-y-1.5">
+              <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Paste a recipe URL (YouTube, IG, TikTok, web)"
+                className="w-full border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm" />
+              <div className="flex gap-1.5">
+                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Title (optional)"
+                  className="flex-1 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm" />
+                <button onClick={addLink} className="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-sm">Add</button>
+              </div>
             </div>
           </section>
 
