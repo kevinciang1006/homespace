@@ -533,6 +533,18 @@ describe('validateWeek', () => {
     ]
     expect(validateWeek(rows, byId)).toEqual([])
   })
+  it('flags two spicy mains on adjacent days', () => {
+    const byId = new Map<string, Dish>([
+      ['a', dish({ id: 'a', slot: 'utama', name: 'Ayam pedas', protein: 'chicken', spicy: true })],
+      ['b', dish({ id: 'b', slot: 'utama', name: 'Ikan cabe', protein: 'fish', spicy: true })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-13', dish_id: 'a' },
+      { plan_date: '2026-08-14', dish_id: 'b' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('spicy mains adjacent'))).toBe(true)
+  })
 })
 
 import { candidates } from './engine'

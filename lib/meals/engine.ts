@@ -419,6 +419,14 @@ export function validateWeek(
     arr.some((a, i) => arr.some((b, j) => i < j && Math.abs(daysBetween(a, b)) === 1))
   if (hasAdjacent(hardDates)) viol.push(`⚠️ week: hard dishes on adjacent days (${hardDates.join(', ')})`)
   if (hasAdjacent(specialDates)) viol.push(`⚠️ week: special dishes on adjacent days (${specialDates.join(', ')})`)
+  const spicyMainDates = dates.filter(date => byDate.get(date)!.some(d => d.slot === 'utama' && d.spicy))
+  for (let i = 0; i < spicyMainDates.length; i++) {
+    for (let j = i + 1; j < spicyMainDates.length; j++) {
+      if (Math.abs(daysBetween(spicyMainDates[i], spicyMainDates[j])) === 1) {
+        viol.push(`⚠️ ${spicyMainDates[i]}-${spicyMainDates[j]}: two spicy mains adjacent — pool constraint`)
+      }
+    }
+  }
   return viol
 }
 
