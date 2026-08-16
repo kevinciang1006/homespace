@@ -35,6 +35,7 @@ export type Dish = {
   provides_soup: boolean
   saltiness: Saltiness
   difficulty: Difficulty
+  is_garnish: boolean
 }
 
 export type MealPlan = {

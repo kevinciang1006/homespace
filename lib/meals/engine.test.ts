@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Dish, MealPlan, Pick, Slot } from './types'
 import {
-  noRepeatOk, proteinOk, specialOk, friedOk, spicyOk, passesHardRules,
+  noRepeatOk, proteinOk, proteinClashOk, specialOk, friedOk, spicyOk, passesHardRules,
   type PickContext,
 } from './engine'
 
@@ -11,7 +11,7 @@ function dish(over: Partial<Dish> & { id: string; slot: Slot }): Dish {
     spicy: false, rating: 3, active: true, no_repeat_days: null,
     ingredients: null, recipe_steps: null, recipe_image_url: null,
     richness: 'medium', provides_soup: false,
-    saltiness: 'normal', difficulty: 'medium', ...over,
+    saltiness: 'normal', difficulty: 'medium', is_garnish: false, ...over,
   } as Dish
 }
 function plan(over: Partial<MealPlan> & { plan_date: string; slot: Slot }): MealPlan {
@@ -29,7 +29,7 @@ function ctx(over: Partial<PickContext> & { date: string; slot: Slot; dishes: Di
     priorPlans: over.priorPlans ?? [], runPicks: over.runPicks ?? [],
     dishById, specialDays: over.specialDays ?? new Set(),
     hardDays: over.hardDays ?? new Set<string>(),
-    relax: over.relax ?? { spicy: false, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
+    relax: over.relax ?? { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 },
     role: over.role ?? 'support', spicyFloor: over.spicyFloor ?? 1,
     plannedRemaining: over.plannedRemaining ?? 5,
   }
@@ -75,6 +75,47 @@ describe('proteinOk', () => {
     const d = dish({ id: 'k', slot: 'kuah', protein: 'beef' })
     const c = ctx({ date: '2026-08-13', slot: 'kuah', dishes: [d] })
     expect(proteinOk(d, c)).toBe(true)
+  })
+})
+
+describe('proteinClashOk (no two dishes share a real protein on a plate)', () => {
+  function withMain(mainProtein: string) {
+    const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [],
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm', role: 'main' })] })
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', protein: mainProtein }))
+    return c
+  }
+  it('rejects a support whose protein matches the chicken main', () => {
+    const support = dish({ id: 's', slot: 'pelengkap', protein: 'chicken' })
+    expect(proteinClashOk(support, withMain('chicken'))).toBe(false)
+  })
+  it('allows a support with a different meat protein', () => {
+    const support = dish({ id: 's', slot: 'pelengkap', protein: 'beef' })
+    expect(proteinClashOk(support, withMain('chicken'))).toBe(true)
+  })
+  it('treats none/egg/tofu_tempe as neutral — never clashes', () => {
+    for (const p of ['none', 'egg', 'tofu_tempe', 'mixed']) {
+      const support = dish({ id: 's', slot: 'pelengkap', protein: p })
+      // even against a same-named neutral main, no clash
+      expect(proteinClashOk(support, withMain(p))).toBe(true)
+    }
+  })
+  it('is pairwise — rejects a 2nd support clashing with an earlier support, not the main', () => {
+    const support = dish({ id: 's2', slot: 'sayuran', protein: 'beef' })
+    const c = ctx({ date: '2026-08-13', slot: 'sayuran', dishes: [],
+      runPicks: [
+        pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm', role: 'main' }),
+        pick({ plan_date: '2026-08-13', slot: 'pelengkap', dish_id: 's1' }),
+      ] })
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', protein: 'chicken' }))
+    c.dishById.set('s1', dish({ id: 's1', slot: 'pelengkap', protein: 'beef' }))
+    expect(proteinClashOk(support, c)).toBe(false)
+  })
+  it('is relaxable via relax.proteinClash', () => {
+    const support = dish({ id: 's', slot: 'pelengkap', protein: 'chicken' })
+    const c = withMain('chicken')
+    c.relax = { ...c.relax, proteinClash: true }
+    expect(proteinClashOk(support, c)).toBe(true)
   })
 })
 
@@ -143,7 +184,7 @@ describe('spicyOk (floor of 1 non-spicy among main+supports)', () => {
   it('is not enforced when relax.spicy is true', () => {
     const d = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
     const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [d], role: 'support', plannedRemaining: 0,
-      relax: { spicy: true, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 } })
+      relax: { spicy: true, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 } })
     expect(spicyOk(d, c)).toBe(true)
   })
 })
@@ -187,12 +228,13 @@ describe('weightedPick', () => {
 
 describe('pickForSlot relaxation ladder', () => {
   it('relaxes spicy floor when the only candidate is spicy', () => {
-    const onlySpicy = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
+    const onlySpicy = dish({ id: 'sp', slot: 'pelengkap', spicy: true, protein: 'none' })
     // spicy main already placed, no more picks planned -> a spicy side breaks the floor at level 0
+    // (neutral proteins keep the protein-clash rule out of the way so only the spicy floor bites)
     const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [onlySpicy],
       role: 'support', plannedRemaining: 0,
       runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'm', role: 'main' })] })
-    c.dishById.set('m', dish({ id: 'm', slot: 'utama', spicy: true }))
+    c.dishById.set('m', dish({ id: 'm', slot: 'utama', spicy: true, protein: 'none' }))
     const result = pickForSlot([onlySpicy], c, seq([0.5]))
     expect(result.dish_id).toBe('sp')
     expect(result.note).toContain('spicy')
@@ -356,7 +398,7 @@ describe('difficultyOk (hard: hard-days only, <=1/day, non-adjacent)', () => {
   it('is relaxable via relax.hardDay', () => {
     const d = dish({ id: 'h', slot: 'utama', difficulty: 'hard' })
     const c = ctx({ date: '2026-08-13', slot: 'utama', dishes: [d], hardDays: new Set(),
-      relax: { spicy: false, fried: false, hardDay: true, hardSpacing: true, noRepeatFactor: 1 } })
+      relax: { spicy: false, fried: false, hardDay: true, hardSpacing: true, proteinClash: false, noRepeatFactor: 1 } })
     expect(difficultyOk(d, c)).toBe(true)
   })
 })
@@ -454,8 +496,8 @@ describe('validateWeek', () => {
   })
   it('returns clean for a compliant week', () => {
     const byId = new Map<string, Dish>([
-      ['a', dish({ id: 'a', slot: 'utama', saltiness: 'salty' })],
-      ['b', dish({ id: 'b', slot: 'pelengkap', saltiness: 'normal' })],
+      ['a', dish({ id: 'a', slot: 'utama', protein: 'beef', saltiness: 'salty' })],
+      ['b', dish({ id: 'b', slot: 'pelengkap', protein: 'none', saltiness: 'normal' })],
     ])
     const rows = [
       { plan_date: '2026-08-17', dish_id: 'a' },
@@ -463,5 +505,48 @@ describe('validateWeek', () => {
       { plan_date: '2026-08-18', dish_id: null, skipped: true },
     ]
     expect(validateWeek(rows, byId)).toEqual([])
+  })
+  it('flags a plate with two dishes sharing a meat protein', () => {
+    const byId = new Map<string, Dish>([
+      ['a', dish({ id: 'a', slot: 'utama', name: 'Ayam Jahe', protein: 'chicken' })],
+      ['b', dish({ id: 'b', slot: 'pelengkap', name: 'Ayam Goreng', protein: 'chicken' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', dish_id: 'a' },
+      { plan_date: '2026-08-17', dish_id: 'b' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('2026-08-17') && v.includes('2 chicken'))).toBe(true)
+  })
+  it('does not flag repeated neutral proteins (two none dishes)', () => {
+    const byId = new Map<string, Dish>([
+      ['a', dish({ id: 'a', slot: 'sayuran', protein: 'none' })],
+      ['b', dish({ id: 'b', slot: 'pelengkap', protein: 'none' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', dish_id: 'a' },
+      { plan_date: '2026-08-17', dish_id: 'b' },
+    ]
+    expect(validateWeek(rows, byId)).toEqual([])
+  })
+})
+
+import { candidates } from './engine'
+
+describe('garnish + inactive exclusion', () => {
+  it('excludes garnish and inactive dishes from candidates', () => {
+    const ok = dish({ id: 'ok', slot: 'sayuran' })
+    const garnish = dish({ id: 'g', slot: 'sayuran', is_garnish: true })
+    const inactive = dish({ id: 'i', slot: 'sayuran', active: false })
+    const c = ctx({ date: '2026-08-13', slot: 'sayuran', dishes: [ok, garnish, inactive] })
+    expect(passesHardRules(ok, c)).toBe(true)
+    expect(passesHardRules(garnish, c)).toBe(false)
+    expect(passesHardRules(inactive, c)).toBe(false)
+    expect(candidates([ok, garnish, inactive], c).map(d => d.id)).toEqual(['ok'])
+  })
+  it('never picks a garnish dish even at last resort', () => {
+    const garnish = dish({ id: 'g', slot: 'sayuran', is_garnish: true })
+    const c = ctx({ date: '2026-08-13', slot: 'sayuran', dishes: [garnish] })
+    expect(pickForSlot([garnish], c, seq([0.5])).dish_id).toBeNull()
   })
 })

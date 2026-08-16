@@ -10,7 +10,7 @@ export type PickContext = {
   dishById: Map<string, Dish>
   specialDays: Set<string>
   hardDays: Set<string>
-  relax: { spicy: boolean; fried: boolean; hardDay: boolean; hardSpacing: boolean; noRepeatFactor: number }
+  relax: { spicy: boolean; fried: boolean; hardDay: boolean; hardSpacing: boolean; proteinClash: boolean; noRepeatFactor: number }
   role: Role
   spicyFloor: number
   plannedRemaining: number
@@ -19,7 +19,11 @@ export type PickContext = {
 // Default relax state: every relaxable rule enforced (false = ON, matching spicy/fried).
 // The saltiness cap (<=1 non-normal per day) is a hard rule and is NOT relaxable.
 export const ENFORCED: PickContext['relax'] =
-  { spicy: false, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 }
+  { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 }
+
+// Proteins that count as "the same" for the no-repeat-on-a-plate rule.
+// egg, tofu_tempe, none and mixed are neutral staples and never clash.
+export const MEAT_PROTEINS = new Set(['chicken', 'beef', 'pork', 'fish', 'shrimp', 'squid', 'crab', 'duck'])
 
 export function resolveDish(ctx: PickContext, dishId: string | null): Dish | undefined {
   return dishId ? ctx.dishById.get(dishId) : undefined
@@ -60,6 +64,14 @@ export function proteinOk(dish: Dish, ctx: PickContext): boolean {
   }
   if (!prevProtein) return true
   return dish.protein !== prevProtein
+}
+
+// No two dishes on the same plate may share a "real" protein (main included).
+// e.g. a chicken main blocks any chicken support; neutral proteins never clash.
+export function proteinClashOk(dish: Dish, ctx: PickContext): boolean {
+  if (ctx.relax.proteinClash) return true
+  if (!MEAT_PROTEINS.has(dish.protein)) return true
+  return !picksForDate(ctx, ctx.date).some(p => resolveDish(ctx, p.dish_id)?.protein === dish.protein)
 }
 
 export function specialOk(dish: Dish, ctx: PickContext): boolean {
@@ -127,9 +139,11 @@ export function difficultyOk(dish: Dish, ctx: PickContext): boolean {
 export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
   return (
     dish.active &&
+    !dish.is_garnish &&
     dish.slot === ctx.slot &&
     noRepeatOk(dish, ctx) &&
     proteinOk(dish, ctx) &&
+    proteinClashOk(dish, ctx) &&
     specialOk(dish, ctx) &&
     friedOk(dish, ctx) &&
     spicyOk(dish, ctx) &&
@@ -186,7 +200,8 @@ const RELAX_LADDER: { relax: PickContext['relax']; note?: string }[] = [
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true }, note: 'relaxed: hard-day restriction' },
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true }, note: 'relaxed: + spicy floor' },
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true }, note: 'relaxed: + fried cap' },
-  { relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true, proteinClash: true }, note: 'relaxed: + protein variety' },
+  { relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
 ]
 
 export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
@@ -200,8 +215,8 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
   }
   // last resort: any active dish of the slot, keep min no-repeat (factor 0.5).
   // Saltiness cap is still enforced here — never place a 2nd salty dish, even at last resort.
-  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, noRepeatFactor: 0.5 } }
-  const anyActive = slotDishes.filter(d => d.active && d.slot === ctx.slot && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, noRepeatFactor: 0.5 } }
+  const anyActive = slotDishes.filter(d => d.active && !d.is_garnish && d.slot === ctx.slot && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
   if (anyActive.length > 0) {
     const chosen = weightedPick(anyActive, lastCtx, rng)!
     return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
@@ -379,6 +394,14 @@ export function validateWeek(
     if (salty.length > 1) viol.push(`⚠️ ${date}: ${salty.length} salty dishes (${salty.map(d => d.name).join(', ')})`)
     const fried = ds.filter(d => d.method === 'fried')
     if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
+    const byProtein = new Map<string, Dish[]>()
+    for (const d of ds.filter(d => MEAT_PROTEINS.has(d.protein))) {
+      if (!byProtein.has(d.protein)) byProtein.set(d.protein, [])
+      byProtein.get(d.protein)!.push(d)
+    }
+    for (const [protein, dupes] of byProtein) {
+      if (dupes.length > 1) viol.push(`⚠️ ${date}: ${dupes.length} ${protein} dishes (${dupes.map(d => d.name).join(', ')})`)
+    }
   }
   const hardDates = dates.filter(date => byDate.get(date)!.some(d => d.difficulty === 'hard'))
   const specialDates = dates.filter(date => byDate.get(date)!.some(d => d.tier === 'special'))
