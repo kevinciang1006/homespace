@@ -122,6 +122,8 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
   const soupSkipped = rows.some(r => r.slot === 'kuah' && r.skipped)
   const desert = rows.find(r => r.role === 'optional')
 
+  const [rerollingDay, setRerollingDay] = useState(false)
+
   async function rerollMain(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -129,10 +131,28 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
     })
     if (res.ok) { const { day } = await res.json(); onReplaceDay(date, day) }
   }
+  async function rerollDay() {
+    setRerollingDay(true)
+    try {
+      const res = await fetch('/api/meals/reroll', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ plan_date: date, scope: 'day' }),
+      })
+      if (res.ok) { const { day } = await res.json(); onReplaceDay(date, day) }
+    } finally { setRerollingDay(false) }
+  }
 
   return (
     <div className="min-w-0 bg-white border border-stone-200 rounded-2xl p-3 flex flex-col gap-3">
-      <div className="text-xs font-semibold text-stone-500">{dayName} · <span className="text-stone-400">{label(date)}</span></div>
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-stone-500">{dayName} · <span className="text-stone-400">{label(date)}</span></div>
+        <div className="flex items-center gap-0.5">
+          <button onClick={rerollDay} disabled={rerollingDay} title="Reshuffle this day"
+            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 disabled:opacity-40">
+            <Shuffle size={13} className={rerollingDay ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </div>
       {main
         ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}

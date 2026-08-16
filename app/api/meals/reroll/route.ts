@@ -58,6 +58,35 @@ function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], pl
 export async function POST(request: Request) {
   const body = await request.json()
   const { plan_date, slot } = body
+
+  // ---- DAY reroll → re-compose the whole day, keeping locked cells ----
+  if (body.scope === 'day') {
+    if (!plan_date) return Response.json({ error: 'plan_date required' }, { status: 400 })
+    const { week, allDishes, plans } = await loadWeek(plan_date)
+    const dishById = new Map(allDishes.map(d => [d.id, d]))
+    const weekSet = new Set(week)
+    const { specialDays, hardDays } = deriveDays(week, plans, dishById)
+    const dayLocked = plans.filter(p => p.plan_date === plan_date && p.locked)
+    const lockedByCell = new Map(dayLocked.map(l => [`${l.plan_date}|${l.slot}`, l]))
+    const runPicks = plans
+      .filter(p => !(p.plan_date === plan_date && !p.locked))
+      .map(p => ({ plan_date: p.plan_date, slot: p.slot as Slot, dish_id: p.dish_id, dish_name: p.dish_name,
+        locked: p.locked, role: (p.role ?? 'support') as Role, skipped: p.skipped ?? false }))
+    const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
+    const dishesBySlot = Object.fromEntries(SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)])) as Record<Slot, Dish[]>
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
+    await supabase.from('meal_plans').delete().eq('plan_date', plan_date).eq('locked', false)
+    const toInsert = created.filter(p => !p.locked)
+    if (toInsert.length) {
+      const { error } = await supabase.from('meal_plans').insert(toInsert.map(p => ({
+        plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,
+        locked: false, role: p.role, skipped: p.skipped })))
+      if (error) return Response.json({ error: error.message }, { status: 500 })
+    }
+    const { data: day } = await supabase.from('meal_plans').select(SELECT).eq('plan_date', plan_date)
+    return Response.json({ day: (day ?? []) as MealPlan[] })
+  }
+
   if (!plan_date || !SLOTS.includes(slot)) {
     return Response.json({ error: 'plan_date and valid slot required' }, { status: 400 })
   }
