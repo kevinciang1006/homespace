@@ -2,14 +2,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart } from 'lucide-react'
-import { SLOT_LABELS, type MealPlan, type Tier } from '@/lib/meals/types'
+import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check } from 'lucide-react'
+import { SLOT_LABELS, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
+import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
 import { computeWeekOverview } from '@/lib/meals/overview'
+
+export type CookRow = {
+  cook_date: string; slot: Slot
+  planned_dish_id: string | null; planned_dish_name: string | null
+  actual_dish_id: string | null; actual_dish_name: string | null
+  cooked: boolean; note?: string | null; logged_by?: string | null
+}
 
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -27,16 +35,31 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
   const [week, setWeek] = useState<MealPlan[]>(initialWeek)
   const [generating, setGenerating] = useState(false)
   const [buildingList, setBuildingList] = useState(false)
+  const [cookLog, setCookLog] = useState<Record<string, CookRow[]>>({})
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
 
   function dayRows(date: string) { return week.filter(p => p.plan_date === date) }
+
+  async function loadCookLog(ws: string) {
+    const res = await fetch(`/api/meals/cook-log?weekStart=${ws}`)
+    if (res.ok) {
+      const { entries } = await res.json()
+      const map: Record<string, CookRow[]> = {}
+      for (const e of entries as CookRow[]) (map[e.cook_date] ||= []).push(e)
+      setCookLog(map)
+    }
+  }
+  function onCooked(date: string, entries: CookRow[]) {
+    setCookLog(prev => ({ ...prev, [date]: entries }))
+  }
 
   async function loadWeek(ws: string) {
     setWeekStart(ws)
     try { sessionStorage.setItem('meals-weekStart', ws) } catch {}
     const res = await fetch(`/api/meals/week?weekStart=${ws}`)
     const { week } = await res.json(); setWeek(week ?? [])
+    loadCookLog(ws)
   }
 
   // Restore the last-viewed week when returning to /meals (e.g. after opening a
@@ -45,6 +68,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
     let saved: string | null = null
     try { saved = sessionStorage.getItem('meals-weekStart') } catch {}
     if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved) && saved !== initialWeekStart) loadWeek(saved)
+    else loadCookLog(initialWeekStart)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   async function generate() {
@@ -54,6 +78,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart }),
       })
       const { week } = await res.json(); setWeek(week ?? [])
+      loadCookLog(weekStart)
     } finally { setGenerating(false) }
   }
   async function buildList() {
@@ -103,6 +128,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
           <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
+            entries={cookLog[date] ?? []} onCooked={onCooked}
             onReplaceDay={replaceDay} onReplaceCell={replaceCell} />
         ))}
       </div>
@@ -112,8 +138,9 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
   )
 }
 
-function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
+function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onReplaceCell }: {
   date: string; dayName: string; rows: MealPlan[]
+  entries: CookRow[]; onCooked: (date: string, entries: CookRow[]) => void
   onReplaceDay: (date: string, rows: MealPlan[]) => void
   onReplaceCell: (row: MealPlan) => void
 }) {
@@ -123,7 +150,18 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
   const desert = rows.find(r => r.role === 'optional')
 
   const [rerollingDay, setRerollingDay] = useState(false)
+  const [showLog, setShowLog] = useState(false)
   const dayLocked = rows.length > 0 && rows.every(r => r.locked)
+  const cooked = entries.some(e => e.cooked)
+  const hasPlan = rows.some(r => r.dish_id && !r.skipped)
+
+  async function markCooked() {
+    const res = await fetch('/api/meals/cook-log', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cook_date: date }),
+    })
+    if (res.ok) { const { entries } = await res.json(); onCooked(date, entries) }
+  }
 
   async function toggleDayLock() {
     const next = !dayLocked
@@ -158,6 +196,7 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-stone-500 flex items-center gap-1.5">
           <span>{dayName} · <span className="text-stone-400">{label(date)}</span></span>
+          {cooked && <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-700 bg-green-100 rounded px-1 py-0.5"><Check size={10} /> Cooked</span>}
           {dayLocked && <span className="text-[10px] font-medium text-orange-700 bg-orange-100 rounded px-1 py-0.5">🔒 Locked</span>}
         </div>
         <div className="flex items-center gap-0.5">
@@ -189,6 +228,20 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
       )}
 
       {desert && <DesertRow row={desert} date={date} onReplaceCell={onReplaceCell} />}
+
+      {hasPlan && (
+        <div className="flex items-center gap-2 border-t border-stone-100 pt-2 mt-0.5">
+          <button onClick={markCooked}
+            className={`flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium ${cooked ? 'bg-green-50 text-green-700' : 'bg-stone-100 text-stone-600 hover:bg-green-50 hover:text-green-700'}`}>
+            <Check size={13} /> {cooked ? 'Cooked' : 'Mark cooked'}
+          </button>
+          <button onClick={() => setShowLog(true)} className="px-3 py-1.5 rounded-lg text-xs text-stone-500 hover:bg-stone-100">Edit</button>
+        </div>
+      )}
+      {showLog && (
+        <CookLogSheet date={date} rows={rows} entries={entries}
+          onClose={() => setShowLog(false)} onSaved={(d, saved) => onCooked(d, saved as CookRow[])} />
+      )}
     </div>
   )
 }
