@@ -10,23 +10,24 @@ export default function WeekOverview({ overview }: { overview: Overview }) {
 
   if (!overview.hasPlan) {
     return (
-      <div className="bg-white border border-stone-200 rounded-2xl px-4 py-3 mb-4 text-sm text-stone-500">
+      <div className="bg-white border border-stone-200 rounded-2xl px-4 py-3 mt-6 text-sm text-stone-500">
         {overview.verdict} — {overview.summary}
       </div>
     )
   }
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-4 mb-4">
-      <button onClick={() => setExpanded(e => !e)} className="w-full flex items-center justify-between text-left sm:cursor-default">
+    <div className="bg-white border border-stone-200 rounded-2xl p-4 mt-6">
+      <button onClick={() => setExpanded(e => !e)} className="w-full flex items-center justify-between text-left">
         <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-wide text-stone-400">📊 Week overview</div>
           <div className="text-lg text-stone-900 leading-tight" style={{ fontFamily: 'DM Serif Display, serif' }}>{overview.verdict}</div>
-          <div className="text-xs text-stone-500 mt-0.5 truncate">{overview.summary}</div>
+          {!expanded && <div className="text-xs text-stone-500 mt-0.5 truncate">{overview.summary}</div>}
         </div>
-        <span className="sm:hidden text-stone-400 shrink-0 ml-2">{expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</span>
+        <span className="text-stone-400 shrink-0 ml-2">{expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</span>
       </button>
 
-      <div className={`${expanded ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-2.5 mt-3 pt-3 border-t border-stone-100`}>
+      <div className={`${expanded ? 'grid' : 'hidden'} grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-2.5 mt-3 pt-3 border-t border-stone-100`}>
         {overview.signals.map(s => (
           <div key={s.label} className="flex items-start gap-2">
             <span className="text-base leading-none mt-0.5">{s.emoji}</span>

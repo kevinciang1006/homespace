@@ -99,14 +99,14 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
         </div>
       </div>
 
-      <WeekOverview overview={overview} />
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
           <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
             onReplaceDay={replaceDay} onReplaceCell={replaceCell} />
         ))}
       </div>
+
+      <WeekOverview overview={overview} />
     </div>
   )
 }
