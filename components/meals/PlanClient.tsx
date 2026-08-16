@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart } from 'lucide-react'
@@ -30,9 +30,19 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
 
   async function loadWeek(ws: string) {
     setWeekStart(ws)
+    try { sessionStorage.setItem('meals-weekStart', ws) } catch {}
     const res = await fetch(`/api/meals/week?weekStart=${ws}`)
     const { week } = await res.json(); setWeek(week ?? [])
   }
+
+  // Restore the last-viewed week when returning to /meals (e.g. after opening a
+  // dish recipe), so pagination isn't reset to the current week on every remount.
+  useEffect(() => {
+    let saved: string | null = null
+    try { saved = sessionStorage.getItem('meals-weekStart') } catch {}
+    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved) && saved !== initialWeekStart) loadWeek(saved)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   async function generate() {
     setGenerating(true)
     try {
