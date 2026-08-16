@@ -307,46 +307,28 @@ export function composeDay(input: {
     push(p)
     main = p.dish_id ? dishById.get(p.dish_id) : undefined
   }
-  const richness = main?.richness ?? 'medium'
-  const extra = richness === 'heavy' ? 0 : 1
   const providesSoup = main?.provides_soup ?? false
 
-  // 3. SOUP skip (only when the main provides soup and kuah isn't locked)
-  if (providesSoup && !isLocked('kuah')) {
-    push({ plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
-  }
-
-  // 4a. VEG — always, free
+  // 2. SAYURAN — always
   if (!isLocked('sayuran')) {
-    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', extra), rng))
+    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', providesSoup ? 0 : 1), rng))
   }
 
-  // 4b/c. one extra support: a side, or a soup fallback only if no side fits
-  if (extra >= 1 && !isLocked('pelengkap')) {
-    const preferNonFried = main?.method === 'fried'
-    const side = pickPreferNonFried(dishesBySlot.pelengkap ?? [], mkCtx('pelengkap', 'support', 0), rng, preferNonFried)
-    if (side.dish_id) push(side)
-    else if (!providesSoup && !isLocked('kuah')) {
-      const soup = pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 0), rng)
-      if (soup.dish_id) push(soup)
+  // 3. SOUP — skipped when the main provides soup, otherwise picked
+  if (!isLocked('kuah')) {
+    if (providesSoup) {
+      push({ plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
+    } else {
+      push(pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 0), rng))
     }
   }
 
-  // 5. DESERT — always, optional
+  // 4. DESERT — optional
   if (!isLocked('desert')) {
     push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
   }
 
   return created
-}
-
-function pickPreferNonFried(slotDishes: Dish[], ctx: PickContext, rng: Rng, prefer: boolean): Pick {
-  if (prefer) {
-    const nonFried = slotDishes.filter(d => d.method !== 'fried')
-    const p = pickForSlot(nonFried, ctx, rng)
-    if (p.dish_id) return p
-  }
-  return pickForSlot(slotDishes, ctx, rng)
 }
 
 export function generateWeek(input: {

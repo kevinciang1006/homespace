@@ -279,42 +279,32 @@ function pools() {
   }
 }
 
-describe('composeDay', () => {
-  it('heavy main → main + veg + desert only (no side/soup dish)', () => {
-    const dishesBySlot = pools()
-    dishesBySlot.utama.forEach(d => { d.richness = 'heavy' })
+describe('composeDay (3-component plate)', () => {
+  const run = (dishesBySlot: Record<Slot, Dish[]>) => {
     const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
-    const runPicks: Pick[] = []
-    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks,
-      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5]) })
-    expect(created.filter(p => p.role === 'main').length).toBe(1)
-    expect(created.some(p => p.slot === 'sayuran' && p.role === 'support')).toBe(true)
-    expect(created.some(p => p.slot === 'pelengkap')).toBe(false) // no side for heavy
-    expect(created.some(p => p.slot === 'kuah' && p.dish_id)).toBe(false) // no soup dish
-    expect(created.some(p => p.slot === 'desert' && p.role === 'optional')).toBe(true)
+    return composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
+      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+  }
+
+  it('main that does NOT provide soup → main + sayuran + soup + desert, no pelengkap', () => {
+    const p = pools(); p.utama.forEach(d => { d.provides_soup = false })
+    const created = run(p)
+    expect(created.filter(x => x.role === 'main' && x.slot === 'utama').length).toBe(1)
+    expect(created.some(x => x.slot === 'sayuran' && x.dish_id)).toBe(true)
+    expect(created.some(x => x.slot === 'kuah' && x.dish_id && !x.skipped)).toBe(true)
+    expect(created.some(x => x.slot === 'desert' && x.role === 'optional')).toBe(true)
+    expect(created.some(x => x.slot === 'pelengkap')).toBe(false)
   })
 
-  it('medium main → main + veg + one side + desert', () => {
-    const dishesBySlot = pools()
-    dishesBySlot.utama.forEach(d => { d.richness = 'medium'; d.provides_soup = false })
-    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
-    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
-      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
-    expect(created.some(p => p.slot === 'sayuran' && p.dish_id)).toBe(true)
-    expect(created.some(p => p.slot === 'pelengkap' && p.dish_id)).toBe(true)
-    expect(created.some(p => p.slot === 'desert' && p.role === 'optional')).toBe(true)
-  })
-
-  it('main that provides soup → skipped kuah row, no soup dish', () => {
-    const dishesBySlot = pools()
-    dishesBySlot.utama.forEach(d => { d.richness = 'medium'; d.provides_soup = true })
-    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
-    const created = composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
-      lockedByCell: new Map(), specialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
-    const kuah = created.find(p => p.slot === 'kuah')!
+  it('main that provides soup → soup slot skipped, no soup dish, no pelengkap', () => {
+    const p = pools(); p.utama.forEach(d => { d.provides_soup = true })
+    const created = run(p)
+    const kuah = created.find(x => x.slot === 'kuah')!
     expect(kuah.skipped).toBe(true)
     expect(kuah.dish_id).toBeNull()
-    expect(created.some(p => p.slot === 'kuah' && p.dish_id)).toBe(false)
+    expect(created.some(x => x.slot === 'kuah' && x.dish_id)).toBe(false)
+    expect(created.some(x => x.slot === 'pelengkap')).toBe(false)
+    expect(created.some(x => x.slot === 'sayuran' && x.dish_id)).toBe(true)
   })
 })
 
@@ -335,6 +325,7 @@ describe('generateWeek (compose)', () => {
       .map(p => WEEK.indexOf(p.plan_date)).sort((a,b)=>a-b)
     expect(specialDays.length).toBe(2)
     expect(specialDays[1] - specialDays[0]).toBeGreaterThanOrEqual(2)
+    expect(picks.some(p => p.slot === 'pelengkap' && p.dish_id)).toBe(false)
   })
 
   it('preserves a locked cell', () => {
