@@ -313,6 +313,22 @@ describe('composeDay (3-component plate)', () => {
     expect(created.some(x => x.slot === 'pelengkap')).toBe(false)
   })
 
+  it('LOCKED provides-soup main (reshuffle case) → kuah still converts to a 2nd veg, no soup', () => {
+    const p = pools()
+    const tomyam = dish({ id: 'tomyam', slot: 'utama', name: 'Tomyam udang', protein: 'shrimp', provides_soup: true })
+    p.utama = [tomyam, ...p.utama]
+    const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
+    // simulate the day-reshuffle: main is LOCKED to Tomyam, everything else recomposes
+    const lockedByCell = new Map([['2026-08-10|utama', { plan_date: '2026-08-10', slot: 'utama', dish_id: 'tomyam' } as MealPlan]])
+    const runPicks: Pick[] = [pick({ plan_date: '2026-08-10', slot: 'utama', dish_id: 'tomyam', role: 'main', locked: true })]
+    const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks,
+      lockedByCell, specialDays: new Set(), hardDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+    const kuah = created.find(x => x.slot === 'kuah')!
+    expect(kuah.dish_id).toBeTruthy()
+    expect(dishById.get(kuah.dish_id!)!.slot).toBe('sayuran')   // second veg, not a soup
+    expect(created.some(x => x.dish_id && dishById.get(x.dish_id)!.slot === 'kuah')).toBe(false)
+  })
+
   it('provides-soup main with no second veg available → kuah falls back to the broth note', () => {
     const p = pools(); p.utama.forEach(d => { d.provides_soup = true })
     p.sayuran = [dish({ id: 'only-veg', slot: 'sayuran', protein: 'none' })]  // single veg → no distinct second

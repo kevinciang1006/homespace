@@ -24,6 +24,7 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
   const [links, setLinks] = useState<RecipeLink[]>(dish.recipe_links ?? [])
   const [newUrl, setNewUrl] = useState('')
   const [newTitle, setNewTitle] = useState('')
+  const [providesSoup, setProvidesSoup] = useState(dish.provides_soup)
 
   function saveIngredients(next: DishIngredient[]) { setIngredients(next); onPatch(dish.id, { ingredients: next }) }
   function saveSteps(next: string[]) { setSteps(next); onPatch(dish.id, { recipe_steps: next }) }
@@ -80,6 +81,23 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
                 onUploaded={url => setImageUrl(url)} />
             </div>
           </section>
+
+          {/* provides-soup — utama only: a brothy/soupy main replaces the separate soup slot */}
+          {dish.slot === 'utama' && (
+            <section>
+              <button type="button" role="switch" aria-checked={providesSoup}
+                onClick={() => { const next = !providesSoup; setProvidesSoup(next); onPatch(dish.id, { provides_soup: next }) }}
+                className="w-full flex items-center justify-between gap-3 text-left">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-stone-700">🥣 Provides its own soup</span>
+                  <span className="block text-xs text-stone-400 leading-snug">A brothy main (tomyam, sup, sop…) — the day skips a separate soup and gets a 2nd vegetable instead.</span>
+                </span>
+                <span className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${providesSoup ? 'bg-orange-500' : 'bg-stone-200'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${providesSoup ? 'left-4' : 'left-0.5'}`} />
+                </span>
+              </button>
+            </section>
+          )}
 
           {/* ingredients */}
           <section>
