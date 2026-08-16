@@ -107,13 +107,14 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Spicy</th>
                     <th className="px-3 py-2 font-medium">Rating</th>
                     <th className="px-3 py-2 font-medium">Active</th>
+                    <th className="px-3 py-2 font-medium">Garnish</th>
                     <th className="px-3 py-2 font-medium">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={11} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={12} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -149,10 +150,13 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
         <div className="flex items-center gap-2">
           <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
             className="w-7 h-7 shrink-0" rounded="rounded-md" iconSize={14} />
-          <input ref={nameRef} value={name} onChange={e => setName(e.target.value)}
-            placeholder="Dish name…"
-            onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
-            className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+          <div className="min-w-0 flex-1">
+            <input ref={nameRef} value={name} onChange={e => setName(e.target.value)}
+              placeholder="Dish name…"
+              onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
+              className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+            {dish.is_garnish && <div className="text-[10px] text-stone-400 px-1">garnish — not auto-planned</div>}
+          </div>
         </div>
       </td>
       <td className="px-3 py-1.5">
@@ -215,6 +219,12 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
         <button onClick={() => onPatch(dish.id, { active: !dish.active })} aria-label="Toggle active"
           className={`w-9 h-5 rounded-full transition-colors relative ${dish.active ? 'bg-green-500' : 'bg-stone-200'}`}>
           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.active ? 'left-4' : 'left-0.5'}`} />
+        </button>
+      </td>
+      <td className="px-3 py-1.5">
+        <button onClick={() => onPatch(dish.id, { is_garnish: !dish.is_garnish })} aria-label="Toggle garnish"
+          className={`w-9 h-5 rounded-full transition-colors relative ${dish.is_garnish ? 'bg-stone-500' : 'bg-stone-200'}`}>
+          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.is_garnish ? 'left-4' : 'left-0.5'}`} />
         </button>
       </td>
       <td className="px-3 py-1.5">
