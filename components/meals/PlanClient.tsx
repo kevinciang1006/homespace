@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import DishImage from './DishImage'
@@ -35,6 +35,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
   const [week, setWeek] = useState<MealPlan[]>(initialWeek)
   const [generating, setGenerating] = useState(false)
   const [buildingList, setBuildingList] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [cookLog, setCookLog] = useState<Record<string, CookRow[]>>({})
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
@@ -90,6 +91,19 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
       router.push('/meals/shopping')
     } finally { setBuildingList(false) }
   }
+  async function clearWeek() {
+    if (!confirm(`Empty the whole week of ${label(days[0])} – ${label(days[6])}?\n\nThis deletes every meal (and cook log) for these 7 days so the week no longer counts toward next week's variety/spacing rules. It can't be undone.`)) return
+    setClearing(true)
+    try {
+      const res = await fetch('/api/meals/clear-week', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart }),
+      })
+      if (res.ok) {
+        setWeek([])
+        setCookLog(c => { const next = { ...c }; for (const d of days) delete next[d]; return next })
+      }
+    } finally { setClearing(false) }
+  }
 
   // replace all rows for a day (main re-compose)
   function replaceDay(date: string, rows: MealPlan[]) {
@@ -114,6 +128,13 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
           <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
         </div>
         <div className="flex items-center gap-2">
+          {week.length > 0 && (
+            <button onClick={clearWeek} disabled={clearing}
+              className="flex items-center gap-1.5 text-stone-500 hover:text-stone-800 hover:bg-stone-100 disabled:opacity-60 text-sm font-medium px-3 py-2 rounded-xl transition-colors"
+              title="Empty this week (removes it from next week's variety/spacing rules)">
+              <Trash2 size={15} /> {clearing ? 'Clearing…' : 'Clear week'}
+            </button>
+          )}
           <button onClick={buildList} disabled={buildingList}
             className="flex items-center gap-2 border border-orange-200 text-orange-700 hover:bg-orange-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-xl transition-colors">
             <ShoppingCart size={16} /> {buildingList ? 'Building…' : 'Build shopping list'}
