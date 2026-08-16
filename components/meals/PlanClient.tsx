@@ -233,10 +233,10 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
     setOpen(false)
   }
   return (
-    <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+    <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
-          className="w-full aspect-video" rounded="rounded-none" iconSize={26} />
+          className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
         <div className="px-2 pt-1 pb-1.5">
           <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.slot]}</div>
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>
