@@ -488,7 +488,7 @@ describe('validateWeek', () => {
   it('returns clean for a compliant week', () => {
     const byId = new Map<string, Dish>([
       ['a', dish({ id: 'a', slot: 'utama', protein: 'beef', saltiness: 'salty' })],
-      ['b', dish({ id: 'b', slot: 'pelengkap', protein: 'none', saltiness: 'normal' })],
+      ['b', dish({ id: 'b', slot: 'sayuran', protein: 'none', saltiness: 'normal' })],
     ])
     const rows = [
       { plan_date: '2026-08-17', dish_id: 'a' },
@@ -496,6 +496,19 @@ describe('validateWeek', () => {
       { plan_date: '2026-08-18', dish_id: null, skipped: true },
     ]
     expect(validateWeek(rows, byId)).toEqual([])
+  })
+  it('flags a garnish dish and a pelengkap pick in the week', () => {
+    const byId = new Map<string, Dish>([
+      ['g', dish({ id: 'g', slot: 'sayuran', name: 'Teri krispi', is_garnish: true })],
+      ['p', dish({ id: 'p', slot: 'pelengkap', name: 'Old side' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', dish_id: 'g' },
+      { plan_date: '2026-08-18', dish_id: 'p' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('garnish') && v.includes('Teri krispi'))).toBe(true)
+    expect(report.some(v => v.includes('pelengkap'))).toBe(true)
   })
   it('flags a plate with two dishes sharing a meat protein', () => {
     const byId = new Map<string, Dish>([
@@ -512,7 +525,7 @@ describe('validateWeek', () => {
   it('does not flag repeated neutral proteins (two none dishes)', () => {
     const byId = new Map<string, Dish>([
       ['a', dish({ id: 'a', slot: 'sayuran', protein: 'none' })],
-      ['b', dish({ id: 'b', slot: 'pelengkap', protein: 'none' })],
+      ['b', dish({ id: 'b', slot: 'kuah', protein: 'none' })],
     ])
     const rows = [
       { plan_date: '2026-08-17', dish_id: 'a' },

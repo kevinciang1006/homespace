@@ -376,6 +376,10 @@ export function validateWeek(
     if (salty.length > 1) viol.push(`⚠️ ${date}: ${salty.length} salty dishes (${salty.map(d => d.name).join(', ')})`)
     const fried = ds.filter(d => d.method === 'fried')
     if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
+    const garnish = ds.filter(d => d.is_garnish)
+    if (garnish.length) viol.push(`⚠️ ${date}: garnish dish planned (${garnish.map(d => d.name).join(', ')})`)
+    const peleng = ds.filter(d => d.slot === 'pelengkap')
+    if (peleng.length) viol.push(`⚠️ ${date}: pelengkap slot generated (${peleng.map(d => d.name).join(', ')})`)
     const byProtein = new Map<string, Dish[]>()
     for (const d of ds.filter(d => MEAT_PROTEINS.has(d.protein))) {
       if (!byProtein.has(d.protein)) byProtein.set(d.protein, [])
