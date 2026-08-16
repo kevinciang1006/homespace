@@ -123,6 +123,17 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
   const desert = rows.find(r => r.role === 'optional')
 
   const [rerollingDay, setRerollingDay] = useState(false)
+  const dayLocked = rows.length > 0 && rows.every(r => r.locked)
+
+  async function toggleDayLock() {
+    const next = !dayLocked
+    onReplaceDay(date, rows.map(r => ({ ...r, locked: next })))  // optimistic
+    const res = await fetch('/api/meals/day-lock', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ plan_date: date, locked: next }),
+    })
+    if (!res.ok) onReplaceDay(date, rows)  // revert
+  }
 
   async function rerollMain(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
@@ -143,13 +154,22 @@ function DayPlate({ date, dayName, rows, onReplaceDay, onReplaceCell }: {
   }
 
   return (
-    <div className="min-w-0 bg-white border border-stone-200 rounded-2xl p-3 flex flex-col gap-3">
+    <div className={`min-w-0 bg-white border rounded-2xl p-3 flex flex-col gap-3 ${dayLocked ? 'border-orange-300 ring-2 ring-orange-300 bg-orange-50/40' : 'border-stone-200'}`}>
       <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-stone-500">{dayName} · <span className="text-stone-400">{label(date)}</span></div>
+        <div className="text-xs font-semibold text-stone-500 flex items-center gap-1.5">
+          <span>{dayName} · <span className="text-stone-400">{label(date)}</span></span>
+          {dayLocked && <span className="text-[10px] font-medium text-orange-700 bg-orange-100 rounded px-1 py-0.5">🔒 Locked</span>}
+        </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={rerollDay} disabled={rerollingDay} title="Reshuffle this day"
-            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 disabled:opacity-40">
-            <Shuffle size={13} className={rerollingDay ? 'animate-spin' : ''} />
+          {!dayLocked && (
+            <button onClick={rerollDay} disabled={rerollingDay} title="Reshuffle this day"
+              className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 disabled:opacity-40">
+              <Shuffle size={13} className={rerollingDay ? 'animate-spin' : ''} />
+            </button>
+          )}
+          <button onClick={toggleDayLock} title={dayLocked ? 'Unlock this day' : 'Lock this day'}
+            className={`p-1 rounded-lg hover:bg-stone-100 ${dayLocked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>
+            {dayLocked ? <Lock size={13} /> : <Unlock size={13} />}
           </button>
         </div>
       </div>
