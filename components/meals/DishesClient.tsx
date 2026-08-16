@@ -108,13 +108,14 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Rating</th>
                     <th className="px-3 py-2 font-medium">Active</th>
                     <th className="px-3 py-2 font-medium">Garnish</th>
+                    <th className="px-3 py-2 font-medium">Soup</th>
                     <th className="px-3 py-2 font-medium">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={12} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -226,6 +227,15 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
           className={`w-9 h-5 rounded-full transition-colors relative ${dish.is_garnish ? 'bg-stone-500' : 'bg-stone-200'}`}>
           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.is_garnish ? 'left-4' : 'left-0.5'}`} />
         </button>
+      </td>
+      <td className="px-3 py-1.5">
+        {dish.slot === 'utama' ? (
+          <button onClick={() => onPatch(dish.id, { provides_soup: !dish.provides_soup })} aria-label="Toggle provides soup"
+            title="Brothy main (tomyam, steamboat, sup…) — the day skips a separate soup"
+            className={`w-9 h-5 rounded-full transition-colors relative ${dish.provides_soup ? 'bg-orange-500' : 'bg-stone-200'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.provides_soup ? 'left-4' : 'left-0.5'}`} />
+          </button>
+        ) : <span className="text-stone-300">—</span>}
       </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2 whitespace-nowrap">
