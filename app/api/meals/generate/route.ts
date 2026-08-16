@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
   const { data: week } = await supabase
     .from('meal_plans')
-    .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, recipe_links)')
+    .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
   return Response.json({ week: (week ?? []) as MealPlan[] })
 }

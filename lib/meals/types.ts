@@ -49,7 +49,7 @@ export type MealPlan = {
   locked: boolean
   role: Role
   skipped: boolean
-  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; recipe_links?: RecipeLink[] | null } | null
+  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; slot?: Slot; recipe_links?: RecipeLink[] | null } | null
 }
 
 export type MealShoppingList = {

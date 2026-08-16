@@ -295,6 +295,37 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
   return a
 }
 
+// A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
+// kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
+// fall back to the broth note when no distinct second vegetable fits.
+function secondVegForKuah(sayuranPool: Dish[], ctx: PickContext, date: string, rng: Rng): Pick {
+  const veg = pickForSlot(sayuranPool, ctx, rng)
+  if (veg.dish_id) return { ...veg, slot: 'kuah' }
+  return { plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true }
+}
+
+// Consistency check for stored plans: a provides_soup main must NOT share its day with a
+// separate soup dish (a real kuah-slot dish) in the kuah slot. Returns the ids of such
+// stale, non-locked soup rows so callers can blank them to the broth note. A second
+// vegetable already occupying the kuah slot (dishes.slot === 'sayuran') and locked rows
+// are left untouched (honor the lock).
+export function staleSoupRowIds(rows: MealPlan[]): string[] {
+  const byDate = new Map<string, MealPlan[]>()
+  for (const r of rows) {
+    if (!byDate.has(r.plan_date)) byDate.set(r.plan_date, [])
+    byDate.get(r.plan_date)!.push(r)
+  }
+  const ids: string[] = []
+  for (const day of byDate.values()) {
+    const wetMain = day.some(r => r.slot === 'utama' && r.dishes?.provides_soup === true)
+    if (!wetMain) continue
+    for (const r of day) {
+      if (r.slot === 'kuah' && r.dish_id && !r.skipped && !r.locked && r.dishes?.slot === 'kuah') ids.push(r.id)
+    }
+  }
+  return ids
+}
+
 export function composeDay(input: {
   date: string
   dishesBySlot: Record<Slot, Dish[]>
@@ -331,15 +362,17 @@ export function composeDay(input: {
   }
   const providesSoup = main?.provides_soup ?? false
 
-  // 2. SAYURAN — always
+  // 2. SAYURAN — always. One more savory pick (the kuah slot) always follows, so plannedRemaining=1.
   if (!isLocked('sayuran')) {
-    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', providesSoup ? 0 : 1), rng))
+    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng))
   }
 
-  // 3. SOUP — skipped when the main provides soup, otherwise picked
+  // 3. KUAH slot — a soup for a dry main; a SECOND sayuran for a provides_soup main.
+  //    A wet main already brings the broth, so a separate soup would be a second soup;
+  //    convert the freed slot to an extra vegetable instead (keeping 3 savory components).
   if (!isLocked('kuah')) {
     if (providesSoup) {
-      push({ plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
+      push(secondVegForKuah(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 0), date, rng))
     } else {
       push(pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 0), rng))
     }
@@ -402,6 +435,9 @@ export function validateWeek(
     if (garnish.length) viol.push(`⚠️ ${date}: garnish dish planned (${garnish.map(d => d.name).join(', ')})`)
     const peleng = ds.filter(d => d.slot === 'pelengkap')
     if (peleng.length) viol.push(`⚠️ ${date}: pelengkap slot generated (${peleng.map(d => d.name).join(', ')})`)
+    const wetMain = ds.some(d => d.slot === 'utama' && d.provides_soup)
+    const soups = ds.filter(d => d.slot === 'kuah')
+    if (wetMain && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
     const byProtein = new Map<string, Dish[]>()
     for (const d of ds.filter(d => MEAT_PROTEINS.has(d.protein))) {
       if (!byProtein.has(d.protein)) byProtein.set(d.protein, [])

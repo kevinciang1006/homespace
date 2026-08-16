@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { supabase } from '@/lib/supabase'
 import { weekDates } from '@/lib/meals/dates'
+import { reconcileSoup } from '@/lib/meals/reconcile'
 import type { MealPlan } from '@/lib/meals/types'
 import PlanClient from '@/components/meals/PlanClient'
 
@@ -15,7 +16,8 @@ function currentMonday(): string {
 export default async function MealsPlanPage() {
   const weekStart = currentMonday()
   const days = weekDates(weekStart)
-  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, recipe_links)')
+  const { data } = await supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
-  return <PlanClient initialWeekStart={weekStart} initialWeek={(data ?? []) as MealPlan[]} />
+  const initialWeek = await reconcileSoup((data ?? []) as MealPlan[])
+  return <PlanClient initialWeekStart={weekStart} initialWeek={initialWeek} />
 }

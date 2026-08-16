@@ -331,7 +331,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
         <div className="px-2 pt-1 pb-1.5">
-          <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.slot]}</div>
+          <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.dishes?.slot ?? row.slot]}</div>
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>
         </div>
       </Link>
