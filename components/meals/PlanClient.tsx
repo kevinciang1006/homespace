@@ -198,7 +198,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
         <div className="absolute top-1.5 left-1.5 z-10">
           <PhotoUploadButton dishId={row.dish_id} variant="overlay"
             label={row.dishes?.recipe_image_url ? 'Change photo' : '📷 add photo'}
-            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none' }), recipe_image_url: url } })} />
+            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
         </div>
       )}
       {open && (
@@ -240,7 +240,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
           <PhotoUploadButton dishId={row.dish_id} variant="icon"
             label={row.dishes?.recipe_image_url ? 'Change photo' : 'Add photo'}
             className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
-            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none' }), recipe_image_url: url } })} />
+            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
         )}
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
