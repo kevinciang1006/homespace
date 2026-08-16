@@ -7,6 +7,7 @@ import { SLOT_LABELS, type MealPlan, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
+import RecipeLinkButton from './RecipeLinkButton'
 import WeekOverview from './WeekOverview'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
@@ -193,6 +194,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
         </div>
       </Link>
       <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
+        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} iconSize={14} />
         <button onClick={toggleLock} title={row.locked ? 'Unlock' : 'Lock'}
           className={`p-1 rounded-lg bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-500 hover:text-stone-800'}`}>
           {row.locked ? <Lock size={14} /> : <Unlock size={14} />}
@@ -247,6 +249,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
             className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
             onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
         )}
+        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
       </div>
@@ -275,6 +278,7 @@ function DesertRow({ row, date, onReplaceCell }: { row: MealPlan; date: string; 
     <div className="relative flex items-center justify-between text-xs text-stone-400 border-t border-stone-100 pt-2">
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} className="truncate hover:text-stone-600">· desert: <span className="text-stone-500">{row.dish_name}</span></Link>
       <div className="flex gap-0.5 shrink-0">
+        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
         <button onClick={toggleLock} className={`p-0.5 ${row.locked ? 'text-orange-600' : 'text-stone-300 hover:text-stone-600'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 text-stone-300 hover:text-stone-600"><Shuffle size={11} /></button>
       </div>
