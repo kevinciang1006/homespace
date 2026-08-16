@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     ingredients: body.ingredients ?? [], recipe_steps: body.recipe_steps ?? [],
     recipe_image_url: body.recipe_image_url ?? null,
     saltiness: body.saltiness ?? 'normal', difficulty: body.difficulty ?? 'medium',
+    is_garnish: body.is_garnish ?? false,
   }).select().single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
