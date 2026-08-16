@@ -10,7 +10,7 @@ export type PickContext = {
   dishById: Map<string, Dish>
   specialDays: Set<string>
   hardDays: Set<string>
-  relax: { spicy: boolean; fried: boolean; hardDay: boolean; hardSpacing: boolean; proteinClash: boolean; noRepeatFactor: number }
+  relax: { spicy: boolean; fried: boolean; hardDay: boolean; hardSpacing: boolean; proteinClash: boolean; spicyMainSpacing: boolean; noRepeatFactor: number }
   role: Role
   spicyFloor: number
   plannedRemaining: number
@@ -19,7 +19,7 @@ export type PickContext = {
 // Default relax state: every relaxable rule enforced (false = ON, matching spicy/fried).
 // The saltiness cap (<=1 non-normal per day) is a hard rule and is NOT relaxable.
 export const ENFORCED: PickContext['relax'] =
-  { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 }
+  { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 }
 
 // Proteins that count as "the same" for the no-repeat-on-a-plate rule.
 // egg, tofu_tempe, none and mixed are neutral staples and never clash.
@@ -136,6 +136,17 @@ export function difficultyOk(dish: Dish, ctx: PickContext): boolean {
   return true
 }
 
+export function spicyMainSpacingOk(dish: Dish, ctx: PickContext): boolean {
+  if (ctx.relax.spicyMainSpacing) return true
+  if (ctx.slot !== 'utama' || !dish.spicy) return true
+  for (const ad of [prevDay(ctx.date), nextDay(ctx.date)]) {
+    const adjSpicyMain = [...ctx.runPicks, ...ctx.priorPlans].some(
+      p => p.plan_date === ad && p.slot === 'utama' && resolveDish(ctx, p.dish_id)?.spicy)
+    if (adjSpicyMain) return false
+  }
+  return true
+}
+
 export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
   return (
     dish.active &&
@@ -148,7 +159,8 @@ export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
     friedOk(dish, ctx) &&
     spicyOk(dish, ctx) &&
     saltinessOk(dish, ctx) &&
-    difficultyOk(dish, ctx)
+    difficultyOk(dish, ctx) &&
+    spicyMainSpacingOk(dish, ctx)
   )
 }
 
@@ -173,8 +185,17 @@ function saltMainFactor(dish: Dish, ctx: PickContext): number {
   return dish.saltiness === 'normal' ? 1.4 : dish.saltiness === 'very_salty' ? 0.5 : 1
 }
 
+// Soft nudge: discourage a spicy main when a neighbouring day already has one, spreading spicy out.
+function spicySpreadFactor(dish: Dish, ctx: PickContext): number {
+  if (ctx.role !== 'main' || !dish.spicy) return 1
+  const neighborSpicy = [prevDay(ctx.date), nextDay(ctx.date)].some(ad =>
+    [...ctx.runPicks, ...ctx.priorPlans].some(
+      p => p.plan_date === ad && p.slot === 'utama' && resolveDish(ctx, p.dish_id)?.spicy))
+  return neighborSpicy ? 0.5 : 1
+}
+
 export function weightFor(dish: Dish, ctx: PickContext): number {
-  return dish.rating * dish.rating * freshnessFactor(dish, ctx) * saltMainFactor(dish, ctx)
+  return dish.rating * dish.rating * freshnessFactor(dish, ctx) * saltMainFactor(dish, ctx) * spicySpreadFactor(dish, ctx)
 }
 
 export function weightedPick(dishes: Dish[], ctx: PickContext, rng: Rng): Dish | undefined {
@@ -201,7 +222,8 @@ const RELAX_LADDER: { relax: PickContext['relax']; note?: string }[] = [
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true }, note: 'relaxed: + spicy floor' },
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true }, note: 'relaxed: + fried cap' },
   { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true, proteinClash: true }, note: 'relaxed: + protein variety' },
-  { relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
+  { relax: { ...ENFORCED, hardSpacing: true, hardDay: true, spicy: true, fried: true, proteinClash: true, spicyMainSpacing: true }, note: 'relaxed: + spicy-main spacing' },
+  { relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, spicyMainSpacing: true, noRepeatFactor: 0.5 }, note: 'relaxed: + short no-repeat' },
 ]
 
 export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
@@ -215,7 +237,7 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
   }
   // last resort: any active dish of the slot, keep min no-repeat (factor 0.5).
   // Saltiness cap is still enforced here — never place a 2nd salty dish, even at last resort.
-  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, noRepeatFactor: 0.5 } }
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, spicyMainSpacing: true, noRepeatFactor: 0.5 } }
   const anyActive = slotDishes.filter(d => d.active && !d.is_garnish && d.slot === ctx.slot && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
   if (anyActive.length > 0) {
     const chosen = weightedPick(anyActive, lastCtx, rng)!

@@ -49,7 +49,7 @@ function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], pl
   const { specialDays, hardDays } = deriveDays(week, plans, dishById)
   const ctx: PickContext = {
     date: plan_date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
-    relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, noRepeatFactor: 1 },
+    relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
     role: roleForSlot(slot), spicyFloor: 1, plannedRemaining: 5,
   }
   return { ctx, slotDishes: allDishes.filter(d => d.slot === slot) }

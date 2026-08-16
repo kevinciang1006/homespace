@@ -29,7 +29,7 @@ function ctx(over: Partial<PickContext> & { date: string; slot: Slot; dishes: Di
     priorPlans: over.priorPlans ?? [], runPicks: over.runPicks ?? [],
     dishById, specialDays: over.specialDays ?? new Set(),
     hardDays: over.hardDays ?? new Set<string>(),
-    relax: over.relax ?? { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 },
+    relax: over.relax ?? { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
     role: over.role ?? 'support', spicyFloor: over.spicyFloor ?? 1,
     plannedRemaining: over.plannedRemaining ?? 5,
   }
@@ -184,7 +184,7 @@ describe('spicyOk (floor of 1 non-spicy among main+supports)', () => {
   it('is not enforced when relax.spicy is true', () => {
     const d = dish({ id: 'sp', slot: 'pelengkap', spicy: true })
     const c = ctx({ date: '2026-08-13', slot: 'pelengkap', dishes: [d], role: 'support', plannedRemaining: 0,
-      relax: { spicy: true, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, noRepeatFactor: 1 } })
+      relax: { spicy: true, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 } })
     expect(spicyOk(d, c)).toBe(true)
   })
 })
@@ -389,7 +389,7 @@ describe('difficultyOk (hard: hard-days only, <=1/day, non-adjacent)', () => {
   it('is relaxable via relax.hardDay', () => {
     const d = dish({ id: 'h', slot: 'utama', difficulty: 'hard' })
     const c = ctx({ date: '2026-08-13', slot: 'utama', dishes: [d], hardDays: new Set(),
-      relax: { spicy: false, fried: false, hardDay: true, hardSpacing: true, proteinClash: false, noRepeatFactor: 1 } })
+      relax: { spicy: false, fried: false, hardDay: true, hardSpacing: true, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 } })
     expect(difficultyOk(d, c)).toBe(true)
   })
 })
@@ -552,5 +552,48 @@ describe('garnish + inactive exclusion', () => {
     const garnish = dish({ id: 'g', slot: 'sayuran', is_garnish: true })
     const c = ctx({ date: '2026-08-13', slot: 'sayuran', dishes: [garnish] })
     expect(pickForSlot([garnish], c, seq([0.5])).dish_id).toBeNull()
+  })
+})
+
+import { spicyMainSpacingOk } from './engine'
+
+describe('spicyMainSpacingOk (no consecutive spicy mains)', () => {
+  it('blocks a spicy main when the previous day main is spicy', () => {
+    const d = dish({ id: 'm', slot: 'utama', spicy: true })
+    const c = ctx({ date: '2026-08-14', slot: 'utama', dishes: [d], role: 'main',
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'y', role: 'main' })] })
+    c.dishById.set('y', dish({ id: 'y', slot: 'utama', spicy: true }))
+    expect(spicyMainSpacingOk(d, c)).toBe(false)
+  })
+  it('blocks across the week boundary via priorPlans', () => {
+    const d = dish({ id: 'm', slot: 'utama', spicy: true })
+    const c = ctx({ date: '2026-08-17', slot: 'utama', dishes: [d], role: 'main',
+      priorPlans: [plan({ plan_date: '2026-08-16', slot: 'utama', dish_id: 'y' })] })
+    c.dishById.set('y', dish({ id: 'y', slot: 'utama', spicy: true }))
+    expect(spicyMainSpacingOk(d, c)).toBe(false)
+  })
+  it('allows a spicy main next to a spicy SAYURAN (only mains count)', () => {
+    const d = dish({ id: 'm', slot: 'utama', spicy: true })
+    const c = ctx({ date: '2026-08-14', slot: 'utama', dishes: [d], role: 'main',
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'sayuran', dish_id: 'v' })] })
+    c.dishById.set('v', dish({ id: 'v', slot: 'sayuran', spicy: true }))
+    expect(spicyMainSpacingOk(d, c)).toBe(true)
+  })
+  it('allows a non-spicy main, and any non-utama dish', () => {
+    const nm = dish({ id: 'n', slot: 'utama', spicy: false })
+    const c = ctx({ date: '2026-08-14', slot: 'utama', dishes: [nm], role: 'main',
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'y' })] })
+    c.dishById.set('y', dish({ id: 'y', slot: 'utama', spicy: true }))
+    expect(spicyMainSpacingOk(nm, c)).toBe(true)
+    const side = dish({ id: 's', slot: 'sayuran', spicy: true })
+    expect(spicyMainSpacingOk(side, { ...c, slot: 'sayuran' })).toBe(true)
+  })
+  it('is relaxable via relax.spicyMainSpacing', () => {
+    const d = dish({ id: 'm', slot: 'utama', spicy: true })
+    const c = ctx({ date: '2026-08-14', slot: 'utama', dishes: [d], role: 'main',
+      relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: true, noRepeatFactor: 1 },
+      runPicks: [pick({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'y', role: 'main' })] })
+    c.dishById.set('y', dish({ id: 'y', slot: 'utama', spicy: true }))
+    expect(spicyMainSpacingOk(d, c)).toBe(true)
   })
 })
