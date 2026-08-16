@@ -357,6 +357,22 @@ describe('generateWeek (compose)', () => {
     expect(cell.dish_id).toBe('sayuran-3')
     expect(cell.locked).toBe(true)
   })
+
+  it('provides-soup mains all week → validateWeek reports no separate-soup violation (Tomyam case)', () => {
+    const dishesBySlot = pools()
+    dishesBySlot.utama.forEach(d => { d.provides_soup = true })   // every main is wet (like Tomyam udang)
+    const allDishes = Object.values(dishesBySlot).flat()
+    const byId = new Map(allDishes.map(d => [d.id, d]))
+    const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
+      allDishes, priorPlans: [], lockedCells: [], rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
+    const report = validateWeek(picks.map(p => ({ plan_date: p.plan_date, dish_id: p.dish_id, skipped: p.skipped })), byId)
+    expect(report.filter(v => v.includes('soup'))).toEqual([])            // no stranded soups
+    for (const date of WEEK) {
+      const day = picks.filter(p => p.plan_date === date && p.dish_id).map(p => byId.get(p.dish_id!)!)
+      expect(day.some(d => d.slot === 'kuah')).toBe(false)               // never a real soup dish
+      expect(day.filter(d => d.slot === 'sayuran').length).toBe(2)       // freed slot → a second vegetable
+    }
+  })
 })
 
 import { saltinessOk, difficultyOk, preassignHardDays } from './engine'

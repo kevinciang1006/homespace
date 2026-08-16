@@ -38,7 +38,18 @@ function deriveDays(week: string[], plans: MealPlan[], dishById: Map<string, Dis
   return { specialDays, hardDays }
 }
 
-function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], plans: MealPlan[], week: string[]) {
+// On a provides_soup-main day the kuah slot really holds a 2nd vegetable, so it must be
+// rerolled from the sayuran pool (and stored back into the kuah slot).
+function poolSlotFor(slot: Slot, plan_date: string, plans: MealPlan[], allDishes: Dish[]): Slot {
+  if (slot !== 'kuah') return slot
+  const mainRow = plans.find(p => p.plan_date === plan_date && p.slot === 'utama')
+  const mainDish = mainRow?.dish_id ? allDishes.find(d => d.id === mainRow.dish_id) : undefined
+  return mainDish?.provides_soup ? 'sayuran' : 'kuah'
+}
+
+// `slot` is the storage slot (the cell being rerolled); `poolSlot` is the pool/rules slot
+// to pick from (differs only for a 2nd-veg kuah slot on a wet-main day).
+function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], plans: MealPlan[], week: string[], poolSlot: Slot = slot) {
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const weekSet = new Set(week)
   const runPicks = plans
@@ -48,11 +59,11 @@ function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], pl
   const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
   const { specialDays, hardDays } = deriveDays(week, plans, dishById)
   const ctx: PickContext = {
-    date: plan_date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
+    date: plan_date, slot: poolSlot, priorPlans, runPicks, dishById, specialDays, hardDays,
     relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
-    role: roleForSlot(slot), spicyFloor: 1, plannedRemaining: 5,
+    role: roleForSlot(poolSlot), spicyFloor: 1, plannedRemaining: 5,
   }
-  return { ctx, slotDishes: allDishes.filter(d => d.slot === slot) }
+  return { ctx, slotDishes: allDishes.filter(d => d.slot === poolSlot) }
 }
 
 export async function POST(request: Request) {
@@ -155,7 +166,8 @@ export async function POST(request: Request) {
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ pick: data as MealPlan })
   }
-  const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week)
+  const poolSlot = poolSlotFor(slot as Slot, plan_date, plans, allDishes)
+  const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week, poolSlot)
   const p = pickForSlot(slotDishes, ctx, rng)
   const { data, error } = await supabase.from('meal_plans')
     .upsert({ plan_date, slot, dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: roleForSlot(slot as Slot), skipped: false },
@@ -173,7 +185,8 @@ export async function GET(request: Request) {
     return Response.json({ error: 'plan_date and valid slot required' }, { status: 400 })
   }
   const { week, allDishes, plans } = await loadWeek(plan_date)
-  const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week)
+  const poolSlot = poolSlotFor(slot, plan_date, plans, allDishes)
+  const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week, poolSlot)
   const pool = candidates(slotDishes, ctx)
     .map(d => ({ d, w: weightFor(d, ctx) }))
     .sort((a, b) => b.w - a.w)
