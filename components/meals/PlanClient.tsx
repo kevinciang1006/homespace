@@ -7,6 +7,8 @@ import { SLOT_LABELS, type MealPlan, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
+import WeekOverview from './WeekOverview'
+import { computeWeekOverview } from '@/lib/meals/overview'
 
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -25,6 +27,7 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
   const [generating, setGenerating] = useState(false)
   const [buildingList, setBuildingList] = useState(false)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
+  const overview = useMemo(() => computeWeekOverview(week), [week])
 
   function dayRows(date: string) { return week.filter(p => p.plan_date === date) }
 
@@ -95,6 +98,8 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
           </button>
         </div>
       </div>
+
+      <WeekOverview overview={overview} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
