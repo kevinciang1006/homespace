@@ -95,8 +95,26 @@ export function computeWeekOverview(rows: MealPlan[]): WeekOverview {
     status: 'neutral',
   }
 
-  // 8. Placeholder
-  const calories: Signal = { emoji: '🍚', label: 'Portions & calories', detail: 'coming soon', status: 'neutral' }
+  // 8. Fruit tally — desert + evening fruit portions summed per day
+  const fruitByDay = dates.map(d => planned
+    .filter(r => r.plan_date === d && (r.slot === 'fruit' || r.slot === 'desert'))
+    .reduce((n, r) => n + (r.dishes?.fruit_portions ?? 0), 0))
+  const daysHitting2 = fruitByDay.filter(n => n >= 2).length
+  const fruit: Signal = {
+    emoji: '🍎', label: 'Fruit tally',
+    detail: `${daysHitting2} of ${dates.length} days hit ~2 fruit portions`,
+    status: daysHitting2 >= 5 ? 'good' : 'neutral',
+  }
+
+  // 9. Breakfast treats — independent eat-out quota
+  const breakfastRows = planned.filter(r => r.slot === 'breakfast')
+  const bfTreatDates = [...new Set(breakfastRows.filter(r => r.dishes?.tier === 'special').map(r => r.plan_date))]
+  const breakfast: Signal = {
+    emoji: '🌅', label: 'Breakfast treats',
+    detail: bfTreatDates.length === 0 ? 'No eat-out breakfasts this week'
+      : `${bfTreatDates.length} eat-out breakfast${bfTreatDates.length > 1 ? 's' : ''} this week (${list(bfTreatDates)})`,
+    status: bfTreatDates.length === 2 ? 'good' : 'neutral',
+  }
 
   // Verdict
   const spicyDays = spicyDates.length, specialCount = specialDates.length, hardCount = hardDates.length
@@ -112,5 +130,5 @@ export function computeWeekOverview(rows: MealPlan[]): WeekOverview {
   if (spicyDays) bits.push(`${spicyDays} spicy`)
   const summary = bits.length ? bits.join(' · ') : 'An easy, mild week'
 
-  return { hasPlan: true, verdict, summary, signals: [spicy, special, difficulty, saltiness, fried, protein, soup, calories] }
+  return { hasPlan: true, verdict, summary, signals: [spicy, special, difficulty, saltiness, fried, protein, soup, fruit, breakfast] }
 }
