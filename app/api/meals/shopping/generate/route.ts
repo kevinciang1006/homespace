@@ -12,12 +12,13 @@ export async function POST(request: Request) {
 
   const [{ data: plansRaw }, { data: dishesRaw }] = await Promise.all([
     supabase.from('meal_plans').select('dish_id, dish_name').gte('plan_date', days[0]).lte('plan_date', days[6]),
-    supabase.from('dishes').select('id, name, ingredients'),
+    supabase.from('dishes').select('id, name, ingredients, qty_amount, qty_unit, qty_note'),
   ])
 
-  const dishById = new Map<string, { name: string; ingredients: DishIngredient[] | null }>(
-    (dishesRaw ?? []).map((d: { id: string; name: string; ingredients: DishIngredient[] | null }) =>
-      [d.id, { name: d.name, ingredients: d.ingredients }]),
+  type DishRow = { id: string; name: string; ingredients: DishIngredient[] | null; qty_amount: number | null; qty_unit: string | null; qty_note: string | null }
+  const dishById = new Map<string, Omit<DishRow, 'id'>>(
+    (dishesRaw ?? []).map((d: DishRow) =>
+      [d.id, { name: d.name, ingredients: d.ingredients, qty_amount: d.qty_amount, qty_unit: d.qty_unit, qty_note: d.qty_note }]),
   )
   const built = buildShoppingList((plansRaw ?? []) as { dish_id: string | null; dish_name: string | null }[], dishById)
 

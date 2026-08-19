@@ -1,3 +1,5 @@
+import { formatQtyAmount } from './qty'
+
 export type DishIngredient = { name: string; quantity?: string | null; category?: string | null }
 
 export const SHOP_CATEGORIES = ['protein', 'vegetable', 'pantry', 'other'] as const
@@ -21,11 +23,15 @@ export function normalizeCategory(c: string | null | undefined): ShopCategory {
 
 export function buildShoppingList(
   plans: { dish_id: string | null; dish_name: string | null }[],
-  dishById: Map<string, { name: string; ingredients: DishIngredient[] | null }>,
+  dishById: Map<string, {
+    name: string; ingredients: DishIngredient[] | null
+    qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null
+  }>,
 ): BuiltList {
   const agg = new Map<string, BuiltIngredient & { _quantities: string[] }>()
-  const noIng: string[] = []
-  const noIngSeen = new Set<string>()
+  // Dishes bought as-is (no structured ingredients): tally how many times each
+  // lands in the week so its qty_amount can be summed into a single buy line.
+  const noIng = new Map<string, { name: string; count: number; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }>()
 
   for (const p of plans) {
     if (!p.dish_id) continue
@@ -35,7 +41,9 @@ export function buildShoppingList(
     const ingredients = dish.ingredients ?? []
 
     if (ingredients.length === 0) {
-      if (!noIngSeen.has(name)) { noIngSeen.add(name); noIng.push(name) }
+      const existing = noIng.get(p.dish_id)
+      if (existing) existing.count += 1
+      else noIng.set(p.dish_id, { name, count: 1, qty_amount: dish.qty_amount, qty_unit: dish.qty_unit, qty_note: dish.qty_note })
       continue
     }
 
@@ -64,7 +72,12 @@ export function buildShoppingList(
     .map(({ _quantities, ...r }) => ({ ...r, quantity: _quantities.length ? _quantities.join(' + ') : null }))
     .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.ingredient.localeCompare(b.ingredient))
 
-  return { ingredients, dishesWithoutIngredients: noIng }
+  const dishesWithoutIngredients = [...noIng.values()].map(d => {
+    if (d.qty_amount != null && d.qty_unit) return `${d.name} ${formatQtyAmount(d.qty_amount * d.count, d.qty_unit)}`
+    return d.name
+  })
+
+  return { ingredients, dishesWithoutIngredients }
 }
 
 // ---- Non-destructive regenerate --------------------------------------------

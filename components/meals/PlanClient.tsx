@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
+import { formatQty } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
@@ -26,6 +27,20 @@ function label(dateStr: string): string {
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const TIER_STYLE: Record<Tier, string> = {
   everyday: 'bg-stone-100 text-stone-600', nice: 'bg-amber-100 text-amber-700', special: 'bg-orange-100 text-orange-700',
+}
+
+// Compact "400g · 🥗 2 veg" style line for a dish's buy/cook amount + produce
+// portion count. Pure display — no targets, no storage. null when there's
+// nothing worth showing.
+function qtyDisplay(dishes: MealPlan['dishes']): string | null {
+  const qty = formatQty(dishes?.qty_amount, dishes?.qty_unit, dishes?.qty_note)
+  const veg = dishes?.veg_portions ?? 0
+  const fruit = dishes?.fruit_portions ?? 0
+  const parts: string[] = []
+  if (qty) parts.push(qty)
+  if (veg > 0) parts.push(`🥗 ${veg} veg`)
+  if (fruit > 0) parts.push(`🍎 ${fruit} fruit`)
+  return parts.length ? parts.join(' · ') : null
 }
 
 export default function PlanClient({ initialWeekStart, initialWeek }:
@@ -176,6 +191,11 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
   const cooked = entries.some(e => e.cooked)
   const hasPlan = rows.some(r => r.dish_id && !r.skipped)
 
+  // Lightweight produce glance for the day — just a sum of what's on the
+  // cards shown, no targets/tracking. See qtyDisplay for the per-dish version.
+  const dayVeg = rows.reduce((n, r) => n + (r.dish_id && !r.skipped ? r.dishes?.veg_portions ?? 0 : 0), 0)
+  const dayFruit = rows.reduce((n, r) => n + (r.dish_id && !r.skipped ? r.dishes?.fruit_portions ?? 0 : 0), 0)
+
   async function markCooked() {
     const res = await fetch('/api/meals/cook-log', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -250,6 +270,12 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
 
       {desert && <DesertRow row={desert} date={date} onReplaceCell={onReplaceCell} />}
 
+      {(dayVeg > 0 || dayFruit > 0) && (
+        <div className="text-[10px] text-stone-400 text-center -mt-1">
+          Day total: {[dayVeg > 0 && `🥗 ${dayVeg} veg`, dayFruit > 0 && `🍎 ${dayFruit} fruit`].filter(Boolean).join(' · ')}
+        </div>
+      )}
+
       {hasPlan && (
         <div className="flex items-center gap-2 border-t border-stone-100 pt-2 mt-0.5">
           <button onClick={markCooked}
@@ -294,6 +320,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
 }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const tier = row.dishes?.tier; const spicy = row.dishes?.spicy
+  const qty = qtyDisplay(row.dishes)
   return (
     <div className={`relative rounded-xl overflow-hidden border ${tier === 'special' ? 'border-orange-300 ring-1 ring-orange-200' : 'border-stone-200'}`}>
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
@@ -301,6 +328,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
           className="w-full aspect-video" rounded="rounded-none" iconSize={34} showName={!row.dishes?.recipe_image_url} />
         <div className="p-2.5">
           <div className="text-stone-900 font-medium leading-snug" style={{ fontFamily: 'DM Serif Display, serif' }}>{row.dish_name ?? '—'}</div>
+          {qty && <div className="text-xs text-stone-500 mt-0.5">{qty}</div>}
           <div className="flex items-center gap-1.5 mt-1">
             {tier && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TIER_STYLE[tier]}`}>{tier}</span>}
             {spicy && <span title="Spicy">🌶️</span>}
@@ -338,6 +366,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
 function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const spicy = row.dishes?.spicy
+  const qty = qtyDisplay(row.dishes)
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -354,6 +383,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
         <div className="px-2 pt-1 pb-1.5">
           <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.dishes?.slot ?? row.slot]}</div>
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>
+          {qty && <div className="text-[10px] text-stone-400 mt-0.5">{qty}</div>}
         </div>
       </Link>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
@@ -380,6 +410,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
 
 function DesertRow({ row, date, onReplaceCell }: { row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
+  const qty = qtyDisplay(row.dishes)
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -390,7 +421,9 @@ function DesertRow({ row, date, onReplaceCell }: { row: MealPlan; date: string; 
   }
   return (
     <div className="relative flex items-center justify-between text-xs text-stone-400 border-t border-stone-100 pt-2">
-      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} className="truncate hover:text-stone-600">· desert: <span className="text-stone-500">{row.dish_name}</span></Link>
+      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} className="truncate hover:text-stone-600">
+        · desert: <span className="text-stone-500">{row.dish_name}</span>{qty && <span> · {qty}</span>}
+      </Link>
       <div className="flex gap-0.5 shrink-0">
         <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
         <button onClick={toggleLock} className={`p-0.5 ${row.locked ? 'text-orange-600' : 'text-stone-300 hover:text-stone-600'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
