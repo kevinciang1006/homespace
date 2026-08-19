@@ -53,6 +53,7 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   const [buildingList, setBuildingList] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [cookLog, setCookLog] = useState<Record<string, CookRow[]>>({})
+  const [genReport, setGenReport] = useState<string[] | null>(null)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
 
@@ -90,11 +91,13 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   }, [])
   async function generate() {
     setGenerating(true)
+    setGenReport(null)
     try {
       const res = await fetch('/api/meals/generate', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart }),
       })
-      const { week } = await res.json(); setWeek(week ?? [])
+      const { week, report } = await res.json(); setWeek(week ?? [])
+      setGenReport(report ?? [])
       loadCookLog(weekStart)
     } finally { setGenerating(false) }
   }
@@ -164,6 +167,20 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
 
       <StaplesBanner initialStaples={initialStaples} />
 
+      {genReport && (
+        <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">{genReport.length === 0 ? '✓ Week validated' : `${genReport.length} thing${genReport.length > 1 ? 's' : ''} to note`}</span>
+            <button onClick={() => setGenReport(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
+          </div>
+          {genReport.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {genReport.map((line, i) => <li key={i}>{line}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
           <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
@@ -183,10 +200,12 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
   onReplaceDay: (date: string, rows: MealPlan[]) => void
   onReplaceCell: (row: MealPlan) => void
 }) {
+  const breakfast = rows.find(r => r.slot === 'breakfast')
   const main = rows.find(r => r.role === 'main')
   const supports = rows.filter(r => r.role === 'support' && r.dish_id)
   const soupSkipped = rows.some(r => r.slot === 'kuah' && r.skipped)
-  const desert = rows.find(r => r.role === 'optional')
+  const desert = rows.find(r => r.slot === 'desert')
+  const eveningFruit = rows.find(r => r.slot === 'fruit')
 
   const [rerollingDay, setRerollingDay] = useState(false)
   const [showLog, setShowLog] = useState(false)
@@ -256,6 +275,8 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
           </button>
         </div>
       </div>
+      {breakfast && <BreakfastStrip row={breakfast} date={date} onReplaceCell={onReplaceCell} />}
+
       {main
         ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}
@@ -271,7 +292,12 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
         </div>
       )}
 
-      {desert && <DesertRow row={desert} date={date} onReplaceCell={onReplaceCell} />}
+      {(desert || eveningFruit) && (
+        <div className="flex flex-col gap-1">
+          {desert && <FruitLine row={desert} label="desert" date={date} onReplaceCell={onReplaceCell} />}
+          {eveningFruit && <FruitLine row={eveningFruit} label="evening" date={date} onReplaceCell={onReplaceCell} />}
+        </div>
+      )}
 
       {(dayVeg > 0 || dayFruit > 0) && (
         <div className="text-[10px] text-stone-400 text-center -mt-1">
@@ -411,13 +437,50 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
   )
 }
 
-function DesertRow({ row, date, onReplaceCell }: { row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void }) {
+function BreakfastStrip({ row, date, onReplaceCell }: { row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void }) {
+  const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
+  const qty = qtyDisplay(row.dishes)
+  const isTreat = row.dishes?.tier === 'special'
+  async function swap(dishId?: string) {
+    const res = await fetch('/api/meals/reroll', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ plan_date: date, slot: 'breakfast', ...(dishId ? { dish_id: dishId } : {}) }),
+    })
+    if (res.ok) { const { pick } = await res.json(); onReplaceCell(pick) }
+    setOpen(false)
+  }
+  return (
+    <div className="relative flex items-center justify-between gap-2 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5">
+      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`}
+        className="min-w-0 flex items-center gap-1.5 text-xs text-stone-700 hover:text-stone-900">
+        <span className="shrink-0">🌅</span>
+        <span className="truncate">{row.dish_name ?? '—'}</span>
+        {isTreat && <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700">eat-out</span>}
+        {qty && <span className="shrink-0 text-stone-400">· {qty}</span>}
+      </Link>
+      <div className="flex gap-0.5 shrink-0">
+        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
+        <button onClick={toggleLock} className={`p-0.5 rounded ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={12} /> : <Unlock size={12} />}</button>
+        <button onClick={openAlts} className="p-0.5 rounded text-stone-400 hover:text-stone-700"><Shuffle size={12} /></button>
+      </div>
+      {open && (
+        <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
+          <button onClick={() => swap()} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs">🎲 Surprise me</button>
+          {alts?.map(a => <button key={a.id} onClick={() => swap(a.id)} className="w-full text-left px-2 py-1 rounded-lg hover:bg-stone-50 text-stone-700 text-xs truncate">{a.name}</button>)}
+          <button onClick={() => setOpen(false)} className="w-full text-left px-2 py-1 rounded-lg text-stone-400 text-xs">Cancel</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FruitLine({ row, label, date, onReplaceCell }: { row: MealPlan; label: string; date: string; onReplaceCell: (r: MealPlan) => void }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const qty = qtyDisplay(row.dishes)
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ plan_date: date, slot: 'desert', ...(dishId ? { dish_id: dishId } : {}) }),
+      body: JSON.stringify({ plan_date: date, slot: row.slot, ...(dishId ? { dish_id: dishId } : {}) }),
     })
     if (res.ok) { const { pick } = await res.json(); onReplaceCell(pick) }
     setOpen(false)
@@ -425,7 +488,7 @@ function DesertRow({ row, date, onReplaceCell }: { row: MealPlan; date: string; 
   return (
     <div className="relative flex items-center justify-between text-xs text-stone-400 border-t border-stone-100 pt-2">
       <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} className="truncate hover:text-stone-600">
-        · desert: <span className="text-stone-500">{row.dish_name}</span>{qty && <span> · {qty}</span>}
+        · {label}: <span className="text-stone-500">{row.dish_name}</span>{qty && <span> · {qty}</span>}
       </Link>
       <div className="flex gap-0.5 shrink-0">
         <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
