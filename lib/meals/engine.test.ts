@@ -274,8 +274,8 @@ function pools() {
     Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
       protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
   return {
-    utama: mk('utama', 12), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
-    sayuran: mk('sayuran', 8), desert: mk('desert', 8),
+    breakfast: [] as Dish[], utama: mk('utama', 12), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
+    sayuran: mk('sayuran', 8), fruit: [] as Dish[], desert: mk('desert', 8),
   }
 }
 
@@ -480,10 +480,11 @@ describe('generateWeek (saltiness + difficulty)', () => {
       Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over(i),
         protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
     const dishesBySlot = {
+      breakfast: [] as Dish[],
       utama: mk('utama', 12, i => ({ tier: (i < 3 ? 'special' : 'everyday') as Dish['tier'], difficulty: (i < 4 ? 'hard' : 'medium') as Dish['difficulty'] })),
       kuah: mk('kuah', 8, i => ({ difficulty: (i === 0 ? 'hard' : 'easy') as Dish['difficulty'], saltiness: (i === 1 ? 'salty' : 'normal') as Dish['saltiness'] })),
       pelengkap: mk('pelengkap', 9, i => ({ saltiness: (i < 3 ? 'very_salty' : 'normal') as Dish['saltiness'] })),
-      sayuran: mk('sayuran', 8), desert: mk('desert', 8),
+      sayuran: mk('sayuran', 8), fruit: [] as Dish[], desert: mk('desert', 8),
     }
     const all = Object.values(dishesBySlot).flat()
     const byId = new Map(all.map(d => [d.id, d]))
