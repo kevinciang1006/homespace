@@ -32,10 +32,9 @@ export async function POST(request: Request) {
 
   const picks = generateWeek({ weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng })
 
-  // Dev-only self-audit: log any rule violations in the freshly composed week.
+  const dishById = new Map(allDishes.map(d => [d.id, d]))
+  const report = validateWeek(picks, dishById)
   if (process.env.NODE_ENV !== 'production') {
-    const dishById = new Map(allDishes.map(d => [d.id, d]))
-    const report = validateWeek(picks, dishById)
     if (report.length) console.warn(`[meal-gen] ${weekStart} rule violations:\n` + report.join('\n'))
     else console.log(`[meal-gen] ${weekStart} validation: clean ✓`)
   }
@@ -57,5 +56,5 @@ export async function POST(request: Request) {
     .from('meal_plans')
     .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
-  return Response.json({ week: (week ?? []) as MealPlan[] })
+  return Response.json({ week: (week ?? []) as MealPlan[], report })
 }

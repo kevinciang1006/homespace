@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot, type Role } from '@/lib/meals/types'
-import { candidates, composeDay, pickForSlot, weightFor, type PickContext } from '@/lib/meals/engine'
+import { candidates, composeDay, pickForSlot, pickBreakfast, breakfastCandidates, weightFor, type PickContext } from '@/lib/meals/engine'
 import { weekDates, mondayOf } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
@@ -22,7 +22,10 @@ async function loadWeek(plan_date: string) {
 }
 
 function roleForSlot(slot: Slot): Role {
-  return slot === 'utama' ? 'main' : slot === 'desert' ? 'optional' : 'support'
+  return slot === 'utama' ? 'main'
+    : slot === 'breakfast' ? 'breakfast'
+    : (slot === 'desert' || slot === 'fruit') ? 'optional'
+    : 'support'
 }
 
 // Special days = week days whose utama is special; hard days = special days plus
@@ -36,6 +39,34 @@ function deriveDays(week: string[], plans: MealPlan[], dishById: Map<string, Dis
     if (weekSet.has(p.plan_date) && dishById.get(p.dish_id ?? '')?.difficulty === 'hard') hardDays.add(p.plan_date)
   }
   return { specialDays, hardDays }
+}
+
+// Breakfast's already-committed special-day assignment, reconstructed from
+// this week's saved plans — independent of deriveDays (dinner's specialDays).
+function deriveBreakfastSpecialDays(week: string[], plans: MealPlan[], dishById: Map<string, Dish>): Set<string> {
+  return new Set(week.filter(d => plans.some(p =>
+    p.plan_date === d && p.slot === 'breakfast' && dishById.get(p.dish_id ?? '')?.tier === 'special')))
+}
+
+// Shared context for a single-cell breakfast reroll/alternatives lookup —
+// used by both the POST reroll branch and the GET alternatives branch below.
+function buildBreakfastContext(plan_date: string, allDishes: Dish[], plans: MealPlan[], week: string[]) {
+  const dishById = new Map(allDishes.map(d => [d.id, d]))
+  const weekSet = new Set(week)
+  const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
+  const runPicks = plans
+    .filter(p => weekSet.has(p.plan_date) && !(p.plan_date === plan_date && p.slot === 'breakfast'))
+    .map(p => ({ plan_date: p.plan_date, slot: p.slot as Slot, dish_id: p.dish_id, dish_name: p.dish_name,
+      locked: p.locked, role: (p.role ?? 'breakfast') as Role, skipped: p.skipped ?? false }))
+  const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
+  const ctx: PickContext = {
+    date: plan_date, slot: 'breakfast', priorPlans, runPicks, dishById,
+    specialDays: new Set(), hardDays: new Set(),
+    relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
+    role: 'breakfast', spicyFloor: 1, plannedRemaining: 0,
+  }
+  const breakfastPool = allDishes.filter(d => d.slot === 'breakfast')
+  return { ctx, breakfastPool, isSpecialDay: breakfastSpecialDays.has(plan_date) }
 }
 
 // On a provides_soup-main day the kuah slot really holds a 2nd vegetable, so it must be
@@ -85,7 +116,8 @@ export async function POST(request: Request) {
         locked: p.locked, role: (p.role ?? 'support') as Role, skipped: p.skipped ?? false }))
     const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
     const dishesBySlot = Object.fromEntries(SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)])) as Record<Slot, Dish[]>
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays: new Set(), rng }) // TODO(Task 7): thread real breakfastSpecialDays
+    const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng })
     await supabase.from('meal_plans').delete().eq('plan_date', plan_date).eq('locked', false)
     const toInsert = created.filter(p => !p.locked)
     if (toInsert.length) {
@@ -137,7 +169,8 @@ export async function POST(request: Request) {
       SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
     ) as Record<Slot, Dish[]>
 
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays: new Set(), rng }) // TODO(Task 7): thread real breakfastSpecialDays
+    const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng })
     const toInsert = [...created]
     if (fixedMain) toInsert.unshift({ plan_date, slot: 'utama' as Slot, dish_id: fixedMain.id,
       dish_name: fixedMain.name, locked: false, role: 'main' as Role, skipped: false })
@@ -153,6 +186,27 @@ export async function POST(request: Request) {
     }
     const { data: day } = await supabase.from('meal_plans').select(SELECT).eq('plan_date', plan_date)
     return Response.json({ day: (day ?? []) as MealPlan[] })
+  }
+
+  // ---- BREAKFAST reroll → independent pick honoring the week's breakfast quota ----
+  if (slot === 'breakfast') {
+    const { week, allDishes, plans } = await loadWeek(plan_date)
+    if (body.dish_id) {
+      const d = allDishes.find(x => x.id === body.dish_id)
+      if (!d) return Response.json({ error: 'dish not found' }, { status: 404 })
+      const { data, error } = await supabase.from('meal_plans')
+        .upsert({ plan_date, slot: 'breakfast', dish_id: d.id, dish_name: d.name, locked: false, role: 'breakfast', skipped: false },
+          { onConflict: 'plan_date,slot' }).select(SELECT).single()
+      if (error) return Response.json({ error: error.message }, { status: 500 })
+      return Response.json({ pick: data as MealPlan })
+    }
+    const { ctx, breakfastPool, isSpecialDay } = buildBreakfastContext(plan_date, allDishes, plans, week)
+    const p = pickBreakfast(breakfastPool, ctx, isSpecialDay, rng)
+    const { data, error } = await supabase.from('meal_plans')
+      .upsert({ plan_date, slot: 'breakfast', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'breakfast', skipped: false },
+        { onConflict: 'plan_date,slot' }).select(SELECT).single()
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ pick: data as MealPlan })
   }
 
   // ---- SUPPORT / OPTIONAL reroll → swap one ----
@@ -185,6 +239,15 @@ export async function GET(request: Request) {
     return Response.json({ error: 'plan_date and valid slot required' }, { status: 400 })
   }
   const { week, allDishes, plans } = await loadWeek(plan_date)
+  if (slot === 'breakfast') {
+    const { ctx, breakfastPool, isSpecialDay } = buildBreakfastContext(plan_date, allDishes, plans, week)
+    const pool = breakfastCandidates(breakfastPool, ctx, isSpecialDay)
+      .map(d => ({ d, w: weightFor(d, ctx) }))
+      .sort((a, b) => b.w - a.w)
+      .slice(0, n)
+      .map(({ d }) => ({ id: d.id, name: d.name }))
+    return Response.json({ alternatives: pool })
+  }
   const poolSlot = poolSlotFor(slot, plan_date, plans, allDishes)
   const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week, poolSlot)
   const pool = candidates(slotDishes, ctx)
