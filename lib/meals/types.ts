@@ -1,21 +1,22 @@
 import type { DishIngredient } from './shopping'
 import type { RecipeLink } from './recipeLinks'
 
-export const SLOTS = ['utama', 'kuah', 'pelengkap', 'sayuran', 'desert'] as const
+export const SLOTS = ['breakfast', 'utama', 'kuah', 'pelengkap', 'sayuran', 'fruit', 'desert'] as const
 export type Slot = (typeof SLOTS)[number]
 
 export const SLOT_LABELS: Record<Slot, string> = {
-  utama: 'Utama', kuah: 'Kuah', pelengkap: 'Pelengkap', sayuran: 'Sayuran', desert: 'Desert',
+  breakfast: 'Breakfast', utama: 'Utama', kuah: 'Kuah', pelengkap: 'Pelengkap',
+  sayuran: 'Sayuran', fruit: 'Fruit', desert: 'Desert',
 }
 
 export type Tier = 'everyday' | 'nice' | 'special'
-export type Role = 'main' | 'support' | 'optional'
+export type Role = 'main' | 'support' | 'optional' | 'breakfast'
 export type Richness = 'light' | 'medium' | 'heavy'
 export type Saltiness = 'normal' | 'salty' | 'very_salty'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export const DEFAULT_NO_REPEAT: Record<Slot, number> = {
-  utama: 14, kuah: 7, pelengkap: 7, sayuran: 7, desert: 10,
+  breakfast: 4, utama: 14, kuah: 7, pelengkap: 7, sayuran: 7, fruit: 3, desert: 10,
 }
 
 export type Dish = {
@@ -60,6 +61,14 @@ export type MealPlan = {
     qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null
     veg_portions?: number; fruit_portions?: number
   } | null
+}
+
+export type DailyStaple = {
+  id: string
+  name: string
+  person: string
+  frequency: string
+  note: string | null
 }
 
 export type MealShoppingList = {

@@ -295,6 +295,61 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
   return a
 }
 
+// Breakfast's own 2-non-adjacent-days/week eat-out quota. Deliberately NOT
+// shared with preassignSpecialDays: breakfast is independent of dinner, so a
+// day may land both a special dinner AND a special breakfast.
+export function preassignBreakfastSpecialDays(
+  days: string[], lockedCells: MealPlan[], dishById: Map<string, Dish>, rng: Rng,
+): Set<string> {
+  const result = new Set<string>()
+  const breakfastLocked = lockedCells.filter(lc => lc.slot === 'breakfast')
+  for (const lc of breakfastLocked) {
+    if (dishById.get(lc.dish_id ?? '')?.tier === 'special') result.add(lc.plan_date)
+  }
+  const breakfastPool = [...dishById.values()].some(d => d.slot === 'breakfast' && d.tier === 'special' && d.active)
+  if (!breakfastPool) return result
+
+  const isAdjacent = (d: string) =>
+    [...result].some(r => Math.abs(days.indexOf(r) - days.indexOf(d)) < 2)
+  const lockedSpecialDays = new Set(
+    breakfastLocked.filter(lc => dishById.get(lc.dish_id ?? '')?.tier === 'special').map(lc => lc.plan_date))
+  const shuffled = shuffle(days.filter(d => !lockedSpecialDays.has(d)), rng)
+  for (const d of shuffled) {
+    if (result.size >= 2) break
+    if (!isAdjacent(d)) result.add(d)
+  }
+  return result
+}
+
+// Breakfast is a single dish per day (not a multi-slot plate), so unlike
+// dinner's specialOk there's no cross-slot day-cap to check — just whether
+// today was assigned a special day.
+export function breakfastSpecialOk(dish: Dish, isSpecialDay: boolean): boolean {
+  return isSpecialDay ? dish.tier === 'special' : dish.tier !== 'special'
+}
+
+// Breakfast bypasses passesHardRules entirely — it's independent of dinner's
+// fried/spicy/saltiness/protein-clash/difficulty/spacing rules by design.
+// Only active + right slot + no-repeat + the quota above apply.
+export function breakfastCandidates(pool: Dish[], ctx: PickContext, isSpecialDay: boolean): Dish[] {
+  const eligible = pool.filter(d => d.active && !d.is_garnish && d.slot === 'breakfast' && breakfastSpecialOk(d, isSpecialDay))
+  const strict = eligible.filter(d => noRepeatOk(d, ctx))
+  if (strict.length > 0) return strict
+  const relaxedCtx: PickContext = { ...ctx, relax: { ...ctx.relax, noRepeatFactor: 0.5 } }
+  const relaxed = eligible.filter(d => noRepeatOk(d, relaxedCtx))
+  if (relaxed.length > 0) return relaxed
+  return eligible // last resort: ignore no-repeat rather than leave the slot empty
+}
+
+export function pickBreakfast(pool: Dish[], ctx: PickContext, isSpecialDay: boolean, rng: Rng): Pick {
+  const candidates = breakfastCandidates(pool, ctx, isSpecialDay)
+  if (candidates.length === 0) {
+    return { plan_date: ctx.date, slot: 'breakfast', dish_id: null, dish_name: null,
+      locked: false, role: ctx.role, skipped: false, note: 'no candidate available' }
+  }
+  return toPick(ctx, weightedPick(candidates, ctx, rng)!)
+}
+
 // A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
 // kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
 // fall back to the broth note when no distinct second vegetable fits.
@@ -335,9 +390,10 @@ export function composeDay(input: {
   lockedByCell: Map<string, MealPlan>    // keyed `${date}|${slot}`
   specialDays: Set<string>
   hardDays: Set<string>
+  breakfastSpecialDays: Set<string>
   rng: Rng
 }): Pick[] {
-  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng } = input
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng } = input
   const created: Pick[] = []
   const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
     date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
@@ -349,6 +405,11 @@ export function composeDay(input: {
   const lockedDish = (slot: Slot): Dish | undefined => {
     const lc = lockedByCell.get(`${date}|${slot}`)
     return lc?.dish_id ? dishById.get(lc.dish_id) : undefined
+  }
+
+  // 0. BREAKFAST — independent of dinner's rules; own treat quota.
+  if (!isLocked('breakfast')) {
+    push(pickBreakfast(dishesBySlot.breakfast ?? [], mkCtx('breakfast', 'breakfast', 0), breakfastSpecialDays.has(date), rng))
   }
 
   // 1. MAIN
@@ -383,6 +444,13 @@ export function composeDay(input: {
     push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
   }
 
+  // 5. FRUIT (evening) — neutral on every cross-slot axis (protein none, never
+  // spicy/fried, saltiness normal, tier always everyday), so the generic
+  // dinner picker already does the right thing here with zero new rule code.
+  if (!isLocked('fruit')) {
+    push(pickForSlot(dishesBySlot.fruit ?? [], mkCtx('fruit', 'optional', 0), rng))
+  }
+
   return created
 }
 
@@ -394,6 +462,7 @@ export function generateWeek(input: {
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
   const hardDays = preassignHardDays(days, specialDays, rng)
+  const breakfastSpecialDays = preassignBreakfastSpecialDays(days, lockedCells, dishById, rng)
   const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
   const runPicks: Pick[] = lockedCells.map(l => ({
     plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name,
@@ -401,7 +470,7 @@ export function generateWeek(input: {
   }))
 
   for (const date of days) {
-    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)
@@ -412,13 +481,14 @@ export function generateWeek(input: {
 
 // Dev-only sanity check: scan a generated week and report any rule violations.
 export function validateWeek(
-  rows: { plan_date: string; dish_id: string | null; skipped?: boolean }[],
+  rows: { plan_date: string; slot?: Slot; dish_id: string | null; skipped?: boolean }[],
   dishById: Map<string, Dish>,
 ): string[] {
   const viol: string[] = []
   const byDate = new Map<string, Dish[]>()
   for (const r of rows) {
     if (!r.dish_id || r.skipped) continue
+    if (r.slot === 'breakfast' || r.slot === 'fruit') continue // independent of dinner's cross-slot checks
     const d = dishById.get(r.dish_id)
     if (!d) continue
     if (!byDate.has(r.plan_date)) byDate.set(r.plan_date, [])
@@ -463,6 +533,40 @@ export function validateWeek(
       }
     }
   }
+
+  // --- Breakfast: one per day, <=2 eat-out, non-adjacent (own independent quota) ---
+  const allDates = [...new Set(rows.map(r => r.plan_date))].sort()
+  const breakfastRows = rows.filter(r => r.slot === 'breakfast')
+  if (breakfastRows.length) {
+    for (const date of allDates) {
+      const planned = breakfastRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+      if (!planned) viol.push(`⚠️ ${date}: no breakfast planned`)
+    }
+    const treatDates = [...new Set(breakfastRows
+      .filter(r => r.dish_id && !r.skipped && dishById.get(r.dish_id!)?.tier === 'special')
+      .map(r => r.plan_date))].sort()
+    if (treatDates.length > 2) viol.push(`⚠️ week: ${treatDates.length} eat-out breakfasts (${treatDates.join(', ')})`)
+    if (hasAdjacent(treatDates)) viol.push(`⚠️ week: eat-out breakfasts on adjacent days (${treatDates.join(', ')})`)
+  }
+
+  // --- Evening fruit: present every day; advisory on the ~2-fruit-portions target ---
+  const fruitRows = rows.filter(r => r.slot === 'fruit')
+  if (fruitRows.length) {
+    for (const date of allDates) {
+      const planned = fruitRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+      if (!planned) viol.push(`⚠️ ${date}: no evening fruit planned`)
+    }
+    const daysReaching2 = allDates.filter(date => {
+      const total = rows
+        .filter(r => r.plan_date === date && r.dish_id && !r.skipped && (r.slot === 'fruit' || r.slot === 'desert'))
+        .reduce((n, r) => n + (dishById.get(r.dish_id!)?.fruit_portions ?? 0), 0)
+      return total >= 2
+    }).length
+    if (daysReaching2 < 5) {
+      viol.push(`ℹ️ week: only ${daysReaching2} of ${allDates.length} days reach ~2 fruit portions`)
+    }
+  }
+
   return viol
 }
 
