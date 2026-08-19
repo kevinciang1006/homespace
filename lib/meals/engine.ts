@@ -481,13 +481,14 @@ export function generateWeek(input: {
 
 // Dev-only sanity check: scan a generated week and report any rule violations.
 export function validateWeek(
-  rows: { plan_date: string; dish_id: string | null; skipped?: boolean }[],
+  rows: { plan_date: string; slot?: Slot; dish_id: string | null; skipped?: boolean }[],
   dishById: Map<string, Dish>,
 ): string[] {
   const viol: string[] = []
   const byDate = new Map<string, Dish[]>()
   for (const r of rows) {
     if (!r.dish_id || r.skipped) continue
+    if (r.slot === 'breakfast' || r.slot === 'fruit') continue // independent of dinner's cross-slot checks
     const d = dishById.get(r.dish_id)
     if (!d) continue
     if (!byDate.has(r.plan_date)) byDate.set(r.plan_date, [])
@@ -532,6 +533,40 @@ export function validateWeek(
       }
     }
   }
+
+  // --- Breakfast: one per day, <=2 eat-out, non-adjacent (own independent quota) ---
+  const allDates = [...new Set(rows.map(r => r.plan_date))].sort()
+  const breakfastRows = rows.filter(r => r.slot === 'breakfast')
+  if (breakfastRows.length) {
+    for (const date of allDates) {
+      const planned = breakfastRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+      if (!planned) viol.push(`⚠️ ${date}: no breakfast planned`)
+    }
+    const treatDates = [...new Set(breakfastRows
+      .filter(r => r.dish_id && !r.skipped && dishById.get(r.dish_id!)?.tier === 'special')
+      .map(r => r.plan_date))].sort()
+    if (treatDates.length > 2) viol.push(`⚠️ week: ${treatDates.length} eat-out breakfasts (${treatDates.join(', ')})`)
+    if (hasAdjacent(treatDates)) viol.push(`⚠️ week: eat-out breakfasts on adjacent days (${treatDates.join(', ')})`)
+  }
+
+  // --- Evening fruit: present every day; advisory on the ~2-fruit-portions target ---
+  const fruitRows = rows.filter(r => r.slot === 'fruit')
+  if (fruitRows.length) {
+    for (const date of allDates) {
+      const planned = fruitRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+      if (!planned) viol.push(`⚠️ ${date}: no evening fruit planned`)
+    }
+    const daysReaching2 = allDates.filter(date => {
+      const total = rows
+        .filter(r => r.plan_date === date && r.dish_id && !r.skipped && (r.slot === 'fruit' || r.slot === 'desert'))
+        .reduce((n, r) => n + (dishById.get(r.dish_id!)?.fruit_portions ?? 0), 0)
+      return total >= 2
+    }).length
+    if (daysReaching2 < 5) {
+      viol.push(`ℹ️ week: only ${daysReaching2} of ${allDates.length} days reach ~2 fruit portions`)
+    }
+  }
+
   return viol
 }
 

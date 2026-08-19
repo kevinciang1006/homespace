@@ -794,6 +794,91 @@ describe('validateWeek', () => {
   })
 })
 
+describe('validateWeek (breakfast + evening fruit)', () => {
+  it('flags a day with no breakfast planned', () => {
+    const byId = new Map<string, Dish>([['bf', dish({ id: 'bf', slot: 'breakfast' })]])
+    const rows = [
+      { plan_date: '2026-08-17', slot: 'breakfast' as Slot, dish_id: 'bf' },
+      { plan_date: '2026-08-18', slot: 'breakfast' as Slot, dish_id: null },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('2026-08-18') && v.includes('no breakfast'))).toBe(true)
+    expect(report.some(v => v.includes('2026-08-17') && v.includes('no breakfast'))).toBe(false)
+  })
+  it('flags more than 2 eat-out breakfasts in the week', () => {
+    const byId = new Map<string, Dish>([['bf', dish({ id: 'bf', slot: 'breakfast', tier: 'special' })]])
+    const rows = ['2026-08-10', '2026-08-13', '2026-08-16'].map(date => ({ plan_date: date, slot: 'breakfast' as Slot, dish_id: 'bf' }))
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('3 eat-out breakfasts'))).toBe(true)
+  })
+  it('flags eat-out breakfasts on adjacent days', () => {
+    const byId = new Map<string, Dish>([['bf', dish({ id: 'bf', slot: 'breakfast', tier: 'special' })]])
+    const rows = [
+      { plan_date: '2026-08-10', slot: 'breakfast' as Slot, dish_id: 'bf' },
+      { plan_date: '2026-08-11', slot: 'breakfast' as Slot, dish_id: 'bf' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('eat-out breakfasts on adjacent days'))).toBe(true)
+  })
+  it('does not count a special DINNER dish toward the breakfast eat-out quota', () => {
+    const byId = new Map<string, Dish>([
+      ['bf', dish({ id: 'bf', slot: 'breakfast', tier: 'everyday' })],
+      ['dn', dish({ id: 'dn', slot: 'utama', tier: 'special' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', slot: 'breakfast' as Slot, dish_id: 'bf' },
+      { plan_date: '2026-08-17', slot: 'utama' as Slot, dish_id: 'dn' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('eat-out breakfast'))).toBe(false)
+  })
+  it('flags a day with no evening fruit planned', () => {
+    const byId = new Map<string, Dish>([['fr', dish({ id: 'fr', slot: 'fruit' })]])
+    const rows = [
+      { plan_date: '2026-08-17', slot: 'fruit' as Slot, dish_id: 'fr' },
+      { plan_date: '2026-08-18', slot: 'fruit' as Slot, dish_id: null },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('2026-08-18') && v.includes('no evening fruit'))).toBe(true)
+  })
+  it('gives an advisory when fewer than 5 of 7 days reach ~2 fruit portions', () => {
+    const byId = new Map<string, Dish>([
+      ['fr', dish({ id: 'fr', slot: 'fruit', fruit_portions: 1 })],
+      ['ds', dish({ id: 'ds', slot: 'desert', fruit_portions: 0 })],
+    ])
+    const rows = WEEK.flatMap(date => [
+      { plan_date: date, slot: 'fruit' as Slot, dish_id: 'fr' },
+      { plan_date: date, slot: 'desert' as Slot, dish_id: 'ds' },
+    ])
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('0 of 7 days reach ~2 fruit portions'))).toBe(true)
+  })
+  it('gives no advisory when most days reach ~2 fruit portions', () => {
+    const byId = new Map<string, Dish>([
+      ['fr', dish({ id: 'fr', slot: 'fruit', fruit_portions: 1 })],
+      ['ds', dish({ id: 'ds', slot: 'desert', fruit_portions: 1 })],
+    ])
+    const rows = WEEK.flatMap(date => [
+      { plan_date: date, slot: 'fruit' as Slot, dish_id: 'fr' },
+      { plan_date: date, slot: 'desert' as Slot, dish_id: 'ds' },
+    ])
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('fruit portions'))).toBe(false)
+  })
+  it("does not couple a salty/fried breakfast dish into dinner's per-day caps", () => {
+    const byId = new Map<string, Dish>([
+      ['bf', dish({ id: 'bf', slot: 'breakfast', saltiness: 'salty', method: 'fried' })],
+      ['dn', dish({ id: 'dn', slot: 'utama', saltiness: 'salty' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-17', slot: 'breakfast' as Slot, dish_id: 'bf' },
+      { plan_date: '2026-08-17', slot: 'utama' as Slot, dish_id: 'dn' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('salty'))).toBe(false)
+  })
+})
+
 import { staleSoupRowIds } from './engine'
 
 describe('staleSoupRowIds (consistency: wet main must not keep a separate soup)', () => {
