@@ -390,9 +390,10 @@ export function composeDay(input: {
   lockedByCell: Map<string, MealPlan>    // keyed `${date}|${slot}`
   specialDays: Set<string>
   hardDays: Set<string>
+  breakfastSpecialDays: Set<string>
   rng: Rng
 }): Pick[] {
-  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng } = input
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng } = input
   const created: Pick[] = []
   const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
     date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
@@ -404,6 +405,11 @@ export function composeDay(input: {
   const lockedDish = (slot: Slot): Dish | undefined => {
     const lc = lockedByCell.get(`${date}|${slot}`)
     return lc?.dish_id ? dishById.get(lc.dish_id) : undefined
+  }
+
+  // 0. BREAKFAST — independent of dinner's rules; own treat quota.
+  if (!isLocked('breakfast')) {
+    push(pickBreakfast(dishesBySlot.breakfast ?? [], mkCtx('breakfast', 'breakfast', 0), breakfastSpecialDays.has(date), rng))
   }
 
   // 1. MAIN
@@ -438,6 +444,13 @@ export function composeDay(input: {
     push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
   }
 
+  // 5. FRUIT (evening) — neutral on every cross-slot axis (protein none, never
+  // spicy/fried, saltiness normal, tier always everyday), so the generic
+  // dinner picker already does the right thing here with zero new rule code.
+  if (!isLocked('fruit')) {
+    push(pickForSlot(dishesBySlot.fruit ?? [], mkCtx('fruit', 'optional', 0), rng))
+  }
+
   return created
 }
 
@@ -449,6 +462,7 @@ export function generateWeek(input: {
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
   const hardDays = preassignHardDays(days, specialDays, rng)
+  const breakfastSpecialDays = preassignBreakfastSpecialDays(days, lockedCells, dishById, rng)
   const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
   const runPicks: Pick[] = lockedCells.map(l => ({
     plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name,
@@ -456,7 +470,7 @@ export function generateWeek(input: {
   }))
 
   for (const date of days) {
-    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)

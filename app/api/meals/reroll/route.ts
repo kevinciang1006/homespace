@@ -85,7 +85,7 @@ export async function POST(request: Request) {
         locked: p.locked, role: (p.role ?? 'support') as Role, skipped: p.skipped ?? false }))
     const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
     const dishesBySlot = Object.fromEntries(SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)])) as Record<Slot, Dish[]>
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays: new Set(), rng }) // TODO(Task 7): thread real breakfastSpecialDays
     await supabase.from('meal_plans').delete().eq('plan_date', plan_date).eq('locked', false)
     const toInsert = created.filter(p => !p.locked)
     if (toInsert.length) {
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
       SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
     ) as Record<Slot, Dish[]>
 
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, rng })
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays: new Set(), rng }) // TODO(Task 7): thread real breakfastSpecialDays
     const toInsert = [...created]
     if (fixedMain) toInsert.unshift({ plan_date, slot: 'utama' as Slot, dish_id: fixedMain.id,
       dish_name: fixedMain.name, locked: false, role: 'main' as Role, skipped: false })
