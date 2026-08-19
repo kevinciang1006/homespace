@@ -38,6 +38,11 @@ export type Dish = {
   difficulty: Difficulty
   is_garnish: boolean
   recipe_links: RecipeLink[] | null
+  qty_amount: number | null
+  qty_unit: string | null
+  qty_note: string | null
+  veg_portions: number
+  fruit_portions: number
 }
 
 export type MealPlan = {
@@ -49,7 +54,12 @@ export type MealPlan = {
   locked: boolean
   role: Role
   skipped: boolean
-  dishes?: { tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null; protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; slot?: Slot; recipe_links?: RecipeLink[] | null } | null
+  dishes?: {
+    tier: Tier; spicy: boolean; richness: Richness; provides_soup: boolean; recipe_image_url: string | null
+    protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; slot?: Slot; recipe_links?: RecipeLink[] | null
+    qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null
+    veg_portions?: number; fruit_portions?: number
+  } | null
 }
 
 export type MealShoppingList = {

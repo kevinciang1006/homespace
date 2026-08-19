@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 
-const FIELDS = ['name', 'slot', 'protein', 'tier', 'method', 'spicy', 'rating', 'active', 'no_repeat_days', 'ingredients', 'recipe_steps', 'recipe_image_url', 'saltiness', 'difficulty', 'is_garnish', 'provides_soup', 'recipe_links']
+const FIELDS = ['name', 'slot', 'protein', 'tier', 'method', 'spicy', 'rating', 'active', 'no_repeat_days', 'ingredients', 'recipe_steps', 'recipe_image_url', 'saltiness', 'difficulty', 'is_garnish', 'provides_soup', 'recipe_links', 'qty_amount', 'qty_unit', 'qty_note']
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

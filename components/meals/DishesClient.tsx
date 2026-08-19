@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Star, BookOpen, Trash2 } from 'lucide-react'
 import { SLOTS, SLOT_LABELS, type Dish, type Slot, type Tier } from '@/lib/meals/types'
+import { QTY_UNITS } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import DishEditorPanel from './DishEditorPanel'
 
@@ -109,13 +110,14 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Active</th>
                     <th className="px-3 py-2 font-medium">Garnish</th>
                     <th className="px-3 py-2 font-medium">Soup</th>
+                    <th className="px-3 py-2 font-medium">Quantity</th>
                     <th className="px-3 py-2 font-medium">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={14} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -139,7 +141,17 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
   highlight?: boolean
 }) {
   const [name, setName] = useState(dish.name)
+  const [qtyAmount, setQtyAmount] = useState(dish.qty_amount ?? '')
+  const [qtyNote, setQtyNote] = useState(dish.qty_note ?? '')
   const nameRef = useRef<HTMLInputElement>(null)
+  function saveQtyAmount() {
+    const n = qtyAmount === '' ? null : Number(qtyAmount)
+    if (n !== dish.qty_amount) onPatch(dish.id, { qty_amount: n === null || Number.isNaN(n) ? null : n })
+  }
+  function saveQtyNote() {
+    const trimmed = qtyNote.trim()
+    if (trimmed !== (dish.qty_note ?? '')) onPatch(dish.id, { qty_note: trimmed || null })
+  }
   useEffect(() => {
     if (autoFocus && nameRef.current) { nameRef.current.focus(); nameRef.current.select() }
     // run once on mount for a freshly added row
@@ -236,6 +248,22 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
             <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.provides_soup ? 'left-4' : 'left-0.5'}`} />
           </button>
         ) : <span className="text-stone-300">—</span>}
+      </td>
+      <td className="px-3 py-1.5">
+        <div className="flex items-center gap-1">
+          <input type="number" min={0} step="any" value={qtyAmount}
+            onChange={e => setQtyAmount(e.target.value)} onBlur={saveQtyAmount}
+            placeholder="amt"
+            className="w-14 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300" />
+          <select value={dish.qty_unit ?? ''} onChange={e => onPatch(dish.id, { qty_unit: e.target.value || null })}
+            className="bg-transparent text-stone-600 focus:outline-none">
+            <option value="">—</option>
+            {QTY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <input value={qtyNote} onChange={e => setQtyNote(e.target.value)} onBlur={saveQtyNote}
+            placeholder="note"
+            className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-500 focus:outline-none focus:border-orange-300" />
+        </div>
       </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2 whitespace-nowrap">

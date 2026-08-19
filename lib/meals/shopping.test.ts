@@ -4,9 +4,11 @@ import {
   type DishIngredient, type BuiltList, type ExistingShoppingItem, type ShopCategory,
 } from './shopping'
 
-type D = { name: string; ingredients: DishIngredient[] | null }
+type D = { name: string; ingredients: DishIngredient[] | null; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }
 function map(dishes: (D & { id: string })[]): Map<string, D> {
-  return new Map(dishes.map(d => [d.id, { name: d.name, ingredients: d.ingredients }]))
+  return new Map(dishes.map(d => [d.id, {
+    name: d.name, ingredients: d.ingredients, qty_amount: d.qty_amount, qty_unit: d.qty_unit, qty_note: d.qty_note,
+  }]))
 }
 
 describe('normalizeCategory', () => {
@@ -87,6 +89,32 @@ describe('buildShoppingList', () => {
     const out = buildShoppingList([{ dish_id: null, dish_name: null }], map([]))
     expect(out.ingredients).toEqual([])
     expect(out.dishesWithoutIngredients).toEqual([])
+  })
+
+  it('appends the buy amount for a no-ingredients dish that has a qty set', () => {
+    const dishById = map([
+      { id: 'a', name: 'Kangkung', ingredients: null, qty_amount: 400, qty_unit: 'g' },
+    ])
+    const out = buildShoppingList([{ dish_id: 'a', dish_name: 'Kangkung' }], dishById)
+    expect(out.dishesWithoutIngredients).toEqual(['Kangkung 400g'])
+  })
+
+  it('sums the qty across repeat occurrences of the same dish in the week', () => {
+    const dishById = map([
+      { id: 'a', name: 'Banana', ingredients: [], qty_amount: 3, qty_unit: 'pcs' },
+    ])
+    const plans = [
+      { dish_id: 'a', dish_name: 'Banana' },
+      { dish_id: 'a', dish_name: 'Banana' },
+    ]
+    const out = buildShoppingList(plans, dishById)
+    expect(out.dishesWithoutIngredients).toEqual(['Banana 6 pcs'])
+  })
+
+  it('falls back to the bare dish name when no qty is set', () => {
+    const dishById = map([{ id: 'a', name: 'Nasi Goreng', ingredients: null }])
+    const out = buildShoppingList([{ dish_id: 'a', dish_name: 'Nasi Goreng' }], dishById)
+    expect(out.dishesWithoutIngredients).toEqual(['Nasi Goreng'])
   })
 })
 
