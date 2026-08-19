@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
-import { SLOT_LABELS, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
+import { SLOT_LABELS, type DailyStaple, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
 import { formatQty } from '@/lib/meals/qty'
 import DishImage from './DishImage'
@@ -11,6 +11,7 @@ import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
 import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
+import StaplesBanner from './StaplesBanner'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
 export type CookRow = {
@@ -43,8 +44,8 @@ function qtyDisplay(dishes: MealPlan['dishes']): string | null {
   return parts.length ? parts.join(' · ') : null
 }
 
-export default function PlanClient({ initialWeekStart, initialWeek }:
-  { initialWeekStart: string; initialWeek: MealPlan[] }) {
+export default function PlanClient({ initialWeekStart, initialWeek, initialStaples }:
+  { initialWeekStart: string; initialWeek: MealPlan[]; initialStaples: DailyStaple[] }) {
   const router = useRouter()
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [week, setWeek] = useState<MealPlan[]>(initialWeek)
@@ -160,6 +161,8 @@ export default function PlanClient({ initialWeekStart, initialWeek }:
           </button>
         </div>
       </div>
+
+      <StaplesBanner initialStaples={initialStaples} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {days.map((date, i) => (
