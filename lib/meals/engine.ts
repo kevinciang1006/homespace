@@ -295,6 +295,61 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
   return a
 }
 
+// Breakfast's own 2-non-adjacent-days/week eat-out quota. Deliberately NOT
+// shared with preassignSpecialDays: breakfast is independent of dinner, so a
+// day may land both a special dinner AND a special breakfast.
+export function preassignBreakfastSpecialDays(
+  days: string[], lockedCells: MealPlan[], dishById: Map<string, Dish>, rng: Rng,
+): Set<string> {
+  const result = new Set<string>()
+  const breakfastLocked = lockedCells.filter(lc => lc.slot === 'breakfast')
+  for (const lc of breakfastLocked) {
+    if (dishById.get(lc.dish_id ?? '')?.tier === 'special') result.add(lc.plan_date)
+  }
+  const breakfastPool = [...dishById.values()].some(d => d.slot === 'breakfast' && d.tier === 'special' && d.active)
+  if (!breakfastPool) return result
+
+  const isAdjacent = (d: string) =>
+    [...result].some(r => Math.abs(days.indexOf(r) - days.indexOf(d)) < 2)
+  const lockedSpecialDays = new Set(
+    breakfastLocked.filter(lc => dishById.get(lc.dish_id ?? '')?.tier === 'special').map(lc => lc.plan_date))
+  const shuffled = shuffle(days.filter(d => !lockedSpecialDays.has(d)), rng)
+  for (const d of shuffled) {
+    if (result.size >= 2) break
+    if (!isAdjacent(d)) result.add(d)
+  }
+  return result
+}
+
+// Breakfast is a single dish per day (not a multi-slot plate), so unlike
+// dinner's specialOk there's no cross-slot day-cap to check — just whether
+// today was assigned a special day.
+export function breakfastSpecialOk(dish: Dish, isSpecialDay: boolean): boolean {
+  return isSpecialDay ? dish.tier === 'special' : dish.tier !== 'special'
+}
+
+// Breakfast bypasses passesHardRules entirely — it's independent of dinner's
+// fried/spicy/saltiness/protein-clash/difficulty/spacing rules by design.
+// Only active + right slot + no-repeat + the quota above apply.
+export function breakfastCandidates(pool: Dish[], ctx: PickContext, isSpecialDay: boolean): Dish[] {
+  const eligible = pool.filter(d => d.active && !d.is_garnish && d.slot === 'breakfast' && breakfastSpecialOk(d, isSpecialDay))
+  const strict = eligible.filter(d => noRepeatOk(d, ctx))
+  if (strict.length > 0) return strict
+  const relaxedCtx: PickContext = { ...ctx, relax: { ...ctx.relax, noRepeatFactor: 0.5 } }
+  const relaxed = eligible.filter(d => noRepeatOk(d, relaxedCtx))
+  if (relaxed.length > 0) return relaxed
+  return eligible // last resort: ignore no-repeat rather than leave the slot empty
+}
+
+export function pickBreakfast(pool: Dish[], ctx: PickContext, isSpecialDay: boolean, rng: Rng): Pick {
+  const candidates = breakfastCandidates(pool, ctx, isSpecialDay)
+  if (candidates.length === 0) {
+    return { plan_date: ctx.date, slot: 'breakfast', dish_id: null, dish_name: null,
+      locked: false, role: ctx.role, skipped: false, note: 'no candidate available' }
+  }
+  return toPick(ctx, weightedPick(candidates, ctx, rng)!)
+}
+
 // A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
 // kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
 // fall back to the broth note when no distinct second vegetable fits.

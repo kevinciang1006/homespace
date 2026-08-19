@@ -269,6 +269,93 @@ describe('preassignSpecialDays', () => {
   })
 })
 
+import { preassignBreakfastSpecialDays, breakfastSpecialOk, breakfastCandidates, pickBreakfast } from './engine'
+
+describe('preassignBreakfastSpecialDays', () => {
+  it('returns exactly 2 non-adjacent days', () => {
+    const dishById = new Map([['sb', dish({ id: 'sb', slot: 'breakfast', tier: 'special' })]])
+    const days = preassignBreakfastSpecialDays(WEEK, [], dishById, seq([0.1, 0.4, 0.7, 0.2, 0.9, 0.3, 0.6]))
+    expect(days.size).toBe(2)
+    const idx = [...days].map(d => WEEK.indexOf(d)).sort((a, b) => a - b)
+    expect(idx[1] - idx[0]).toBeGreaterThanOrEqual(2)
+  })
+  it('honors a locked special breakfast day', () => {
+    const dishById = new Map([['sb', dish({ id: 'sb', slot: 'breakfast', tier: 'special' })]])
+    const locked = [plan({ plan_date: '2026-08-13', slot: 'breakfast', dish_id: 'sb', locked: true })]
+    const days = preassignBreakfastSpecialDays(WEEK, locked, dishById, seq([0.5]))
+    expect(days.has('2026-08-13')).toBe(true)
+  })
+  it('ignores a locked special DINNER dish — independent of the dinner quota', () => {
+    const dishById = new Map([
+      ['su', dish({ id: 'su', slot: 'utama', tier: 'special' })],
+      ['bf', dish({ id: 'bf', slot: 'breakfast', tier: 'special' })],
+    ])
+    const locked = [plan({ plan_date: '2026-08-13', slot: 'utama', dish_id: 'su', locked: true })]
+    const days = preassignBreakfastSpecialDays(WEEK, locked, dishById, seq([0.5]))
+    expect(days.has('2026-08-13')).toBe(false)
+  })
+  it('returns an empty set when the breakfast pool has no special dishes', () => {
+    const dishById = new Map([['bf', dish({ id: 'bf', slot: 'breakfast', tier: 'everyday' })]])
+    const days = preassignBreakfastSpecialDays(WEEK, [], dishById, seq([0.5]))
+    expect(days.size).toBe(0)
+  })
+})
+
+describe('breakfastSpecialOk', () => {
+  it('requires a special dish on a special day', () => {
+    const everyday = dish({ id: 'e', slot: 'breakfast', tier: 'everyday' })
+    const special = dish({ id: 's', slot: 'breakfast', tier: 'special' })
+    expect(breakfastSpecialOk(special, true)).toBe(true)
+    expect(breakfastSpecialOk(everyday, true)).toBe(false)
+  })
+  it('forbids a special dish on a non-special day', () => {
+    const everyday = dish({ id: 'e', slot: 'breakfast', tier: 'everyday' })
+    const special = dish({ id: 's', slot: 'breakfast', tier: 'special' })
+    expect(breakfastSpecialOk(everyday, false)).toBe(true)
+    expect(breakfastSpecialOk(special, false)).toBe(false)
+  })
+})
+
+describe('pickBreakfast', () => {
+  const bfPool = () => [
+    dish({ id: 'e1', slot: 'breakfast', tier: 'everyday' }),
+    dish({ id: 'e2', slot: 'breakfast', tier: 'everyday' }),
+    dish({ id: 's1', slot: 'breakfast', tier: 'special' }),
+  ]
+  it('only picks special-tier dishes on a special day', () => {
+    const pool = bfPool()
+    const c = ctx({ date: '2026-08-13', slot: 'breakfast', role: 'breakfast', dishes: pool })
+    const p = pickBreakfast(pool, c, true, seq([0.5]))
+    expect(p.dish_id).toBe('s1')
+  })
+  it('only picks everyday-tier dishes on a non-special day', () => {
+    const pool = bfPool()
+    const c = ctx({ date: '2026-08-13', slot: 'breakfast', role: 'breakfast', dishes: pool })
+    const p = pickBreakfast(pool, c, false, seq([0.5]))
+    expect(['e1', 'e2']).toContain(p.dish_id)
+  })
+  it('respects the no-repeat window before relaxing', () => {
+    const pool = [dish({ id: 'e1', slot: 'breakfast', tier: 'everyday' }), dish({ id: 'e2', slot: 'breakfast', tier: 'everyday' })]
+    const c = ctx({ date: '2026-08-13', slot: 'breakfast', role: 'breakfast', dishes: pool,
+      priorPlans: [plan({ plan_date: '2026-08-11', slot: 'breakfast', dish_id: 'e1' })] }) // 2 days ago, window 4
+    const p = pickBreakfast(pool, c, false, seq([0.5]))
+    expect(p.dish_id).toBe('e2')
+  })
+  it('relaxes the no-repeat window rather than leaving the slot empty', () => {
+    const pool = [dish({ id: 'e1', slot: 'breakfast', tier: 'everyday' })]
+    const c = ctx({ date: '2026-08-13', slot: 'breakfast', role: 'breakfast', dishes: pool,
+      priorPlans: [plan({ plan_date: '2026-08-11', slot: 'breakfast', dish_id: 'e1' })] }) // window 4 blocks; factor 0.5 -> window 2 allows (gap 2)
+    const p = pickBreakfast(pool, c, false, seq([0.5]))
+    expect(p.dish_id).toBe('e1')
+  })
+  it('returns dish_id null when the pool has no dish of the required tier', () => {
+    const pool = [dish({ id: 'e1', slot: 'breakfast', tier: 'everyday' })]
+    const c = ctx({ date: '2026-08-13', slot: 'breakfast', role: 'breakfast', dishes: pool })
+    const p = pickBreakfast(pool, c, true, seq([0.5]))
+    expect(p.dish_id).toBeNull()
+  })
+})
+
 function pools() {
   const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
     Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
