@@ -1,10 +1,18 @@
 import { supabase } from '@/lib/supabase'
-import { weekDates } from '@/lib/meals/dates'
+import { weekDates, shiftWeek } from '@/lib/meals/dates'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients } from '@/lib/wa/config'
-import { jakartaToday, upcomingSaturday, targetWeekStart, jakartaDateTimeToUtcIso } from '@/lib/wa/schedule'
-import { composeWeeklyShoppingMessage, sumShopIngredients } from '@/lib/wa/messages'
-import type { WaOutboundKind, WeeklyShoppingItem, ShopIngredientRow } from '@/lib/wa/types'
+import {
+  jakartaToday, upcomingSaturday, targetWeekStart, tomorrowOf, prepDateFor, jakartaDateTimeToUtcIso,
+} from '@/lib/wa/schedule'
+import {
+  composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,
+} from '@/lib/wa/messages'
+import type {
+  WaOutboundKind, WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow,
+} from '@/lib/wa/types'
+
+const PREP_LOOKAHEAD_DAYS = 14
 
 async function buildWeeklyItems(saturday: string): Promise<WeeklyShoppingItem[]> {
   const weekStart = targetWeekStart(saturday)
@@ -28,6 +36,43 @@ async function buildWeeklyItems(saturday: string): Promise<WeeklyShoppingItem[]>
   const { data: dishes } = await supabase.from('dishes').select('shop_ingredients').in('id', dishIds)
   const rows: ShopIngredientRow[] = (dishes ?? []).flatMap(d => (d.shop_ingredients ?? []) as ShopIngredientRow[])
   return sumShopIngredients(rows)
+}
+
+async function buildDailyRows(tomorrow: string): Promise<DailyPlanRow[]> {
+  const { data } = await supabase.from('meal_plans')
+    .select('slot, role, dish_id, dish_name, skipped').eq('plan_date', tomorrow)
+  return (data ?? []) as DailyPlanRow[]
+}
+
+type DishFlags = { needs_thaw: boolean; needs_marinate: boolean; prep_lead_days: number | null; prep_note: string | null }
+
+// Groups upcoming thaw/marinate dishes by the evening they should be prepped.
+async function buildPrepBatches(today: string): Promise<Map<string, PrepDishRow[]>> {
+  const until = shiftWeek(today, PREP_LOOKAHEAD_DAYS)
+  const { data } = await supabase.from('meal_plans')
+    .select('plan_date, dish_id, dish_name, skipped, dishes(needs_thaw, needs_marinate, prep_lead_days, prep_note)')
+    .gte('plan_date', today).lte('plan_date', until)
+    .eq('skipped', false).not('dish_id', 'is', null)
+
+  // Without generated Database types, supabase-js can't infer the FK's
+  // to-one cardinality from the select string and defaults to an array type;
+  // it's actually a single nested object at runtime (same as the `dishes`
+  // embed in app/api/meals/week/route.ts), hence the `unknown` bridge.
+  type PrepPlanRow = { plan_date: string; dish_name: string | null; dishes: DishFlags | null }
+  const batches = new Map<string, PrepDishRow[]>()
+  for (const row of ((data ?? []) as unknown) as PrepPlanRow[]) {
+    const dish = row.dishes
+    if (!dish || (!dish.needs_thaw && !dish.needs_marinate)) continue
+    const prepDate = prepDateFor(row.plan_date, dish.prep_lead_days)
+    const entry: PrepDishRow = {
+      dish_name: row.dish_name ?? 'Dish', cook_date: row.plan_date,
+      needs_thaw: dish.needs_thaw, needs_marinate: dish.needs_marinate, prep_note: dish.prep_note,
+    }
+    const list = batches.get(prepDate) ?? []
+    list.push(entry)
+    batches.set(prepDate, list)
+  }
+  return batches
 }
 
 // Insert a wa_outbound row for (kind, refDate) if absent; if present and not
@@ -76,6 +121,44 @@ export async function GET(request: Request) {
       if (result === 'built') built++; else skipped++
     } catch (err) {
       console.error('weekly_shopping build failed:', err)
+      skipped++
+    }
+  }
+
+  if (settings.daily_enabled) {
+    try {
+      const tomorrow = tomorrowOf(today)
+      const rows = await buildDailyRows(tomorrow)
+      const message = composeDailyReminderMessage(tomorrow, rows)
+      if (message) {
+        const sendAt = jakartaDateTimeToUtcIso(today, settings.daily_time)
+        const result = await upsertOutbound(
+          'daily_reminder', tomorrow, sendAt, resolveRecipients(settings.include_kevin), message,
+        )
+        if (result === 'built') built++; else skipped++
+      } else {
+        skipped++
+      }
+    } catch (err) {
+      console.error('daily_reminder build failed:', err)
+      skipped++
+    }
+  }
+
+  if (settings.prep_enabled) {
+    try {
+      const batches = await buildPrepBatches(today)
+      for (const [prepDate, dishes] of batches) {
+        const message = composePrepThawMessage(dishes)
+        if (!message) { skipped++; continue }
+        const sendAt = jakartaDateTimeToUtcIso(prepDate, settings.prep_time)
+        const result = await upsertOutbound(
+          'prep_thaw', prepDate, sendAt, resolveRecipients(settings.include_kevin), message,
+        )
+        if (result === 'built') built++; else skipped++
+      }
+    } catch (err) {
+      console.error('prep_thaw build failed:', err)
       skipped++
     }
   }
