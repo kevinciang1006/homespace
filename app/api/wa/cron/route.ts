@@ -105,11 +105,72 @@ function kindEnabled(kind: WaOutboundKind, settings: WaSettings): boolean {
   return settings.prep_enabled
 }
 
+// ---- Test mode ----------------------------------------------------------------
+
+const SAMPLE_WEEKLY_ITEMS: WeeklyShoppingItem[] = [
+  { ingredient: 'Ayam', quantity: '1kg', category: 'protein' },
+  { ingredient: 'Kangkung', quantity: '400g', category: 'vegetable' },
+  { ingredient: 'Bumbu Rendang', quantity: null, category: 'bumbu' },
+]
+const SAMPLE_DAILY_ROWS: DailyPlanRow[] = [
+  { slot: 'breakfast', role: 'breakfast', dish_id: 'sample', dish_name: 'Bubur ayam', skipped: false },
+  { slot: 'utama', role: 'main', dish_id: 'sample', dish_name: 'Ayam bakar', skipped: false },
+  { slot: 'sayuran', role: 'support', dish_id: 'sample', dish_name: 'Tumis kangkung', skipped: false },
+  { slot: 'fruit', role: 'optional', dish_id: 'sample', dish_name: 'Pisang', skipped: false },
+]
+const SAMPLE_PREP_DISHES: PrepDishRow[] = [
+  { dish_name: 'Ayam', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: true, prep_note: null },
+  {
+    dish_name: 'Babi', cook_date: '2026-08-27', needs_thaw: false, needs_marinate: true,
+    prep_note: 'bisa marinate sekarang, tahan seminggu',
+  },
+]
+const SAMPLE_TAG = '\n\n_(contoh — belum ada data nyata untuk ini)_'
+
+async function runTestMode(to: string): Promise<Response> {
+  const today = jakartaToday()
+
+  const saturday = upcomingSaturday(today)
+  const weeklyItems = await buildWeeklyItems(saturday)
+  const weeklyMessage = weeklyItems.length > 0
+    ? composeWeeklyShoppingMessage(weeklyItems)
+    : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS) + SAMPLE_TAG
+
+  const tomorrow = tomorrowOf(today)
+  const dailyRows = await buildDailyRows(tomorrow)
+  const dailyMessage = composeDailyReminderMessage(tomorrow, dailyRows)
+    ?? composeDailyReminderMessage(tomorrow, SAMPLE_DAILY_ROWS)! + SAMPLE_TAG
+
+  const batches = await buildPrepBatches(today)
+  const firstBatch = [...batches.values()][0]
+  const prepMessage = firstBatch
+    ? composePrepThawMessage(firstBatch)!
+    : composePrepThawMessage(SAMPLE_PREP_DISHES)! + SAMPLE_TAG
+
+  const sentOk: Record<string, boolean> = {}
+  for (const [kind, message] of [
+    ['weekly_shopping', weeklyMessage],
+    ['daily_reminder', dailyMessage],
+    ['prep_thaw', prepMessage],
+  ] as const) {
+    const result = await sendWhatsapp(to, message)
+    sentOk[kind] = result.ok
+  }
+  return Response.json({ sent: sentOk })
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const secret = url.searchParams.get('secret')
   if (!secret || secret !== process.env.CRON_SECRET) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const isTest = url.searchParams.get('test') === '1'
+  if (isTest) {
+    const to = url.searchParams.get('to')
+    if (!to) return Response.json({ error: 'test mode requires &to=+62...' }, { status: 400 })
+    return runTestMode(to)
   }
 
   const settings = await getOrCreateSettings()
