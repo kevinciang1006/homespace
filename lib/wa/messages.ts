@@ -1,6 +1,7 @@
 import { formatQtyAmount } from '../meals/qty'
 import { HOMESPACE_URL } from './config'
-import type { WeeklyShoppingItem, ShopIngredientRow } from './types'
+import { indonesianDayName } from './schedule'
+import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow } from './types'
 
 // ---- Weekly shopping ---------------------------------------------------------
 
@@ -59,4 +60,27 @@ export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[]): strin
     'Makasih banyak! 💛',
     HOMESPACE_URL,
   ].join('\n')
+}
+
+// ---- Daily meal reminder ------------------------------------------------------
+
+export function composeDailyReminderMessage(dateStr: string, rows: DailyPlanRow[]): string | null {
+  const planned = rows.filter(r => r.dish_id && !r.skipped)
+  if (planned.length === 0) return null
+
+  const breakfast = planned.find(r => r.slot === 'breakfast')?.dish_name
+  const main = planned.find(r => r.role === 'main')?.dish_name
+  const supports = planned.filter(r => r.role === 'support').map(r => r.dish_name).filter((n): n is string => !!n)
+  const fruit = planned.find(r => r.slot === 'fruit')?.dish_name
+
+  if (!breakfast && !main && supports.length === 0 && !fruit) return null
+
+  const lines: string[] = [`🌤️ Besok, ${indonesianDayName(dateStr)}:`, '']
+  if (breakfast) lines.push(`🌅 Sarapan: ${breakfast}`)
+  if (main) lines.push(`🍽️ Makan malam: ${main}${supports.length ? ` + ${supports.join(', ')}` : ''}`)
+  else if (supports.length) lines.push(`🍽️ Makan malam: ${supports.join(', ')}`)
+  if (fruit) lines.push(`🍎 Buah: ${fruit}`)
+  lines.push('', 'Selamat malam! 💛', HOMESPACE_URL)
+
+  return lines.join('\n')
 }
