@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type DailyStaple, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
-import { formatQty } from '@/lib/meals/qty'
+import { formatQty, qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
@@ -30,19 +30,6 @@ const TIER_STYLE: Record<Tier, string> = {
   everyday: 'bg-stone-100 text-stone-600', nice: 'bg-amber-100 text-amber-700', special: 'bg-orange-100 text-orange-700',
 }
 
-// Compact "400g · 🥗 2 veg" style line for a dish's buy/cook amount + produce
-// portion count. Pure display — no targets, no storage. null when there's
-// nothing worth showing.
-function qtyDisplay(dishes: MealPlan['dishes']): string | null {
-  const qty = formatQty(dishes?.qty_amount, dishes?.qty_unit, dishes?.qty_note)
-  const veg = dishes?.veg_portions ?? 0
-  const fruit = dishes?.fruit_portions ?? 0
-  const parts: string[] = []
-  if (qty) parts.push(qty)
-  if (veg > 0) parts.push(`🥗 ${veg} veg`)
-  if (fruit > 0) parts.push(`🍎 ${fruit} fruit`)
-  return parts.length ? parts.join(' · ') : null
-}
 
 export default function PlanClient({ initialWeekStart, initialWeek, initialStaples }:
   { initialWeekStart: string; initialWeek: MealPlan[]; initialStaples: DailyStaple[] }) {

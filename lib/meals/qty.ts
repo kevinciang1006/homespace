@@ -20,3 +20,25 @@ export function formatQty(amount: number | null | undefined, unit: string | null
   const base = formatQtyAmount(amount, unit)
   return trimmedNote ? `${base} (${trimmedNote})` : base
 }
+
+type QtyDishFields = {
+  qty_amount?: number | null
+  qty_unit?: string | null
+  qty_note?: string | null
+  veg_portions?: number
+  fruit_portions?: number
+}
+
+// Compact "400g · 🥗 2 veg" style line for a dish's buy/cook amount + produce
+// portion count. Pure display — no targets, no storage. null when there's
+// nothing worth showing.
+export function qtyDisplay(dishes: QtyDishFields | null | undefined): string | null {
+  const qty = formatQty(dishes?.qty_amount, dishes?.qty_unit, dishes?.qty_note)
+  const veg = dishes?.veg_portions ?? 0
+  const fruit = dishes?.fruit_portions ?? 0
+  const parts: string[] = []
+  if (qty) parts.push(qty)
+  if (veg > 0) parts.push(`🥗 ${veg} veg`)
+  if (fruit > 0) parts.push(`🍎 ${fruit} fruit`)
+  return parts.length ? parts.join(' · ') : null
+}
