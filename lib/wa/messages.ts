@@ -1,7 +1,7 @@
 import { formatQtyAmount } from '../meals/qty'
 import { HOMESPACE_URL } from './config'
 import { indonesianDayName } from './schedule'
-import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow } from './types'
+import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow } from './types'
 
 // ---- Weekly shopping ---------------------------------------------------------
 
@@ -83,4 +83,25 @@ export function composeDailyReminderMessage(dateStr: string, rows: DailyPlanRow[
   lines.push('', 'Selamat malam! 💛', HOMESPACE_URL)
 
   return lines.join('\n')
+}
+
+// ---- Prep / thaw reminder -----------------------------------------------------
+
+export function composePrepThawMessage(dishes: PrepDishRow[]): string | null {
+  if (dishes.length === 0) return null
+
+  const clauses = dishes.map(d => {
+    const phrase = d.prep_note?.trim()
+      || (d.needs_thaw && d.needs_marinate ? 'thaw + marinate'
+        : d.needs_thaw ? 'thaw'
+        : d.needs_marinate ? 'marinate' : 'siapkan')
+    return `${d.dish_name} (${indonesianDayName(d.cook_date)}) — ${phrase}`
+  })
+
+  return [
+    '🧊 Malam ini siapkan:',
+    ...clauses.map(c => `- ${c}`),
+    '',
+    HOMESPACE_URL,
+  ].join('\n')
 }

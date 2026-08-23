@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { sumShopIngredients, composeWeeklyShoppingMessage, composeDailyReminderMessage } from './messages'
+import {
+  sumShopIngredients, composeWeeklyShoppingMessage, composeDailyReminderMessage, composePrepThawMessage,
+} from './messages'
 
 describe('sumShopIngredients', () => {
   it('sums duplicate items (case-insensitive) sharing a unit', () => {
@@ -85,5 +87,32 @@ describe('composeDailyReminderMessage', () => {
     expect(msg).not.toContain('Puding')
     expect(msg).not.toContain('Sup')
     expect(msg).toContain('🍽️ Makan malam: Ayam bakar')
+  })
+})
+
+describe('composePrepThawMessage', () => {
+  it('returns null for an empty batch', () => {
+    expect(composePrepThawMessage([])).toBeNull()
+  })
+
+  it('uses prep_note when present, else derives a phrase from the flags', () => {
+    const msg = composePrepThawMessage([
+      { dish_name: 'Ayam', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: true, prep_note: null },
+      {
+        dish_name: 'Babi', cook_date: '2026-08-27', needs_thaw: false, needs_marinate: true,
+        prep_note: 'bisa marinate sekarang, tahan seminggu',
+      },
+    ])
+    expect(msg).toContain('🧊 Malam ini siapkan:')
+    expect(msg).toContain('Ayam (Senin) — thaw + marinate') // 2026-08-24 is Monday
+    expect(msg).toContain('Babi (Kamis) — bisa marinate sekarang, tahan seminggu') // 2026-08-27 is Thursday
+    expect(msg).toContain('https://homespace-chi.vercel.app')
+  })
+
+  it('derives "thaw" alone when only needs_thaw is set', () => {
+    const msg = composePrepThawMessage([
+      { dish_name: 'Ikan', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: false, prep_note: null },
+    ])
+    expect(msg).toContain('Ikan (Senin) — thaw')
   })
 })
