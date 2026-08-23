@@ -1,5 +1,5 @@
 import { formatQtyAmount } from '../meals/qty'
-import { HOMESPACE_URL } from './config'
+import { HOMESPACE_URL, shoppingPageUrl } from './config'
 import { indonesianDayName } from './schedule'
 import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow } from './types'
 
@@ -35,30 +35,21 @@ export function sumShopIngredients(rows: ShopIngredientRow[]): WeeklyShoppingIte
 }
 
 export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[]): string {
-  const groups = new Map<ShoppingGroup, string[]>()
-  for (const item of items) {
-    const g = shoppingGroup(item.category)
-    const line = item.quantity ? `${item.ingredient} ${item.quantity}` : item.ingredient
-    const list = groups.get(g) ?? []
-    list.push(line)
-    groups.set(g, list)
+  if (items.length === 0) {
+    return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl()}`
   }
 
-  if (groups.size === 0) {
-    return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${HOMESPACE_URL}`
-  }
-
-  const sections = GROUP_ORDER
-    .filter(g => groups.has(g))
-    .map(g => `*${g}*\n${groups.get(g)!.map(l => `- ${l}`).join('\n')}`)
+  const sorted = [...items].sort(
+    (a, b) => GROUP_ORDER.indexOf(shoppingGroup(a.category)) - GROUP_ORDER.indexOf(shoppingGroup(b.category)),
+  )
+  const lines = sorted.map(item => (item.quantity ? `${item.ingredient} ${item.quantity}` : item.ingredient))
 
   return [
-    '🛒 Belanja minggu ini ya:',
+    '🛒 Belanja minggu ini:',
+    ...lines.map(l => `- ${l}`),
     '',
-    sections.join('\n\n'),
-    '',
-    'Makasih banyak! 💛',
-    HOMESPACE_URL,
+    'Makasih ya 🧡',
+    shoppingPageUrl(),
   ].join('\n')
 }
 

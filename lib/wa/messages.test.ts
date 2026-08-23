@@ -21,37 +21,37 @@ describe('sumShopIngredients', () => {
 })
 
 describe('composeWeeklyShoppingMessage', () => {
-  it('groups items into Protein / Sayur / Bumbu / Lainnya', () => {
+  it('renders a flat list sorted protein -> veg -> bumbu -> other, no headers', () => {
     const msg = composeWeeklyShoppingMessage([
-      { ingredient: 'Ayam', quantity: '1kg', category: 'protein' },
       { ingredient: 'Kangkung', quantity: '400g', category: 'vegetable' },
       { ingredient: 'Bumbu Rendang', quantity: null, category: 'bumbu' },
+      { ingredient: 'Ayam', quantity: '1kg', category: 'protein' },
       { ingredient: 'Tahu', quantity: null, category: 'other' },
     ])
-    expect(msg).toContain('*Protein*\n- Ayam 1kg')
-    expect(msg).toContain('*Sayur*\n- Kangkung 400g')
-    expect(msg).toContain('*Bumbu*\n- Bumbu Rendang')
-    expect(msg).toContain('*Lainnya*\n- Tahu')
-    expect(msg).toContain('https://homespace-chi.vercel.app')
-  })
-  it('omits a group heading entirely when it has no items', () => {
-    const msg = composeWeeklyShoppingMessage([{ ingredient: 'Ayam', quantity: '1kg', category: 'protein' }])
-    expect(msg).not.toContain('Sayur')
-    expect(msg).not.toContain('Bumbu')
-    expect(msg).not.toContain('Lainnya')
-  })
-  it('returns a graceful message when there is nothing to buy', () => {
-    const msg = composeWeeklyShoppingMessage([])
-    expect(msg).toContain('https://homespace-chi.vercel.app')
     expect(msg).not.toContain('*Protein*')
+    expect(msg).not.toContain('*Sayur*')
+    expect(msg).not.toContain('*Bumbu*')
+    expect(msg).not.toContain('*Lainnya*')
+    const lines = msg.split('\n').filter(l => l.startsWith('- '))
+    expect(lines).toEqual(['- Ayam 1kg', '- Kangkung 400g', '- Bumbu Rendang', '- Tahu'])
+    expect(msg).toContain('🛒 Belanja minggu ini:')
+    expect(msg).toContain('Makasih ya 🧡')
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/shopping')
   })
-  it('maps "veg" and "pantry" categories the same as "vegetable" and "other"', () => {
+
+  it('maps "veg" and "pantry" categories into the same sort position as "vegetable" and "other"', () => {
     const msg = composeWeeklyShoppingMessage([
-      { ingredient: 'Buncis', quantity: '250g', category: 'veg' },
       { ingredient: 'Garam khusus', quantity: null, category: 'pantry' },
+      { ingredient: 'Buncis', quantity: '250g', category: 'veg' },
     ])
-    expect(msg).toContain('*Sayur*\n- Buncis 250g')
-    expect(msg).toContain('*Lainnya*\n- Garam khusus')
+    const lines = msg.split('\n').filter(l => l.startsWith('- '))
+    expect(lines).toEqual(['- Buncis 250g', '- Garam khusus'])
+  })
+
+  it('returns a graceful message when there is nothing to buy, still linking to the shopping page', () => {
+    const msg = composeWeeklyShoppingMessage([])
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/shopping')
+    expect(msg).not.toContain('- ')
   })
 })
 
