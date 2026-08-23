@@ -60,6 +60,8 @@ export type MealPlan = {
     protein: string; saltiness: Saltiness; difficulty: Difficulty; method: string | null; slot?: Slot; recipe_links?: RecipeLink[] | null
     qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null
     veg_portions?: number; fruit_portions?: number
+    needs_thaw?: boolean; needs_marinate?: boolean; prep_lead_days?: number | null; prep_note?: string | null
+    bumbu_packet?: string | null
   } | null
 }
 
