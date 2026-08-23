@@ -1,5 +1,5 @@
 import { formatQtyAmount } from '../meals/qty'
-import { HOMESPACE_URL, shoppingPageUrl, dayPageUrl } from './config'
+import { shoppingPageUrl, dayPageUrl } from './config'
 import { indonesianDayName } from './schedule'
 import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow } from './types'
 
@@ -88,11 +88,12 @@ export function composePrepThawMessage(dishes: PrepDishRow[]): string | null {
         : d.needs_marinate ? 'marinate' : 'siapkan')
     return `${d.dish_name} (${indonesianDayName(d.cook_date)}) — ${phrase}`
   })
+  const earliestCookDate = [...dishes].map(d => d.cook_date).sort()[0]
 
   return [
     '🧊 Malam ini siapkan:',
     ...clauses.map(c => `- ${c}`),
     '',
-    HOMESPACE_URL,
+    dayPageUrl(earliestCookDate),
   ].join('\n')
 }

@@ -106,7 +106,7 @@ describe('composePrepThawMessage', () => {
     expect(msg).toContain('🧊 Malam ini siapkan:')
     expect(msg).toContain('Ayam (Senin) — thaw + marinate') // 2026-08-24 is Monday
     expect(msg).toContain('Babi (Kamis) — bisa marinate sekarang, tahan seminggu') // 2026-08-27 is Thursday
-    expect(msg).toContain('https://homespace-chi.vercel.app')
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/day/2026-08-24')
   })
 
   it('derives "thaw" alone when only needs_thaw is set', () => {
@@ -114,5 +114,13 @@ describe('composePrepThawMessage', () => {
       { dish_name: 'Ikan', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: false, prep_note: null },
     ])
     expect(msg).toContain('Ikan (Senin) — thaw')
+  })
+
+  it('links to the earliest cook date in the batch regardless of input order', () => {
+    const msg = composePrepThawMessage([
+      { dish_name: 'Babi', cook_date: '2026-08-27', needs_thaw: false, needs_marinate: true, prep_note: null },
+      { dish_name: 'Ayam', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: true, prep_note: null },
+    ])
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/day/2026-08-24')
   })
 })
