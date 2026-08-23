@@ -1,5 +1,5 @@
 import { formatQtyAmount } from '../meals/qty'
-import { HOMESPACE_URL, shoppingPageUrl } from './config'
+import { HOMESPACE_URL, shoppingPageUrl, dayPageUrl } from './config'
 import { indonesianDayName } from './schedule'
 import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow } from './types'
 
@@ -71,7 +71,7 @@ export function composeDailyReminderMessage(dateStr: string, rows: DailyPlanRow[
   if (main) lines.push(`🍽️ Makan malam: ${main}${supports.length ? ` + ${supports.join(', ')}` : ''}`)
   else if (supports.length) lines.push(`🍽️ Makan malam: ${supports.join(', ')}`)
   if (fruit) lines.push(`🍎 Buah: ${fruit}`)
-  lines.push('', 'Selamat malam! 💛', HOMESPACE_URL)
+  lines.push('', 'Selamat malam! 💛', dayPageUrl(dateStr))
 
   return lines.join('\n')
 }

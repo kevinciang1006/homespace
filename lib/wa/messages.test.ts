@@ -73,7 +73,7 @@ describe('composeDailyReminderMessage', () => {
     expect(msg).toContain('🌅 Sarapan: Bubur ayam')
     expect(msg).toContain('🍽️ Makan malam: Ayam bakar + Tumis kangkung')
     expect(msg).toContain('🍎 Buah: Pisang')
-    expect(msg).toContain('https://homespace-chi.vercel.app')
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/day/2026-08-24')
   })
 
   it('skips missing sections and ignores skipped/optional rows', () => {
