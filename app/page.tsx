@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
-import { Receipt, Calendar, ShoppingCart, UtensilsCrossed, Plus, LogOut } from 'lucide-react'
+import { Receipt, Calendar, ShoppingCart, UtensilsCrossed, Bell, Plus, LogOut } from 'lucide-react'
 
 const features = [
   {
@@ -30,6 +30,13 @@ const features = [
     label: 'Meals',
     description: 'Weekly meal planner',
     color: 'bg-amber-50 text-amber-600',
+  },
+  {
+    href: '/settings',
+    icon: Bell,
+    label: 'Notifications',
+    description: 'WhatsApp reminders & schedule',
+    color: 'bg-purple-50 text-purple-600',
   },
 ]
 
