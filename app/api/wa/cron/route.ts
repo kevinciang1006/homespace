@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { weekDates, shiftWeek } from '@/lib/meals/dates'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients } from '@/lib/wa/config'
+import { sendWhatsapp } from '@/lib/wa/relay'
 import {
   jakartaToday, upcomingSaturday, targetWeekStart, tomorrowOf, prepDateFor, jakartaDateTimeToUtcIso,
 } from '@/lib/wa/schedule'
@@ -9,7 +10,7 @@ import {
   composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,
 } from '@/lib/wa/messages'
 import type {
-  WaOutboundKind, WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow,
+  WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow,
 } from '@/lib/wa/types'
 
 const PREP_LOOKAHEAD_DAYS = 14
@@ -98,6 +99,12 @@ async function upsertOutbound(
   return 'skipped'
 }
 
+function kindEnabled(kind: WaOutboundKind, settings: WaSettings): boolean {
+  if (kind === 'weekly_shopping') return settings.weekly_enabled
+  if (kind === 'daily_reminder') return settings.daily_enabled
+  return settings.prep_enabled
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const secret = url.searchParams.get('secret')
@@ -163,5 +170,21 @@ export async function GET(request: Request) {
     }
   }
 
-  return Response.json({ built, sent: 0, skipped, failed: 0 })
+  const { data: due } = await supabase.from('wa_outbound').select('*')
+    .eq('sent', false).lte('send_at', new Date().toISOString())
+
+  let sent = 0, failed = 0
+  for (const row of (due ?? []) as WaOutboundRow[]) {
+    if (!kindEnabled(row.kind, settings)) { skipped++; continue }
+    const results = await Promise.all(row.recipients.map(phone => sendWhatsapp(phone, row.message)))
+    const allOk = results.every(r => r.ok)
+    if (allOk) {
+      await supabase.from('wa_outbound').update({ sent: true, sent_at: new Date().toISOString() }).eq('id', row.id)
+      sent++
+    } else {
+      failed++
+    }
+  }
+
+  return Response.json({ built, sent, skipped, failed })
 }
