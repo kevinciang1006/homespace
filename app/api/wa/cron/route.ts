@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { weekDates, shiftWeek, prepDateFor } from '@/lib/meals/dates'
+import { weekDates, shiftWeek } from '@/lib/meals/dates'
+import { groupPrepByDate, type PrepCandidate } from '@/lib/meals/prep'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
@@ -48,6 +49,7 @@ async function buildDailyRows(tomorrow: string): Promise<DailyPlanRow[]> {
 type DishFlags = { needs_thaw: boolean; needs_marinate: boolean; prep_lead_days: number | null; prep_note: string | null }
 
 // Groups upcoming thaw/marinate dishes by the evening they should be prepped.
+// Delegates the grouping itself to lib/meals/prep.ts (shared with the day page).
 async function buildPrepBatches(today: string): Promise<Map<string, PrepDishRow[]>> {
   const until = shiftWeek(today, PREP_LOOKAHEAD_DAYS)
   const { data } = await supabase.from('meal_plans')
@@ -59,19 +61,22 @@ async function buildPrepBatches(today: string): Promise<Map<string, PrepDishRow[
   // to-one cardinality from the select string and defaults to an array type;
   // it's actually a single nested object at runtime (same as the `dishes`
   // embed in app/api/meals/week/route.ts), hence the `unknown` bridge.
-  type PrepPlanRow = { plan_date: string; dish_name: string | null; dishes: DishFlags | null }
+  type PrepPlanRow = { plan_date: string; dish_id: string; dish_name: string | null; dishes: DishFlags | null }
+  const candidates: PrepCandidate[] = ((data ?? []) as unknown as PrepPlanRow[])
+    .filter(row => row.dishes)
+    .map(row => ({
+      dish_id: row.dish_id, dish_name: row.dish_name ?? 'Dish', cook_date: row.plan_date,
+      needs_thaw: row.dishes!.needs_thaw, needs_marinate: row.dishes!.needs_marinate,
+      prep_lead_days: row.dishes!.prep_lead_days, prep_note: row.dishes!.prep_note,
+    }))
+
+  const grouped = groupPrepByDate(candidates)
   const batches = new Map<string, PrepDishRow[]>()
-  for (const row of ((data ?? []) as unknown) as PrepPlanRow[]) {
-    const dish = row.dishes
-    if (!dish || (!dish.needs_thaw && !dish.needs_marinate)) continue
-    const prepDate = prepDateFor(row.plan_date, dish.prep_lead_days)
-    const entry: PrepDishRow = {
-      dish_name: row.dish_name ?? 'Dish', cook_date: row.plan_date,
-      needs_thaw: dish.needs_thaw, needs_marinate: dish.needs_marinate, prep_note: dish.prep_note,
-    }
-    const list = batches.get(prepDate) ?? []
-    list.push(entry)
-    batches.set(prepDate, list)
+  for (const [date, items] of grouped) {
+    batches.set(date, items.map(item => ({
+      dish_name: item.dish_name, cook_date: item.cook_date,
+      needs_thaw: item.needs_thaw, needs_marinate: item.needs_marinate, prep_note: item.prep_note,
+    })))
   }
   return batches
 }
