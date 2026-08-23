@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isoDate, weekDates, daysBetween, currentMonday, shiftWeek, mondayOf } from './dates'
+import { isoDate, weekDates, daysBetween, currentMonday, shiftWeek, mondayOf, prepDateFor } from './dates'
 
 describe('date helpers', () => {
   it('weekDates returns 7 consecutive local dates from Monday', () => {
@@ -30,5 +30,17 @@ describe('week helpers', () => {
   it('currentMonday returns a Monday (getDay === 1)', () => {
     const [y, m, d] = currentMonday().split('-').map(Number)
     expect(new Date(y, m - 1, d).getDay()).toBe(1)
+  })
+})
+
+describe('prepDateFor', () => {
+  it('subtracts the given lead days', () => {
+    expect(prepDateFor('2026-08-27', 3)).toBe('2026-08-24')
+  })
+  it('floors a null lead to 1 day', () => {
+    expect(prepDateFor('2026-08-27', null)).toBe('2026-08-26')
+  })
+  it('floors a 0 lead to 1 day', () => {
+    expect(prepDateFor('2026-08-27', 0)).toBe('2026-08-26')
   })
 })

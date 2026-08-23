@@ -45,3 +45,9 @@ export function mondayOf(dateStr: string): string {
   dt.setDate(dt.getDate() - dow)
   return isoDate(dt)
 }
+
+// A thaw/marinate dish always gets at least one evening's notice.
+export function prepDateFor(cookDate: string, prepLeadDays: number | null): string {
+  const lead = Math.max(prepLeadDays ?? 1, 1)
+  return shiftWeek(cookDate, -lead)
+}

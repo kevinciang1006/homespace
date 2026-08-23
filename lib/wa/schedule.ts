@@ -35,12 +35,6 @@ export function targetWeekStart(saturdayDate: string): string {
   return shiftWeek(mondayOf(saturdayDate), 7)
 }
 
-// A thaw/marinate dish always gets at least one evening's notice.
-export function prepDateFor(cookDate: string, prepLeadDays: number | null): string {
-  const lead = Math.max(prepLeadDays ?? 1, 1)
-  return shiftWeek(cookDate, -lead)
-}
-
 export function indonesianDayName(dateStr: string): string {
   return ID_DAYS[dowMonBased(dateStr)]
 }

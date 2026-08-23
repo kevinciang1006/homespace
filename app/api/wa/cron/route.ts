@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase'
-import { weekDates, shiftWeek } from '@/lib/meals/dates'
+import { weekDates, shiftWeek, prepDateFor } from '@/lib/meals/dates'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
 import {
-  jakartaToday, upcomingSaturday, targetWeekStart, tomorrowOf, prepDateFor, jakartaDateTimeToUtcIso,
+  jakartaToday, upcomingSaturday, targetWeekStart, tomorrowOf, jakartaDateTimeToUtcIso,
 } from '@/lib/wa/schedule'
 import {
   composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,

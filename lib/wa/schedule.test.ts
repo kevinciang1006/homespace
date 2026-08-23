@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   jakartaToday, upcomingSaturday, tomorrowOf, targetWeekStart,
-  prepDateFor, indonesianDayName, jakartaDateTimeToUtcIso,
+  indonesianDayName, jakartaDateTimeToUtcIso,
 } from './schedule'
 
 describe('jakartaToday', () => {
@@ -36,18 +36,6 @@ describe('targetWeekStart', () => {
   it('is the Monday of the week after the Saturday\'s own week', () => {
     // Saturday 2026-08-22 is in the Mon-Sun week starting 2026-08-17
     expect(targetWeekStart('2026-08-22')).toBe('2026-08-24')
-  })
-})
-
-describe('prepDateFor', () => {
-  it('subtracts the given lead days', () => {
-    expect(prepDateFor('2026-08-27', 3)).toBe('2026-08-24')
-  })
-  it('floors a null lead to 1 day', () => {
-    expect(prepDateFor('2026-08-27', null)).toBe('2026-08-26')
-  })
-  it('floors a 0 lead to 1 day', () => {
-    expect(prepDateFor('2026-08-27', 0)).toBe('2026-08-26')
   })
 })
 
