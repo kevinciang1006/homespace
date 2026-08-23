@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const isPublic = pathname === '/login' || pathname.startsWith('/api/auth/')
+  const isPublic = pathname === '/login' || pathname.startsWith('/api/auth/') || pathname.startsWith('/api/wa/cron')
   if (isPublic) return NextResponse.next()
 
   const sessionCookie = request.cookies.get('hs_session')?.value
