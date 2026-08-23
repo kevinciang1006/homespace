@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { supabase } from '@/lib/supabase'
-import { weekDates } from '@/lib/meals/dates'
+import { weekDates, mondayOf } from '@/lib/meals/dates'
 import { reconcileSoup } from '@/lib/meals/reconcile'
 import type { DailyStaple, MealPlan } from '@/lib/meals/types'
 import PlanClient from '@/components/meals/PlanClient'
@@ -13,8 +13,9 @@ function currentMonday(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export default async function MealsPlanPage() {
-  const weekStart = currentMonday()
+export default async function MealsPlanPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+  const { week } = await searchParams
+  const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? mondayOf(week) : currentMonday()
   const days = weekDates(weekStart)
   const [{ data }, { data: staplesData }] = await Promise.all([
     supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)')
