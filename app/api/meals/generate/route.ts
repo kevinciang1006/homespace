@@ -2,8 +2,10 @@ import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot } from '@/lib/meals/types'
 import { generateWeek, validateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
+import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 
 const rng = () => Math.random()
+const DESSERT_HISTORY_LOOKBACK_WEEKS = 4 // covers both the 3-week cake cooldown and the 2-week monthly-fruit cooldown
 
 export async function POST(request: Request) {
   const { weekStart } = await request.json()
@@ -14,14 +16,19 @@ export async function POST(request: Request) {
 
   const start = new Date(days[0]); start.setDate(start.getDate() - 14)
   const historyStart = start.toISOString().split('T')[0]
+  const dessertHistoryStart = new Date(weekStart)
+  dessertHistoryStart.setDate(dessertHistoryStart.getDate() - 7 * DESSERT_HISTORY_LOOKBACK_WEEKS)
 
-  const [{ data: dishesRaw }, { data: plansRaw }] = await Promise.all([
+  const [{ data: dishesRaw }, { data: plansRaw }, { data: dessertHistoryRaw }] = await Promise.all([
     supabase.from('dishes').select('*').eq('active', true),
     supabase.from('meal_plans').select('*').gte('plan_date', historyStart).lte('plan_date', days[6]),
+    supabase.from('dessert_week_items').select('week_start, dish_id, kind')
+      .gte('week_start', dessertHistoryStart.toISOString().split('T')[0]).lt('week_start', weekStart),
   ])
 
   const allDishes = (dishesRaw ?? []) as Dish[]
   const plans = (plansRaw ?? []) as MealPlan[]
+  const dessertHistory = (dessertHistoryRaw ?? []) as DessertHistoryRow[]
   const weekSet = new Set(days)
   const lockedCells = plans.filter(p => weekSet.has(p.plan_date) && p.locked)
   const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
@@ -29,26 +36,38 @@ export async function POST(request: Request) {
   const dishesBySlot = Object.fromEntries(
     SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
   ) as Record<Slot, Dish[]>
-
-  const picks = generateWeek({ weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng })
-
   const dishById = new Map(allDishes.map(d => [d.id, d]))
+
+  const dessertOptions = {
+    cakeEligible: computeCakeEligible(dessertHistory, weekStart),
+    lastWeekBatchIds: computeLastWeekBatchIds(dessertHistory, weekStart),
+  }
+  const eveningFruitOptions = {
+    monthlyEligible: computeMonthlyFruitEligible(dessertHistory, weekStart, dishById),
+  }
+
+  const picks = generateWeek({ weekStart, days, dishesBySlot, allDishes, priorPlans, lockedCells, rng, dessertOptions, eveningFruitOptions })
+
   const report = validateWeek(picks, dishById)
   if (process.env.NODE_ENV !== 'production') {
     if (report.length) console.warn(`[meal-gen] ${weekStart} rule violations:\n` + report.join('\n'))
     else console.log(`[meal-gen] ${weekStart} validation: clean ✓`)
   }
 
-  // Persist the week's realized dessert batch (the distinct dessert dish_ids
-  // that actually landed on the week's days) so rerolls and the day view can
-  // read back "this week's 2-3 dessert types."
-  const dessertDishIds = [...new Set(picks.filter(p => p.slot === 'desert' && p.dish_id).map(p => p.dish_id as string))]
+  // Persist the week's realized dessert batch and evening-fruit set (the
+  // distinct dish_ids that actually landed on the week's days) so rerolls,
+  // cross-week gating on future weeks, and the day view can all read back
+  // "this week's dessert types / evening-fruit variations."
   await supabase.from('dessert_weeks').upsert({ week_start: weekStart }, { onConflict: 'week_start' })
   await supabase.from('dessert_week_items').delete().eq('week_start', weekStart)
-  if (dessertDishIds.length) {
-    await supabase.from('dessert_week_items').insert(dessertDishIds.map(id => ({
-      week_start: weekStart, dish_id: id, dish_name: dishById.get(id)?.name ?? 'Dish', kind: 'dessert',
-    })))
+  const dessertRows = [...new Set(picks.filter(p => p.slot === 'desert' && p.dish_id).map(p => p.dish_id as string))]
+    .map(id => ({ week_start: weekStart, dish_id: id, dish_name: dishById.get(id)?.name ?? 'Dish',
+      kind: dishById.get(id)?.produce_role === 'dessert_cake' ? 'dessert_cake' : 'dessert_batch' }))
+  const eveningFruitRows = [...new Set(picks.filter(p => p.slot === 'fruit' && p.role === 'optional' && p.dish_id).map(p => p.dish_id as string))]
+    .map(id => ({ week_start: weekStart, dish_id: id, dish_name: dishById.get(id)?.name ?? 'Dish', kind: 'evening_fruit' }))
+  const weekItemRows = [...dessertRows, ...eveningFruitRows]
+  if (weekItemRows.length) {
+    await supabase.from('dessert_week_items').insert(weekItemRows)
   }
 
   const rows = picks.filter(p => !p.locked).map(p => ({

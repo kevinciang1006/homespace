@@ -1,12 +1,17 @@
 import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot, type Role } from '@/lib/meals/types'
 import { candidates, composeDay, pickForSlot, pickBreakfast, breakfastCandidates, weightFor,
-  fruitPoolFor, pickDessertForDay, preassignBreakfastSpecialDays, type PickContext } from '@/lib/meals/engine'
-import { pickDessertBatch, DESSERT_WEEK_CAP } from '@/lib/meals/dessert'
+  fruitPoolFor, pickDessertForDay, pickBreakfastFruit, pickEveningFruitForDay,
+  preassignBreakfastSpecialDays, preassignEveningFruitDays,
+  type PickContext } from '@/lib/meals/engine'
+import { pickDessertBatch, DESSERT_WEEK_CAP, type DessertBatchOptions } from '@/lib/meals/dessert'
+import { pickEveningFruitBatch, EVENING_FRUIT_WEEK_CAP, EVENING_FRUIT_MIN_DAYS, EVENING_FRUIT_MAX_DAYS, type EveningFruitOptions } from '@/lib/meals/eveningFruit'
+import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 import { weekDates, mondayOf } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
 const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)'
+const DESSERT_HISTORY_LOOKBACK_WEEKS = 4
 
 async function loadWeek(plan_date: string) {
   const week = weekDates(mondayOf(plan_date))
@@ -23,10 +28,28 @@ async function loadWeek(plan_date: string) {
   }
 }
 
-async function loadDessertBatch(weekStart: string, allDishes: Dish[]): Promise<Dish[]> {
-  const { data } = await supabase.from('dessert_week_items').select('dish_id').eq('week_start', weekStart)
+// `kinds` selects which slice of the week's dessert_week_items to load:
+// ['dessert_batch', 'dessert_cake'] for the desert-slot batch, ['evening_fruit'] for the fruit-slot one.
+async function loadWeekItems(weekStart: string, allDishes: Dish[], kinds: string[]): Promise<Dish[]> {
+  const { data } = await supabase.from('dessert_week_items').select('dish_id').eq('week_start', weekStart).in('kind', kinds)
   const ids = new Set((data ?? []).map(r => r.dish_id as string))
   return allDishes.filter(d => ids.has(d.id))
+}
+
+// A day-scoped or main-scoped recompose keeps the day's existing "does this
+// day show evening fruit" decision rather than re-rolling that coin flip —
+// it recomposes what's IN the cells, not the week-level opportunistic plan.
+function currentEveningFruitDays(plans: MealPlan[], plan_date: string): Set<string> {
+  const row = plans.find(p => p.plan_date === plan_date && p.slot === 'fruit' && p.role === 'optional')
+  return row?.dish_id && !row.skipped ? new Set([plan_date]) : new Set<string>()
+}
+
+async function loadDessertHistory(weekStart: string): Promise<DessertHistoryRow[]> {
+  const start = new Date(weekStart)
+  start.setDate(start.getDate() - 7 * DESSERT_HISTORY_LOOKBACK_WEEKS)
+  const { data } = await supabase.from('dessert_week_items').select('week_start, dish_id, kind')
+    .gte('week_start', start.toISOString().split('T')[0]).lt('week_start', weekStart)
+  return (data ?? []) as DessertHistoryRow[]
 }
 
 function roleForSlot(slot: Slot): Role {
@@ -126,8 +149,10 @@ export async function POST(request: Request) {
     const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
     const dishesBySlot = Object.fromEntries(SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)])) as Record<Slot, Dish[]>
     const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
-    const dessertBatch = await loadDessertBatch(mondayOf(plan_date), allDishes)
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng })
+    const dessertBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['dessert_batch', 'dessert_cake'])
+    const eveningFruitBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['evening_fruit'])
+    const eveningFruitDays = currentEveningFruitDays(plans, plan_date)
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, eveningFruitBatch, eveningFruitDays, rng })
     await supabase.from('meal_plans').delete().eq('plan_date', plan_date).eq('locked', false)
     const toInsert = created.filter(p => !p.locked)
     if (toInsert.length) {
@@ -175,7 +200,7 @@ export async function POST(request: Request) {
         toUpsert.push({ plan_date: date, slot: 'breakfast', dish_id: p.dish_id, dish_name: p.dish_name, role: 'breakfast', skipped: p.skipped })
       }
       if (!lockedBfFruit) {
-        const p = pickForSlot(fruitPoolFor('breakfast', fruitPool), { ...ctxBase, slot: 'fruit', role: 'breakfast', spicyFloor: 1, plannedRemaining: 0 }, rng)
+        const p = pickBreakfastFruit(fruitPool, { ...ctxBase, slot: 'fruit', role: 'breakfast', spicyFloor: 1, plannedRemaining: 0 }, rng)
         runPicks.push(p)
         toUpsert.push({ plan_date: date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, role: 'breakfast', skipped: p.skipped })
       }
@@ -205,32 +230,70 @@ export async function POST(request: Request) {
     const weekSet = new Set(week)
     const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
     const lockedCells = plans.filter(p => weekSet.has(p.plan_date) && p.locked)
+
+    const dessertHistory = await loadDessertHistory(weekStart)
+    const dessertOptions: DessertBatchOptions = {
+      cakeEligible: computeCakeEligible(dessertHistory, weekStart),
+      lastWeekBatchIds: computeLastWeekBatchIds(dessertHistory, weekStart),
+    }
+    const eveningFruitOptions: EveningFruitOptions = {
+      monthlyEligible: computeMonthlyFruitEligible(dessertHistory, weekStart, dishById),
+    }
+
     const lockedDessertDishIds = lockedCells.filter(l => l.slot === 'desert' && l.dish_id).map(l => l.dish_id as string)
     const dessertPool = allDishes.filter(d => d.slot === 'desert')
-    const newBatch = pickDessertBatch(dessertPool, lockedDessertDishIds, DESSERT_WEEK_CAP, rng)
+    const newDessertBatch = pickDessertBatch(dessertPool, lockedDessertDishIds, DESSERT_WEEK_CAP, rng, dessertOptions)
+
+    const lockedEveningFruitDishIds = lockedCells
+      .filter(l => l.slot === 'fruit' && l.role === 'optional' && l.dish_id).map(l => l.dish_id as string)
+    const eveningFruitPool = fruitPoolFor('dessert', allDishes.filter(d => d.slot === 'fruit'))
+    const newEveningFruitBatch = pickEveningFruitBatch(eveningFruitPool, lockedEveningFruitDishIds, EVENING_FRUIT_WEEK_CAP, rng, eveningFruitOptions)
+    const eveningFruitTargetDays = EVENING_FRUIT_MIN_DAYS + Math.floor(rng() * (EVENING_FRUIT_MAX_DAYS - EVENING_FRUIT_MIN_DAYS + 1))
+    const eveningFruitDays = preassignEveningFruitDays(week, eveningFruitTargetDays, rng)
 
     await supabase.from('dessert_weeks').upsert({ week_start: weekStart }, { onConflict: 'week_start' })
     await supabase.from('dessert_week_items').delete().eq('week_start', weekStart)
-    if (newBatch.length) {
-      await supabase.from('dessert_week_items').insert(newBatch.map(d => ({
-        week_start: weekStart, dish_id: d.id, dish_name: d.name, kind: 'dessert',
-      })))
+    const dessertItemRows = newDessertBatch.map(d => ({
+      week_start: weekStart, dish_id: d.id, dish_name: d.name,
+      kind: d.produce_role === 'dessert_cake' ? 'dessert_cake' : 'dessert_batch',
+    }))
+    const eveningFruitItemRows = newEveningFruitBatch.map(d => ({
+      week_start: weekStart, dish_id: d.id, dish_name: d.name, kind: 'evening_fruit',
+    }))
+    const weekItemRows = [...dessertItemRows, ...eveningFruitItemRows]
+    if (weekItemRows.length) {
+      await supabase.from('dessert_week_items').insert(weekItemRows)
     }
 
     const runPicks = lockedCells.map(l => ({ plan_date: l.plan_date, slot: l.slot as Slot, dish_id: l.dish_id,
       dish_name: l.dish_name, locked: true, role: (l.role ?? 'support') as Role, skipped: l.skipped ?? false }))
     for (const date of week) {
-      if (lockedCells.some(l => l.plan_date === date && l.slot === 'desert')) continue
-      const p = pickDessertForDay(newBatch, {
-        date, slot: 'desert', priorPlans, runPicks, dishById, specialDays: new Set(), hardDays: new Set(),
-        relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
-        role: 'optional', spicyFloor: 1, plannedRemaining: 0,
-      }, rng)
-      runPicks.push(p)
-      const { error } = await supabase.from('meal_plans')
-        .upsert({ plan_date: date, slot: 'desert', dish_id: p.dish_id, dish_name: p.dish_name, role: 'optional', skipped: p.skipped, locked: false },
-          { onConflict: 'plan_date,slot,role' })
-      if (error) return Response.json({ error: error.message }, { status: 500 })
+      if (!lockedCells.some(l => l.plan_date === date && l.slot === 'desert')) {
+        const p = pickDessertForDay(newDessertBatch, {
+          date, slot: 'desert', priorPlans, runPicks, dishById, specialDays: new Set(), hardDays: new Set(),
+          relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
+          role: 'optional', spicyFloor: 1, plannedRemaining: 0,
+        }, rng)
+        runPicks.push(p)
+        const { error } = await supabase.from('meal_plans')
+          .upsert({ plan_date: date, slot: 'desert', dish_id: p.dish_id, dish_name: p.dish_name, role: 'optional', skipped: p.skipped, locked: false },
+            { onConflict: 'plan_date,slot,role' })
+        if (error) return Response.json({ error: error.message }, { status: 500 })
+      }
+      if (!lockedCells.some(l => l.plan_date === date && l.slot === 'fruit' && l.role === 'optional')) {
+        const p = eveningFruitDays.has(date) && newEveningFruitBatch.length > 0
+          ? pickEveningFruitForDay(newEveningFruitBatch, {
+              date, slot: 'fruit', priorPlans, runPicks, dishById, specialDays: new Set(), hardDays: new Set(),
+              relax: { spicy: false, fried: false, hardDay: false, hardSpacing: false, proteinClash: false, spicyMainSpacing: false, noRepeatFactor: 1 },
+              role: 'optional', spicyFloor: 1, plannedRemaining: 0,
+            }, rng)
+          : { plan_date: date, slot: 'fruit' as Slot, dish_id: null, dish_name: null, locked: false, role: 'optional' as Role, skipped: true }
+        runPicks.push(p)
+        const { error } = await supabase.from('meal_plans')
+          .upsert({ plan_date: date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, role: 'optional', skipped: p.skipped, locked: false },
+            { onConflict: 'plan_date,slot,role' })
+        if (error) return Response.json({ error: error.message }, { status: 500 })
+      }
     }
     const { data: weekRows } = await supabase.from('meal_plans').select(SELECT).gte('plan_date', week[0]).lte('plan_date', week[6])
     return Response.json({ week: (weekRows ?? []) as MealPlan[] })
@@ -282,8 +345,10 @@ export async function POST(request: Request) {
     ) as Record<Slot, Dish[]>
 
     const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
-    const dessertBatch = await loadDessertBatch(mondayOf(plan_date), allDishes)
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng })
+    const dessertBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['dessert_batch', 'dessert_cake'])
+    const eveningFruitBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['evening_fruit'])
+    const eveningFruitDays = currentEveningFruitDays(plans, plan_date)
+    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, eveningFruitBatch, eveningFruitDays, rng })
     const toInsert = [...created]
     if (fixedMain) toInsert.unshift({ plan_date, slot: 'utama' as Slot, dish_id: fixedMain.id,
       dish_name: fixedMain.name, locked: false, role: 'main' as Role, skipped: false })
@@ -325,7 +390,7 @@ export async function POST(request: Request) {
   // ---- DESSERT reroll → pick from the week's existing batch, never invent a 4th type ----
   if (slot === 'desert' && !body.dish_id) {
     const { week: dsWeek, allDishes: dsAllDishes, plans: dsPlans } = await loadWeek(plan_date)
-    const batch = await loadDessertBatch(mondayOf(plan_date), dsAllDishes)
+    const batch = await loadWeekItems(mondayOf(plan_date), dsAllDishes, ['dessert_batch', 'dessert_cake'])
     const { ctx } = buildSingleContext(plan_date, 'desert', dsAllDishes, dsPlans, dsWeek, 'desert')
     const p = pickDessertForDay(batch, ctx, rng)
     const { data, error } = await supabase.from('meal_plans')
@@ -335,7 +400,32 @@ export async function POST(request: Request) {
     return Response.json({ pick: data as MealPlan })
   }
 
-  // ---- SUPPORT / OPTIONAL / FRUIT reroll → swap one ----
+  // ---- BREAKFAST-FRUIT reroll → daily-staple alternation, not a fresh pick from the whole pool ----
+  if (slot === 'fruit' && cellRole === 'breakfast' && !body.dish_id) {
+    const { week: bfWeek, allDishes: bfAllDishes, plans: bfPlans } = await loadWeek(plan_date)
+    const { ctx } = buildSingleContext(plan_date, 'fruit', bfAllDishes, bfPlans, bfWeek, 'fruit')
+    const p = pickBreakfastFruit(bfAllDishes.filter(d => d.slot === 'fruit'), { ...ctx, role: 'breakfast' }, rng)
+    const { data, error } = await supabase.from('meal_plans')
+      .upsert({ plan_date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'breakfast', skipped: p.skipped },
+        { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ pick: data as MealPlan })
+  }
+
+  // ---- EVENING-FRUIT reroll → pick from the week's existing batch, never invent a 3rd variation ----
+  if (slot === 'fruit' && cellRole === 'optional' && !body.dish_id) {
+    const { week: efWeek, allDishes: efAllDishes, plans: efPlans } = await loadWeek(plan_date)
+    const batch = await loadWeekItems(mondayOf(plan_date), efAllDishes, ['evening_fruit'])
+    const { ctx } = buildSingleContext(plan_date, 'fruit', efAllDishes, efPlans, efWeek, 'fruit')
+    const p = pickEveningFruitForDay(batch, { ...ctx, role: 'optional' }, rng)
+    const { data, error } = await supabase.from('meal_plans')
+      .upsert({ plan_date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'optional', skipped: p.skipped },
+        { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ pick: data as MealPlan })
+  }
+
+  // ---- SUPPORT / OPTIONAL reroll → swap one ----
   const { week, allDishes, plans } = await loadWeek(plan_date)
   if (body.dish_id) {
     const d = allDishes.find(x => x.id === body.dish_id)
@@ -349,9 +439,8 @@ export async function POST(request: Request) {
   }
   const poolSlot = poolSlotFor(slot as Slot, plan_date, plans, allDishes)
   const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week, poolSlot)
-  const pickedPool = slot === 'fruit' ? fruitPoolFor(cellRole === 'breakfast' ? 'breakfast' : 'dessert', slotDishes) : slotDishes
-  const p = pickForSlot(pickedPool, ctx, rng)
-  const rowRole = slot === 'fruit' ? cellRole! : roleForSlot(slot as Slot)
+  const p = pickForSlot(slotDishes, ctx, rng)
+  const rowRole = roleForSlot(slot as Slot)
   const { data, error } = await supabase.from('meal_plans')
     .upsert({ plan_date, slot, dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: rowRole, skipped: false },
       { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
@@ -382,13 +471,22 @@ export async function GET(request: Request) {
     return Response.json({ alternatives: pool })
   }
   if (slot === 'desert') {
-    const batch = await loadDessertBatch(mondayOf(plan_date), allDishes)
+    const batch = await loadWeekItems(mondayOf(plan_date), allDishes, ['dessert_batch', 'dessert_cake'])
     return Response.json({ alternatives: batch.map(d => ({ id: d.id, name: d.name })) })
+  }
+  if (slot === 'fruit' && role === 'optional') {
+    const batch = await loadWeekItems(mondayOf(plan_date), allDishes, ['evening_fruit'])
+    return Response.json({ alternatives: batch.map(d => ({ id: d.id, name: d.name })) })
+  }
+  if (slot === 'fruit' && role === 'breakfast') {
+    const pool = fruitPoolFor('breakfast', allDishes.filter(d => d.slot === 'fruit'))
+    const staples = pool.filter(d => d.produce_role === 'breakfast_fruit')
+    const candidatePool = staples.length > 0 ? staples : pool
+    return Response.json({ alternatives: candidatePool.map(d => ({ id: d.id, name: d.name })) })
   }
   const poolSlot = poolSlotFor(slot, plan_date, plans, allDishes)
   const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week, poolSlot)
-  const pickedPool = slot === 'fruit' ? fruitPoolFor(role === 'breakfast' ? 'breakfast' : 'dessert', slotDishes) : slotDishes
-  const pool = candidates(pickedPool, ctx)
+  const pool = candidates(slotDishes, ctx)
     .map(d => ({ d, w: weightFor(d, ctx) }))
     .sort((a, b) => b.w - a.w)
     .slice(0, n)
