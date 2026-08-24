@@ -1,6 +1,7 @@
 import type { Dish, MealPlan, Pick, Slot, Role } from './types'
 import { SLOTS, DEFAULT_NO_REPEAT } from './types'
 import { daysBetween } from './dates'
+import { pickDessertBatch, DESSERT_WEEK_CAP } from './dessert'
 
 export type PickContext = {
   date: string
@@ -357,6 +358,26 @@ export function fruitPoolFor(context: 'breakfast' | 'dessert', fruitDishes: Dish
     d.active && !d.is_garnish && (d.fruit_context == null || d.fruit_context === 'any' || d.fruit_context === context))
 }
 
+export const DESSERT_NO_REPEAT_DAYS = 2 // short window — repeats across the week are the point of batching
+
+// Picks one dish from the week's small dessert batch for a single day.
+// Deliberately NOT windowFor/noRepeatOk (those read DEFAULT_NO_REPEAT.desert=10,
+// tuned for the old "fresh pick every day from ~11 dishes" model) — a bespoke
+// short-window filter fits a 2-3-item batch meant to repeat every few days.
+export function pickDessertForDay(batch: Dish[], ctx: PickContext, rng: Rng): Pick {
+  if (batch.length === 0) {
+    return { plan_date: ctx.date, slot: 'desert', dish_id: null, dish_name: null,
+      locked: false, role: 'optional', skipped: true }
+  }
+  const usedRecently = (d: Dish) =>
+    [...ctx.priorPlans, ...ctx.runPicks]
+      .filter(p => p.dish_id === d.id && p.slot === 'desert')
+      .some(u => Math.abs(daysBetween(u.plan_date, ctx.date)) < DESSERT_NO_REPEAT_DAYS)
+  const fresh = batch.filter(d => !usedRecently(d))
+  const pool = fresh.length > 0 ? fresh : batch // relax: repeat rather than leave the day empty
+  return toPick(ctx, weightedPick(pool, ctx, rng)!)
+}
+
 // A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
 // kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
 // fall back to the broth note when no distinct second vegetable fits.
@@ -398,9 +419,10 @@ export function composeDay(input: {
   specialDays: Set<string>
   hardDays: Set<string>
   breakfastSpecialDays: Set<string>
+  dessertBatch: Dish[]
   rng: Rng
 }): Pick[] {
-  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng } = input
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng } = input
   const created: Pick[] = []
   const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
     date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
@@ -454,9 +476,9 @@ export function composeDay(input: {
     }
   }
 
-  // 4. DESERT — optional
+  // 4. DESSERT — one pick from the week's pre-chosen batch (see generateWeek).
   if (!isLocked('desert')) {
-    push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
+    push(pickDessertForDay(dessertBatch, mkCtx('desert', 'optional', 0), rng))
   }
 
   // 5. DESSERT-FRUIT pairing — same neutral-on-every-axis reasoning as
@@ -484,8 +506,13 @@ export function generateWeek(input: {
     locked: true, role: l.role ?? 'support', skipped: l.skipped ?? false,
   }))
 
+  const lockedDessertDishIds = lockedCells
+    .filter(l => l.slot === 'desert' && l.dish_id)
+    .map(l => l.dish_id as string)
+  const dessertBatch = pickDessertBatch(dishesBySlot.desert ?? [], lockedDessertDishIds, DESSERT_WEEK_CAP, rng)
+
   for (const date of days) {
-    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, rng })
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)

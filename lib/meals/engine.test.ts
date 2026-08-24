@@ -381,6 +381,40 @@ describe('fruitPoolFor', () => {
   })
 })
 
+import { pickDessertForDay } from './engine'
+
+describe('pickDessertForDay', () => {
+  it('returns a skipped null pick when the batch is empty', () => {
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [] })
+    const p = pickDessertForDay([], c, seq([0.5]))
+    expect(p.dish_id).toBeNull()
+    expect(p.skipped).toBe(true)
+  })
+  it('avoids a batch item used within the short repeat window', () => {
+    const a = dish({ id: 'a', slot: 'desert' })
+    const b = dish({ id: 'b', slot: 'desert' })
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [a, b],
+      runPicks: [pick({ plan_date: '2026-08-12', slot: 'desert', dish_id: 'a' })] })
+    const p = pickDessertForDay([a, b], c, seq([0.5]))
+    expect(p.dish_id).toBe('b')
+  })
+  it('relaxes to allow a repeat when every batch item was used recently', () => {
+    const a = dish({ id: 'a', slot: 'desert' })
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [a],
+      runPicks: [pick({ plan_date: '2026-08-12', slot: 'desert', dish_id: 'a' })] })
+    const p = pickDessertForDay([a], c, seq([0.5]))
+    expect(p.dish_id).toBe('a')
+  })
+  it('checks priorPlans across the week boundary too', () => {
+    const a = dish({ id: 'a', slot: 'desert' })
+    const b = dish({ id: 'b', slot: 'desert' })
+    const c = ctx({ date: '2026-08-13', slot: 'desert', dishes: [a, b],
+      priorPlans: [plan({ plan_date: '2026-08-12', slot: 'desert', dish_id: 'a' })] })
+    const p = pickDessertForDay([a, b], c, seq([0.5]))
+    expect(p.dish_id).toBe('b')
+  })
+})
+
 function pools() {
   const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
     Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
@@ -395,7 +429,8 @@ describe('composeDay (3-component plate)', () => {
   const run = (dishesBySlot: Record<Slot, Dish[]>) => {
     const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
     return composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
-      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: dishesBySlot.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
   }
 
   it('main that does NOT provide soup → main + sayuran + soup + desert, no pelengkap', () => {
@@ -412,7 +447,8 @@ describe('composeDay (3-component plate)', () => {
     const p = pools(); p.utama.forEach(d => { d.provides_soup = true })
     const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
     const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks: [],
-      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: p.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
     const kuah = created.find(x => x.slot === 'kuah')!
     expect(kuah.dish_id).toBeTruthy()          // freed slot is filled, not blanked
     expect(kuah.skipped).toBe(false)
@@ -434,7 +470,8 @@ describe('composeDay (3-component plate)', () => {
     const lockedByCell = new Map([['2026-08-10|utama', { plan_date: '2026-08-10', slot: 'utama', dish_id: 'tomyam' } as MealPlan]])
     const runPicks: Pick[] = [pick({ plan_date: '2026-08-10', slot: 'utama', dish_id: 'tomyam', role: 'main', locked: true })]
     const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks,
-      lockedByCell, specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+      lockedByCell, specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: p.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
     const kuah = created.find(x => x.slot === 'kuah')!
     expect(kuah.dish_id).toBeTruthy()
     expect(dishById.get(kuah.dish_id!)!.slot).toBe('sayuran')   // second veg, not a soup
@@ -446,7 +483,8 @@ describe('composeDay (3-component plate)', () => {
     p.sayuran = [dish({ id: 'only-veg', slot: 'sayuran', protein: 'none' })]  // single veg → no distinct second
     const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
     const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks: [],
-      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(), rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: p.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
     const kuah = created.find(x => x.slot === 'kuah')!
     expect(kuah.skipped).toBe(true)            // broth note fallback
     expect(kuah.dish_id).toBeNull()
@@ -470,7 +508,7 @@ describe('composeDay (breakfast + evening fruit)', () => {
     const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
     return composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
       lockedByCell, specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays,
-      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4]) })
+      dessertBatch: dishesBySlot.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4]) })
   }
 
   it('adds a breakfast dish and a breakfast-fruit pairing alongside the dinner plate', () => {
@@ -487,7 +525,7 @@ describe('composeDay (breakfast + evening fruit)', () => {
     const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
     const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks: [],
       lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(['2026-08-10']),
-      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4]) })
+      dessertBatch: p.desert, rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4]) })
     const bf = created.find(x => x.slot === 'breakfast')!
     expect(dishById.get(bf.dish_id!)!.tier).toBe('special')
   })
@@ -538,6 +576,29 @@ describe('generateWeek (breakfast + fruit)', () => {
     expect(bfSpecialDays.length).toBeLessThanOrEqual(2)
     const idx = bfSpecialDays.map(d => WEEK.indexOf(d)).sort((a, b) => a - b)
     if (idx.length === 2) expect(idx[1] - idx[0]).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('generateWeek (dessert batch)', () => {
+  it('never uses more than DESSERT_WEEK_CAP distinct dessert dishes across the week', () => {
+    const dishesBySlot = pools() // desert: mk('desert', 8) — 8 candidates, cap should still bind to 3
+    const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
+      allDishes: Object.values(dishesBySlot).flat(), priorPlans: [], lockedCells: [],
+      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
+    const dessertIds = new Set(picks.filter(p => p.slot === 'desert' && p.dish_id).map(p => p.dish_id))
+    expect(dessertIds.size).toBeLessThanOrEqual(3)
+  })
+  it('keeps a locked dessert dish in the batch so other days can still show it', () => {
+    const dishesBySlot = pools()
+    const lockedDish = dishesBySlot.desert[5] // pick one not among the first weighted picks typically
+    const locked = [{ id: 'L', plan_date: '2026-08-12', slot: 'desert' as Slot, dish_id: lockedDish.id,
+      dish_name: lockedDish.name, locked: true, role: 'optional' as Role, skipped: false }]
+    const picks = generateWeek({ weekStart: '2026-08-10', days: WEEK, dishesBySlot,
+      allDishes: Object.values(dishesBySlot).flat(), priorPlans: [], lockedCells: locked,
+      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4,0.7,0.05]) })
+    const lockedCell = picks.find(p => p.plan_date === '2026-08-12' && p.slot === 'desert')!
+    expect(lockedCell.dish_id).toBe(lockedDish.id)
+    expect(lockedCell.locked).toBe(true)
   })
 })
 
