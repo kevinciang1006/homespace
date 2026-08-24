@@ -39,6 +39,18 @@ export async function POST(request: Request) {
     else console.log(`[meal-gen] ${weekStart} validation: clean ✓`)
   }
 
+  // Persist the week's realized dessert batch (the distinct dessert dish_ids
+  // that actually landed on the week's days) so rerolls and the day view can
+  // read back "this week's 2-3 dessert types."
+  const dessertDishIds = [...new Set(picks.filter(p => p.slot === 'desert' && p.dish_id).map(p => p.dish_id as string))]
+  await supabase.from('dessert_weeks').upsert({ week_start: weekStart }, { onConflict: 'week_start' })
+  await supabase.from('dessert_week_items').delete().eq('week_start', weekStart)
+  if (dessertDishIds.length) {
+    await supabase.from('dessert_week_items').insert(dessertDishIds.map(id => ({
+      week_start: weekStart, dish_id: id, dish_name: dishById.get(id)?.name ?? 'Dish', kind: 'dessert',
+    })))
+  }
+
   const rows = picks.filter(p => !p.locked).map(p => ({
     plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,
     locked: false, role: p.role, skipped: p.skipped,
