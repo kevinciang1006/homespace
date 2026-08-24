@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isoDate, weekDates, daysBetween, currentMonday, shiftWeek, mondayOf, prepDateFor } from './dates'
+import { isoDate, weekDates, daysBetween, currentMonday, shiftWeek, mondayOf, prepDateFor, dayNameShort } from './dates'
 
 describe('date helpers', () => {
   it('weekDates returns 7 consecutive local dates from Monday', () => {
@@ -30,6 +30,13 @@ describe('week helpers', () => {
   it('currentMonday returns a Monday (getDay === 1)', () => {
     const [y, m, d] = currentMonday().split('-').map(Number)
     expect(new Date(y, m - 1, d).getDay()).toBe(1)
+  })
+})
+
+describe('dayNameShort', () => {
+  it('formats a date as a short English weekday name', () => {
+    expect(dayNameShort('2026-08-24')).toBe('Mon')
+    expect(dayNameShort('2026-08-30')).toBe('Sun')
   })
 })
 
