@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import type { MealPlan, Slot } from '@/lib/meals/types'
+import type { MealPlan, Role, Slot } from '@/lib/meals/types'
 
-type Draft = { slot: Slot; planned_dish_id: string | null; planned_dish_name: string | null
+type Draft = { slot: Slot; role: Role; planned_dish_id: string | null; planned_dish_name: string | null
   actual_dish_id: string | null; actual_dish_name: string | null; cooked: boolean }
 
 export default function CookLogSheet({ date, rows, entries, onClose, onSaved }: {
@@ -11,9 +11,9 @@ export default function CookLogSheet({ date, rows, entries, onClose, onSaved }: 
 }) {
   const planned = rows.filter(r => r.dish_id && !r.skipped)
   const [drafts, setDrafts] = useState<Draft[]>(() => planned.map(r => {
-    const prev = entries.find(e => e.slot === r.slot)
+    const prev = entries.find(e => e.slot === r.slot && e.role === r.role)
     return {
-      slot: r.slot, planned_dish_id: r.dish_id, planned_dish_name: r.dish_name,
+      slot: r.slot, role: r.role, planned_dish_id: r.dish_id, planned_dish_name: r.dish_name,
       actual_dish_id: prev?.actual_dish_id ?? r.dish_id,
       actual_dish_name: prev?.actual_dish_name ?? r.dish_name,
       cooked: prev ? prev.cooked : true,
@@ -24,8 +24,8 @@ export default function CookLogSheet({ date, rows, entries, onClose, onSaved }: 
 
   useEffect(() => {
     planned.forEach(async r => {
-      const res = await fetch(`/api/meals/reroll?plan_date=${date}&slot=${r.slot}&alternatives=8`)
-      if (res.ok) { const { alternatives } = await res.json(); setPools(p => ({ ...p, [r.slot]: alternatives })) }
+      const res = await fetch(`/api/meals/reroll?plan_date=${date}&slot=${r.slot}&role=${r.role}&alternatives=8`)
+      if (res.ok) { const { alternatives } = await res.json(); setPools(p => ({ ...p, [`${r.slot}|${r.role}`]: alternatives })) }
     })
   }, [date]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -46,14 +46,16 @@ export default function CookLogSheet({ date, rows, entries, onClose, onSaved }: 
         <h3 className="text-lg text-stone-900 mb-3" style={{ fontFamily: 'DM Serif Display, serif' }}>What did you cook?</h3>
         <div className="space-y-3">
           {drafts.map((d, i) => {
-            const pool = pools[d.slot] ?? []
+            const pool = pools[`${d.slot}|${d.role}`] ?? []
             const options = [
               ...(d.planned_dish_id ? [{ id: d.planned_dish_id, name: (d.planned_dish_name ?? '') + ' (planned)' }] : []),
               ...pool.filter(o => o.id !== d.planned_dish_id),
             ]
             return (
-              <div key={d.slot} className={`border border-stone-200 rounded-xl p-2.5 ${!d.cooked ? 'opacity-60' : ''}`}>
-                <div className="text-[10px] uppercase tracking-wide text-stone-400">{d.slot}</div>
+              <div key={`${d.slot}-${d.role}`} className={`border border-stone-200 rounded-xl p-2.5 ${!d.cooked ? 'opacity-60' : ''}`}>
+                <div className="text-[10px] uppercase tracking-wide text-stone-400">
+                  {d.slot === 'fruit' ? `fruit (${d.role === 'breakfast' ? 'breakfast' : 'dessert'})` : d.slot}
+                </div>
                 <select value={d.actual_dish_id ?? ''} disabled={!d.cooked}
                   onChange={e => { const id = e.target.value || null; const name = options.find(o => o.id === id)?.name.replace(' (planned)', '') ?? null; set(i, { actual_dish_id: id, actual_dish_name: name }) }}
                   className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-sm mt-1">

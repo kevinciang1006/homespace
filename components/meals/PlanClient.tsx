@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
-import { SLOT_LABELS, type DailyStaple, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
+import { SLOT_LABELS, type DailyStaple, type MealPlan, type Role, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
 import { formatQty, qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
@@ -16,7 +16,7 @@ import ViewToggle from './ViewToggle'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
 export type CookRow = {
-  cook_date: string; slot: Slot
+  cook_date: string; slot: Slot; role: Role
   planned_dish_id: string | null; planned_dish_name: string | null
   actual_dish_id: string | null; actual_dish_name: string | null
   cooked: boolean; note?: string | null; logged_by?: string | null

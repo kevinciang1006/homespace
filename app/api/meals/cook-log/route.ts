@@ -28,16 +28,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'cook_date required' }, { status: 400 })
   }
 
-  type Entry = { slot: string; planned_dish_id: string | null; planned_dish_name: string | null;
+  type Entry = { slot: string; role: string; planned_dish_id: string | null; planned_dish_name: string | null;
     actual_dish_id: string | null; actual_dish_name: string | null; cooked: boolean; note?: string | null }
   let entries: Entry[] = body.entries
 
   if (!entries) {
     // "cooked as planned" — derive from the day's non-skipped plan rows
-    const { data: plan } = await supabase.from('meal_plans').select('slot, dish_id, dish_name')
+    const { data: plan } = await supabase.from('meal_plans').select('slot, role, dish_id, dish_name')
       .eq('plan_date', cook_date).eq('skipped', false)
     entries = (plan ?? []).filter(p => p.dish_id).map(p => ({
-      slot: p.slot, planned_dish_id: p.dish_id, planned_dish_name: p.dish_name,
+      slot: p.slot, role: p.role ?? 'support', planned_dish_id: p.dish_id, planned_dish_name: p.dish_name,
       actual_dish_id: p.dish_id, actual_dish_name: p.dish_name, cooked: true, note: null,
     }))
   }
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const rows = entries.map(e => ({ ...e, cook_date, logged_by: by }))
   if (rows.length === 0) return Response.json({ entries: [] })
   const { data, error } = await supabase.from('cook_log')
-    .upsert(rows, { onConflict: 'cook_date,slot' }).select()
+    .upsert(rows, { onConflict: 'cook_date,slot,role' }).select()
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ entries: data ?? [] })
 }
