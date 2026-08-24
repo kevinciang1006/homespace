@@ -4,7 +4,7 @@ export const WA_NUMBERS = {
   kevin: '+6282242382604',
 } as const
 
-export const HOMESPACE_URL = 'https://homespace-chi.vercel.app'
+export const HOMESPACE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://homespace-chi.vercel.app'
 
 export function resolveRecipients(includeKevin: boolean): string[] {
   return includeKevin ? [WA_NUMBERS.wife, WA_NUMBERS.kevin] : [WA_NUMBERS.wife]
