@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type DailyStaple, type MealPlan, type Slot, type Tier } from '@/lib/meals/types'
-import { weekDates, currentMonday, shiftWeek } from '@/lib/meals/dates'
+import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
 import { formatQty, qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
@@ -12,6 +12,7 @@ import RecipeLinkButton from './RecipeLinkButton'
 import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
 import StaplesBanner from './StaplesBanner'
+import ViewToggle from './ViewToggle'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
 export type CookRow = {
@@ -126,6 +127,10 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
 
   return (
     <div>
+      <div className="mb-4">
+        <ViewToggle weekHref="/meals" dayHref={`/meals/day/${isoDate(new Date())}`} />
+      </div>
+
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>

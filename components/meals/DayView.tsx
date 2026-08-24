@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { SLOT_LABELS, type MealPlan } from '@/lib/meals/types'
 import { qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
+import ViewToggle from './ViewToggle'
 
 export type TodayPrepItem = { dish_id: string; dish_name: string; phrase: string; prepDayLabel: string }
 export type UpcomingPrepItem = { dish_id: string; dish_name: string; phrase: string; cookDate: string; cookDayLabel: string }
@@ -69,9 +70,9 @@ export default function DayView({
 
   return (
     <div className="max-w-md mx-auto">
-      <Link href={backToWeekHref} className="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-800 mb-4">
-        <ChevronLeft size={16} /> Back to week
-      </Link>
+      <div className="mb-4">
+        <ViewToggle weekHref={backToWeekHref} dayHref={`/meals/day/${date}`} />
+      </div>
 
       <div className="flex items-center justify-between mb-4">
         <Link href={`/meals/day/${prevDate}`} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous day">
