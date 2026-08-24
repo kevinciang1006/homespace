@@ -1,7 +1,8 @@
 import type { Dish, MealPlan, Pick, Slot, Role } from './types'
 import { SLOTS, DEFAULT_NO_REPEAT } from './types'
 import { daysBetween } from './dates'
-import { pickDessertBatch, DESSERT_WEEK_CAP } from './dessert'
+import { pickDessertBatch, DESSERT_WEEK_CAP, type DessertBatchOptions } from './dessert'
+import { pickEveningFruitBatch, EVENING_FRUIT_WEEK_CAP, EVENING_FRUIT_MIN_DAYS, EVENING_FRUIT_MAX_DAYS, type EveningFruitOptions } from './eveningFruit'
 
 export type PickContext = {
   date: string
@@ -378,6 +379,57 @@ export function pickDessertForDay(batch: Dish[], ctx: PickContext, rng: Rng): Pi
   return toPick(ctx, weightedPick(pool, ctx, rng)!)
 }
 
+export const BREAKFAST_FRUIT_NO_REPEAT_DAYS = 2 // avoid the exact same dish as yesterday, so 2 daily staples alternate
+
+// Picks the breakfast-fruit pairing for a single day. Daily-staple fruits
+// (produce_role='breakfast_fruit', e.g. Banana/Pepaya) are near-mandatory,
+// like milk — this does NOT rotate them away for variety the way the
+// dinner fruit's normal no-repeat window would. It only avoids the SAME
+// dish as yesterday, which naturally alternates two daily staples day to
+// day. Falls back to the full breakfast-context pool when nothing is
+// tagged breakfast_fruit yet.
+export function pickBreakfastFruit(fruitDishes: Dish[], ctx: PickContext, rng: Rng): Pick {
+  const pool = fruitPoolFor('breakfast', fruitDishes)
+  const staples = pool.filter(d => d.produce_role === 'breakfast_fruit')
+  const candidates = staples.length > 0 ? staples : pool
+  if (candidates.length === 0) {
+    return { plan_date: ctx.date, slot: 'fruit', dish_id: null, dish_name: null,
+      locked: false, role: 'breakfast', skipped: true }
+  }
+  const usedRecently = (d: Dish) =>
+    [...ctx.priorPlans, ...ctx.runPicks]
+      .filter(p => p.dish_id === d.id && p.slot === 'fruit' && p.role === 'breakfast')
+      .some(u => Math.abs(daysBetween(u.plan_date, ctx.date)) < BREAKFAST_FRUIT_NO_REPEAT_DAYS)
+  const fresh = candidates.filter(d => !usedRecently(d))
+  const finalPool = fresh.length > 0 ? fresh : candidates
+  return toPick(ctx, weightedPick(finalPool, ctx, rng)!)
+}
+
+// Chooses which days of the week actually show an evening-fruit card —
+// evening fruit is opportunistic, not a daily expectation.
+export function preassignEveningFruitDays(days: string[], targetCount: number, rng: Rng): Set<string> {
+  return new Set(shuffle(days, rng).slice(0, Math.min(targetCount, days.length)))
+}
+
+export const EVENING_FRUIT_NO_REPEAT_DAYS = 2 // short window, same reasoning as the dessert batch
+
+// Picks one dish from the week's small evening-fruit batch for a single
+// day (only called on days preassignEveningFruitDays chose). Mirrors
+// pickDessertForDay's short-recency-window mechanism.
+export function pickEveningFruitForDay(batch: Dish[], ctx: PickContext, rng: Rng): Pick {
+  if (batch.length === 0) {
+    return { plan_date: ctx.date, slot: 'fruit', dish_id: null, dish_name: null,
+      locked: false, role: 'optional', skipped: true }
+  }
+  const usedRecently = (d: Dish) =>
+    [...ctx.priorPlans, ...ctx.runPicks]
+      .filter(p => p.dish_id === d.id && p.slot === 'fruit' && p.role === 'optional')
+      .some(u => Math.abs(daysBetween(u.plan_date, ctx.date)) < EVENING_FRUIT_NO_REPEAT_DAYS)
+  const fresh = batch.filter(d => !usedRecently(d))
+  const pool = fresh.length > 0 ? fresh : batch
+  return toPick(ctx, weightedPick(pool, ctx, rng)!)
+}
+
 // A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
 // kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
 // fall back to the broth note when no distinct second vegetable fits.
@@ -420,9 +472,11 @@ export function composeDay(input: {
   hardDays: Set<string>
   breakfastSpecialDays: Set<string>
   dessertBatch: Dish[]
+  eveningFruitBatch: Dish[]
+  eveningFruitDays: Set<string>          // dates (this week) that actually show an evening-fruit card
   rng: Rng
 }): Pick[] {
-  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng } = input
+  const { date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, eveningFruitBatch, eveningFruitDays, rng } = input
   const created: Pick[] = []
   const mkCtx = (slot: Slot, role: Role, plannedRemaining: number): PickContext => ({
     date, slot, priorPlans, runPicks, dishById, specialDays, hardDays,
@@ -446,7 +500,7 @@ export function composeDay(input: {
     push(pickBreakfast(dishesBySlot.breakfast ?? [], mkCtx('breakfast', 'breakfast', 0), breakfastSpecialDays.has(date), rng))
   }
   if (!isLocked('fruit', 'breakfast')) {
-    push(pickForSlot(fruitPoolFor('breakfast', dishesBySlot.fruit ?? []), mkCtx('fruit', 'breakfast', 0), rng))
+    push(pickBreakfastFruit(dishesBySlot.fruit ?? [], mkCtx('fruit', 'breakfast', 0), rng))
   }
 
   // 1. MAIN
@@ -481,10 +535,16 @@ export function composeDay(input: {
     push(pickDessertForDay(dessertBatch, mkCtx('desert', 'optional', 0), rng))
   }
 
-  // 5. DESSERT-FRUIT pairing — same neutral-on-every-axis reasoning as
-  // before, now context-filtered and paired with the dessert card in the UI.
+  // 5. EVENING FRUIT — opportunistic, not daily: only on the days this
+  // week's preassignEveningFruitDays chose, picked from the week's small
+  // evening-fruit batch (see generateWeek). Every other day gets a skipped
+  // placeholder row instead, so the slot still has exactly one row/day.
   if (!isLocked('fruit', 'optional')) {
-    push(pickForSlot(fruitPoolFor('dessert', dishesBySlot.fruit ?? []), mkCtx('fruit', 'optional', 0), rng))
+    if (eveningFruitDays.has(date) && eveningFruitBatch.length > 0) {
+      push(pickEveningFruitForDay(eveningFruitBatch, mkCtx('fruit', 'optional', 0), rng))
+    } else {
+      push({ plan_date: date, slot: 'fruit', dish_id: null, dish_name: null, locked: false, role: 'optional', skipped: true })
+    }
   }
 
   return created
@@ -493,8 +553,10 @@ export function composeDay(input: {
 export function generateWeek(input: {
   weekStart: string; days: string[]; dishesBySlot: Record<Slot, Dish[]>
   allDishes: Dish[]; priorPlans: MealPlan[]; lockedCells: MealPlan[]; rng: Rng
+  dessertOptions?: DessertBatchOptions
+  eveningFruitOptions?: EveningFruitOptions
 }): Pick[] {
-  const { days, dishesBySlot, allDishes, priorPlans, lockedCells, rng } = input
+  const { days, dishesBySlot, allDishes, priorPlans, lockedCells, rng, dessertOptions, eveningFruitOptions } = input
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
   const hardDays = preassignHardDays(days, specialDays, rng)
@@ -509,10 +571,18 @@ export function generateWeek(input: {
   const lockedDessertDishIds = lockedCells
     .filter(l => l.slot === 'desert' && l.dish_id)
     .map(l => l.dish_id as string)
-  const dessertBatch = pickDessertBatch(dishesBySlot.desert ?? [], lockedDessertDishIds, DESSERT_WEEK_CAP, rng)
+  const dessertBatch = pickDessertBatch(dishesBySlot.desert ?? [], lockedDessertDishIds, DESSERT_WEEK_CAP, rng, dessertOptions)
+
+  const lockedEveningFruitDishIds = lockedCells
+    .filter(l => l.slot === 'fruit' && l.role === 'optional' && l.dish_id)
+    .map(l => l.dish_id as string)
+  const eveningFruitPool = fruitPoolFor('dessert', dishesBySlot.fruit ?? [])
+  const eveningFruitBatch = pickEveningFruitBatch(eveningFruitPool, lockedEveningFruitDishIds, EVENING_FRUIT_WEEK_CAP, rng, eveningFruitOptions)
+  const eveningFruitTargetDays = EVENING_FRUIT_MIN_DAYS + Math.floor(rng() * (EVENING_FRUIT_MAX_DAYS - EVENING_FRUIT_MIN_DAYS + 1))
+  const eveningFruitDays = preassignEveningFruitDays(days, eveningFruitTargetDays, rng)
 
   for (const date of days) {
-    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, rng })
+    composeDay({ date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, eveningFruitBatch, eveningFruitDays, rng })
   }
 
   const slotOrder = (s: Slot) => SLOTS.indexOf(s)
@@ -591,15 +661,25 @@ export function validateWeek(
     if (hasAdjacent(treatDates)) viol.push(`⚠️ week: eat-out breakfasts on adjacent days (${treatDates.join(', ')})`)
   }
 
-  // --- Fruit pairings: present every day for each role; advisory on the ~2-fruit-portions target ---
+  // --- Fruit pairings: breakfast fruit is a daily staple (present every day);
+  // evening fruit is opportunistic (advisory only, plus a variation cap) ---
   const fruitRows = rows.filter(r => r.slot === 'fruit')
   if (fruitRows.length) {
-    for (const [role, label] of [['breakfast', 'breakfast fruit'], ['optional', 'dessert fruit']] as const) {
-      const roleRows = fruitRows.filter(r => r.role === role)
-      if (!roleRows.length) continue
+    const breakfastFruitRows = fruitRows.filter(r => r.role === 'breakfast')
+    if (breakfastFruitRows.length) {
       for (const date of allDates) {
-        const planned = roleRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
-        if (!planned) viol.push(`⚠️ ${date}: no ${label} planned`)
+        const planned = breakfastFruitRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+        if (!planned) viol.push(`⚠️ ${date}: no breakfast fruit planned`)
+      }
+    }
+    const eveningFruitRows = fruitRows.filter(r => r.role === 'optional')
+    if (eveningFruitRows.length) {
+      const daysWithEveningFruit = allDates.filter(date =>
+        eveningFruitRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)).length
+      viol.push(`ℹ️ week: evening fruit shown on ${daysWithEveningFruit} of ${allDates.length} days`)
+      const eveningFruitIds = new Set(eveningFruitRows.filter(r => r.dish_id && !r.skipped).map(r => r.dish_id))
+      if (eveningFruitIds.size > EVENING_FRUIT_WEEK_CAP) {
+        viol.push(`⚠️ week: ${eveningFruitIds.size} evening-fruit variations used (cap is ${EVENING_FRUIT_WEEK_CAP})`)
       }
     }
     const daysReaching2 = allDates.filter(date => {

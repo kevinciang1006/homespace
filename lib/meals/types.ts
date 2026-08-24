@@ -14,6 +14,8 @@ export type Role = 'main' | 'support' | 'optional' | 'breakfast'
 export type Richness = 'light' | 'medium' | 'heavy'
 export type Saltiness = 'normal' | 'salty' | 'very_salty'
 export type Difficulty = 'easy' | 'medium' | 'hard'
+export type Cadence = 'daily_staple' | 'weekly' | 'monthly' | 'occasional'
+export type ProduceRole = 'breakfast_fruit' | 'evening_fruit' | 'dessert_cake' | 'dessert_batch'
 
 export const DEFAULT_NO_REPEAT: Record<Slot, number> = {
   breakfast: 4, utama: 14, kuah: 7, pelengkap: 7, sayuran: 7, fruit: 3, desert: 10,
@@ -45,6 +47,8 @@ export type Dish = {
   veg_portions: number
   fruit_portions: number
   fruit_context: string | null
+  cadence: Cadence | null
+  produce_role: ProduceRole | null
 }
 
 export type MealPlan = {
@@ -63,6 +67,7 @@ export type MealPlan = {
     veg_portions?: number; fruit_portions?: number
     needs_thaw?: boolean; needs_marinate?: boolean; prep_lead_days?: number | null; prep_note?: string | null
     bumbu_packet?: string | null; fruit_context?: string | null
+    cadence?: Cadence | null; produce_role?: ProduceRole | null
   } | null
 }
 
