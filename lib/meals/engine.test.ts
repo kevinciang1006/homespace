@@ -11,7 +11,7 @@ function dish(over: Partial<Dish> & { id: string; slot: Slot }): Dish {
     spicy: false, rating: 3, active: true, no_repeat_days: null,
     ingredients: null, recipe_steps: null, recipe_image_url: null,
     richness: 'medium', provides_soup: false,
-    saltiness: 'normal', difficulty: 'medium', is_garnish: false, ...over,
+    saltiness: 'normal', difficulty: 'medium', is_garnish: false, fruit_context: null, ...over,
   } as Dish
 }
 function plan(over: Partial<MealPlan> & { plan_date: string; slot: Slot }): MealPlan {
@@ -356,6 +356,31 @@ describe('pickBreakfast', () => {
   })
 })
 
+import { fruitPoolFor } from './engine'
+
+describe('fruitPoolFor', () => {
+  it('includes a dish with fruit_context "any" for either context', () => {
+    const any1 = dish({ id: 'a', slot: 'fruit', fruit_context: 'any' })
+    expect(fruitPoolFor('breakfast', [any1]).map(d => d.id)).toEqual(['a'])
+    expect(fruitPoolFor('dessert', [any1]).map(d => d.id)).toEqual(['a'])
+  })
+  it('includes a dish with no context set for either context', () => {
+    const noCtx = dish({ id: 'n', slot: 'fruit', fruit_context: null })
+    expect(fruitPoolFor('breakfast', [noCtx]).map(d => d.id)).toEqual(['n'])
+    expect(fruitPoolFor('dessert', [noCtx]).map(d => d.id)).toEqual(['n'])
+  })
+  it('excludes a context-specific dish from the other context', () => {
+    const bfOnly = dish({ id: 'b', slot: 'fruit', fruit_context: 'breakfast' })
+    expect(fruitPoolFor('breakfast', [bfOnly]).map(d => d.id)).toEqual(['b'])
+    expect(fruitPoolFor('dessert', [bfOnly])).toEqual([])
+  })
+  it('excludes garnish and inactive dishes', () => {
+    const garnish = dish({ id: 'g', slot: 'fruit', fruit_context: 'any', is_garnish: true })
+    const inactive = dish({ id: 'i', slot: 'fruit', fruit_context: 'any', active: false })
+    expect(fruitPoolFor('breakfast', [garnish, inactive])).toEqual([])
+  })
+})
+
 function pools() {
   const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
     Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
@@ -448,12 +473,12 @@ describe('composeDay (breakfast + evening fruit)', () => {
       rng: seq([0.3,0.6,0.1,0.8,0.5,0.2,0.9,0.4]) })
   }
 
-  it('adds one breakfast and one evening fruit row alongside the dinner plate', () => {
+  it('adds a breakfast dish and a breakfast-fruit pairing alongside the dinner plate', () => {
     const created = run(withBreakfastAndFruit())
     expect(created.filter(x => x.slot === 'breakfast').length).toBe(1)
     expect(created.find(x => x.slot === 'breakfast')!.dish_id).toBeTruthy()
-    expect(created.filter(x => x.slot === 'fruit').length).toBe(1)
-    expect(created.find(x => x.slot === 'fruit')!.dish_id).toBeTruthy()
+    const bfFruit = created.find(x => x.slot === 'fruit' && x.role === 'breakfast')
+    expect(bfFruit?.dish_id).toBeTruthy()
   })
 
   it('picks a special breakfast only on an assigned breakfastSpecialDays date', () => {
@@ -467,21 +492,21 @@ describe('composeDay (breakfast + evening fruit)', () => {
     expect(dishById.get(bf.dish_id!)!.tier).toBe('special')
   })
 
-  it('honors a locked breakfast and locked fruit cell (does not overwrite them)', () => {
+  it('honors a locked breakfast and locked breakfast-fruit cell (does not overwrite them)', () => {
     const p = withBreakfastAndFruit()
     const lockedByCell = new Map<string, MealPlan>([
-      ['2026-08-10|breakfast', { plan_date: '2026-08-10', slot: 'breakfast', dish_id: 'bf-e1' } as MealPlan],
-      ['2026-08-10|fruit', { plan_date: '2026-08-10', slot: 'fruit', dish_id: 'fr-1' } as MealPlan],
+      ['2026-08-10|breakfast', { plan_date: '2026-08-10', slot: 'breakfast', role: 'breakfast', dish_id: 'bf-e1' } as MealPlan],
+      ['2026-08-10|fruit|breakfast', { plan_date: '2026-08-10', slot: 'fruit', role: 'breakfast', dish_id: 'fr-1' } as MealPlan],
     ])
     const created = run(p, new Set(), lockedByCell)
     expect(created.some(x => x.slot === 'breakfast')).toBe(false)
-    expect(created.some(x => x.slot === 'fruit')).toBe(false)
+    expect(created.some(x => x.slot === 'fruit' && x.role === 'breakfast')).toBe(false)
   })
 
   it('an empty breakfast/fruit pool produces a null-dish row rather than throwing', () => {
     const created = run(pools()) // breakfast: [], fruit: [] from the shared helper
     expect(created.find(x => x.slot === 'breakfast')!.dish_id).toBeNull()
-    expect(created.find(x => x.slot === 'fruit')!.dish_id).toBeNull()
+    expect(created.find(x => x.slot === 'fruit' && x.role === 'breakfast')!.dish_id).toBeNull()
   })
 })
 
@@ -506,7 +531,8 @@ describe('generateWeek (breakfast + fruit)', () => {
     for (const date of WEEK) {
       const day = picks.filter(p => p.plan_date === date)
       expect(day.filter(p => p.slot === 'breakfast').length).toBe(1)
-      expect(day.filter(p => p.slot === 'fruit').length).toBe(1)
+      expect(day.filter(p => p.slot === 'fruit' && p.role === 'breakfast').length).toBe(1)
+      expect(day.filter(p => p.slot === 'fruit' && p.role === 'optional').length).toBe(1)
     }
     const bfSpecialDays = [...new Set(picks.filter(p => p.slot === 'breakfast' && byId.get(p.dish_id ?? '')?.tier === 'special').map(p => p.plan_date))]
     expect(bfSpecialDays.length).toBeLessThanOrEqual(2)

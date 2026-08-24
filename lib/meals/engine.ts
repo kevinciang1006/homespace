@@ -350,6 +350,13 @@ export function pickBreakfast(pool: Dish[], ctx: PickContext, isSpecialDay: bool
   return toPick(ctx, weightedPick(candidates, ctx, rng)!)
 }
 
+// A dish with no context set is eligible everywhere (permissive default —
+// matches today's data, where every fruit-slot dish is fruit_context='any').
+export function fruitPoolFor(context: 'breakfast' | 'dessert', fruitDishes: Dish[]): Dish[] {
+  return fruitDishes.filter(d =>
+    d.active && !d.is_garnish && (d.fruit_context == null || d.fruit_context === 'any' || d.fruit_context === context))
+}
+
 // A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
 // kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
 // fall back to the broth note when no distinct second vegetable fits.
@@ -401,15 +408,23 @@ export function composeDay(input: {
     role, spicyFloor: 1, plannedRemaining,
   })
   const push = (p: Pick) => { runPicks.push(p); created.push(p) }
-  const isLocked = (slot: Slot) => lockedByCell.has(`${date}|${slot}`)
-  const lockedDish = (slot: Slot): Dish | undefined => {
-    const lc = lockedByCell.get(`${date}|${slot}`)
+  // Every slot has exactly one row per day EXCEPT 'fruit', which now holds two
+  // (breakfast pairing, dessert pairing) disambiguated by role — so the fruit
+  // slot's lock key includes role; every other slot's key is unchanged.
+  const cellKey = (slot: Slot, role: Role) => slot === 'fruit' ? `${date}|${slot}|${role}` : `${date}|${slot}`
+  const isLocked = (slot: Slot, role: Role = 'support') => lockedByCell.has(cellKey(slot, role))
+  const lockedDish = (slot: Slot, role: Role = 'support'): Dish | undefined => {
+    const lc = lockedByCell.get(cellKey(slot, role))
     return lc?.dish_id ? dishById.get(lc.dish_id) : undefined
   }
 
-  // 0. BREAKFAST — independent of dinner's rules; own treat quota.
+  // 0. BREAKFAST — independent of dinner's rules; own treat quota. Its fruit
+  // pairing is a second, independent pick from the shared fruit pool.
   if (!isLocked('breakfast')) {
     push(pickBreakfast(dishesBySlot.breakfast ?? [], mkCtx('breakfast', 'breakfast', 0), breakfastSpecialDays.has(date), rng))
+  }
+  if (!isLocked('fruit', 'breakfast')) {
+    push(pickForSlot(fruitPoolFor('breakfast', dishesBySlot.fruit ?? []), mkCtx('fruit', 'breakfast', 0), rng))
   }
 
   // 1. MAIN
@@ -444,11 +459,10 @@ export function composeDay(input: {
     push(pickForSlot(dishesBySlot.desert ?? [], mkCtx('desert', 'optional', 0), rng))
   }
 
-  // 5. FRUIT (evening) — neutral on every cross-slot axis (protein none, never
-  // spicy/fried, saltiness normal, tier always everyday), so the generic
-  // dinner picker already does the right thing here with zero new rule code.
-  if (!isLocked('fruit')) {
-    push(pickForSlot(dishesBySlot.fruit ?? [], mkCtx('fruit', 'optional', 0), rng))
+  // 5. DESSERT-FRUIT pairing — same neutral-on-every-axis reasoning as
+  // before, now context-filtered and paired with the dessert card in the UI.
+  if (!isLocked('fruit', 'optional')) {
+    push(pickForSlot(fruitPoolFor('dessert', dishesBySlot.fruit ?? []), mkCtx('fruit', 'optional', 0), rng))
   }
 
   return created
@@ -463,7 +477,8 @@ export function generateWeek(input: {
   const specialDays = preassignSpecialDays(days, lockedCells, dishById, rng)
   const hardDays = preassignHardDays(days, specialDays, rng)
   const breakfastSpecialDays = preassignBreakfastSpecialDays(days, lockedCells, dishById, rng)
-  const lockedByCell = new Map(lockedCells.map(l => [`${l.plan_date}|${l.slot}`, l]))
+  const lockedByCell = new Map(lockedCells.map(l =>
+    [l.slot === 'fruit' ? `${l.plan_date}|${l.slot}|${l.role}` : `${l.plan_date}|${l.slot}`, l]))
   const runPicks: Pick[] = lockedCells.map(l => ({
     plan_date: l.plan_date, slot: l.slot, dish_id: l.dish_id, dish_name: l.dish_name,
     locked: true, role: l.role ?? 'support', skipped: l.skipped ?? false,
