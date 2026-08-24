@@ -5,7 +5,7 @@ import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
 import {
-  jakartaToday, upcomingSaturday, targetWeekStart, tomorrowOf, jakartaDateTimeToUtcIso,
+  jakartaToday, upcomingSaturday, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso,
 } from '@/lib/wa/schedule'
 import {
   composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,
@@ -16,8 +16,7 @@ import type {
 
 const PREP_LOOKAHEAD_DAYS = 14
 
-async function buildWeeklyItems(saturday: string): Promise<WeeklyShoppingItem[]> {
-  const weekStart = targetWeekStart(saturday)
+async function buildWeeklyItems(weekStart: string): Promise<WeeklyShoppingItem[]> {
   const { data: list } = await supabase.from('meal_shopping_lists')
     .select('id').eq('week_start', weekStart).maybeSingle()
 
@@ -134,9 +133,10 @@ const SAMPLE_TAG = '\n\n_(contoh — belum ada data nyata untuk ini)_'
 
 async function runTestMode(to: string): Promise<Response> {
   const today = jakartaToday()
+  const settings = await getOrCreateSettings()
 
-  const saturday = upcomingSaturday(today)
-  const weeklyItems = await buildWeeklyItems(saturday)
+  const weeklyWeekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
+  const weeklyItems = await buildWeeklyItems(weeklyWeekStart)
   const weeklyMessage = weeklyItems.length > 0
     ? composeWeeklyShoppingMessage(weeklyItems)
     : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS) + SAMPLE_TAG
@@ -185,7 +185,8 @@ export async function GET(request: Request) {
   if (settings.weekly_enabled) {
     try {
       const saturday = upcomingSaturday(today)
-      const items = await buildWeeklyItems(saturday)
+      const weekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
+      const items = await buildWeeklyItems(weekStart)
       const message = composeWeeklyShoppingMessage(items)
       const sendAt = jakartaDateTimeToUtcIso(saturday, settings.weekly_time)
       const result = await upsertOutbound(

@@ -12,10 +12,12 @@ type Row = {
 }
 
 const ROWS: Row[] = [
-  { key: 'weekly', label: 'Weekly shopping list', description: 'Saturday morning, grouped by Protein/Sayur/Bumbu' },
+  { key: 'weekly', label: 'Weekly shopping list', description: 'Saturday morning, a flat ingredient list' },
   { key: 'daily', label: 'Daily meal reminder', description: "Tomorrow's meals, sent the evening before" },
   { key: 'prep', label: 'Prep/thaw reminder', description: 'Batches same-evening thaw & marinate prep' },
 ]
+
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] // Mon=0..Sun=6
 
 export default function WaSettingsClient({ initialSettings }: { initialSettings: WaSettings }) {
   const [settings, setSettings] = useState(initialSettings)
@@ -79,6 +81,20 @@ export default function WaSettingsClient({ initialSettings }: { initialSettings:
             </div>
           )
         })}
+
+        <div className="bg-white border border-stone-200 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-stone-900">Switch to next week from</p>
+            <p className="text-sm text-stone-500 mt-0.5">On/after this weekday, the shopping list targets next week's plan instead of this week's</p>
+          </div>
+          <select
+            value={settings.weekly_cutoff_dow}
+            onChange={e => patch({ weekly_cutoff_dow: Number(e.target.value) })}
+            className="border border-stone-200 rounded-lg px-2 py-1 text-sm"
+          >
+            {WEEKDAYS.map((name, dow) => <option key={dow} value={dow}>{name}</option>)}
+          </select>
+        </div>
 
         <div className="bg-white border border-stone-200 rounded-xl p-4 flex items-center justify-between gap-4">
           <div>

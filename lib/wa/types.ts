@@ -4,6 +4,7 @@ export type WaSettings = {
   id: string
   weekly_enabled: boolean
   weekly_time: string
+  weekly_cutoff_dow: number // Mon=0 .. Sun=6; today >= this -> shopping list targets NEXT week
   daily_enabled: boolean
   daily_time: string
   prep_enabled: boolean

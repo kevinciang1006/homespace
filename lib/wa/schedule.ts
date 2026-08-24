@@ -29,10 +29,15 @@ export function tomorrowOf(today: string): string {
   return shiftWeek(today, 1)
 }
 
-// The Monday-start week a Saturday's shopping trip is FOR: the week after
-// the Saturday's own Mon-Sun week.
-export function targetWeekStart(saturdayDate: string): string {
-  return shiftWeek(mondayOf(saturdayDate), 7)
+// Which Monday-start week the shopping list is FOR, given today's date and a
+// configurable day-of-week cutoff (Mon=0..Sun=6, from wa_settings.weekly_cutoff_dow).
+// Today on/after the cutoff -> next week; before it -> this week. Decoupled from
+// the Saturday send schedule (upcomingSaturday) — this only affects which
+// week's meal_plans get aggregated, not when the message is sent.
+export function shoppingWeekStart(today: string, cutoffDow: number): string {
+  const dow = dowMonBased(today)
+  const thisMonday = mondayOf(today)
+  return dow >= cutoffDow ? shiftWeek(thisMonday, 7) : thisMonday
 }
 
 export function indonesianDayName(dateStr: string): string {

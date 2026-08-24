@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  jakartaToday, upcomingSaturday, tomorrowOf, targetWeekStart,
+  jakartaToday, upcomingSaturday, tomorrowOf, shoppingWeekStart,
   indonesianDayName, jakartaDateTimeToUtcIso,
 } from './schedule'
 
@@ -32,10 +32,20 @@ describe('tomorrowOf', () => {
   })
 })
 
-describe('targetWeekStart', () => {
-  it('is the Monday of the week after the Saturday\'s own week', () => {
-    // Saturday 2026-08-22 is in the Mon-Sun week starting 2026-08-17
-    expect(targetWeekStart('2026-08-22')).toBe('2026-08-24')
+describe('shoppingWeekStart', () => {
+  it('targets THIS week on days before the cutoff', () => {
+    expect(shoppingWeekStart('2026-08-17', 4)).toBe('2026-08-17') // Monday, dow=0 < 4
+    expect(shoppingWeekStart('2026-08-27', 4)).toBe('2026-08-24') // Thursday, dow=3 < 4
+  })
+  it('targets NEXT week on/after the cutoff (default 4 = Friday)', () => {
+    expect(shoppingWeekStart('2026-08-21', 4)).toBe('2026-08-24') // Friday, dow=4
+    expect(shoppingWeekStart('2026-08-22', 4)).toBe('2026-08-24') // Saturday, dow=5
+    expect(shoppingWeekStart('2026-08-23', 4)).toBe('2026-08-24') // Sunday, dow=6
+  })
+  it('honors a custom cutoff', () => {
+    expect(shoppingWeekStart('2026-08-22', 6)).toBe('2026-08-17') // Saturday, dow=5 < 6 -> this week
+    expect(shoppingWeekStart('2026-08-23', 6)).toBe('2026-08-24') // Sunday, dow=6 >= 6 -> next week
+    expect(shoppingWeekStart('2026-08-17', 0)).toBe('2026-08-24') // Monday, dow=0 >= 0 -> next week
   })
 })
 
