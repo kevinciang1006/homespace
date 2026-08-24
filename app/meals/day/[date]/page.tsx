@@ -2,25 +2,50 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { shiftWeek, mondayOf, prepDateFor } from '@/lib/meals/dates'
-import { groupPrepByDate, prepPhrase, type PrepCandidate } from '@/lib/meals/prep'
+import { shiftWeek, mondayOf } from '@/lib/meals/dates'
+import { deriveWeekPrepTasks, type PlannedDish } from '@/lib/meals/prepTasks'
 import { reconcileSoup } from '@/lib/meals/reconcile'
-import type { MealPlan } from '@/lib/meals/types'
-import DayView, { type TodayPrepItem, type UpcomingPrepItem } from '@/components/meals/DayView'
+import type { MealPlan, PrepTask } from '@/lib/meals/types'
+import DayView from '@/components/meals/DayView'
 
 const DISHES_SELECT = 'tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, ' +
   'slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, ' +
-  'needs_thaw, needs_marinate, prep_lead_days, prep_note, bumbu_packet'
+  'needs_thaw, needs_marinate, prep_lead_days, prep_note, bumbu_packet, prep_type, shop_ingredients'
 
-const PREP_LOOKAHEAD_DAYS = 14
-
-function shortDayName(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short' })
-}
 function longDayName(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+}
+
+// Ensures this week's prep_tasks exist (backfills weeks generated before
+// this feature shipped). A no-op once the week has any prep_tasks rows —
+// never re-derives or overwrites an already-generated week.
+async function ensurePrepTasksExist(weekStart: string) {
+  const weekEnd = shiftWeek(weekStart, 6)
+  const weekendBefore = shiftWeek(weekStart, -1)
+  const { data: existing } = await supabase.from('prep_tasks').select('id')
+    .gte('prep_date', weekendBefore).lte('prep_date', weekEnd).limit(1)
+  if (existing && existing.length > 0) return
+
+  const { data: weekPlans } = await supabase.from('meal_plans')
+    .select(`plan_date, dish_id, dish_name, skipped, dishes(prep_type, prep_lead_days, prep_note, protein, name)`)
+    .gte('plan_date', weekStart).lte('plan_date', weekEnd).eq('skipped', false).not('dish_id', 'is', null)
+  type Row = { plan_date: string; dish_id: string; dish_name: string | null
+    dishes: { prep_type: string | null; prep_lead_days: number | null; prep_note: string | null; protein: string; name: string } | null }
+  const planned: PlannedDish[] = ((weekPlans ?? []) as unknown as Row[])
+    .filter(r => r.dishes?.prep_type)
+    .map(r => ({
+      cook_date: r.plan_date, dish_id: r.dish_id, dish_name: r.dish_name ?? r.dishes!.name,
+      prep_type: r.dishes!.prep_type, prep_lead_days: r.dishes!.prep_lead_days,
+      prep_note: r.dishes!.prep_note, protein: r.dishes!.protein,
+    }))
+  const drafts = deriveWeekPrepTasks(weekStart, planned)
+  if (drafts.length) {
+    await supabase.from('prep_tasks').insert(drafts.map(d => ({
+      cook_date: d.cook_date, prep_date: d.prep_date, dish_id: d.dish_id, dish_name: d.dish_name,
+      prep_type: d.prep_type, instruction: d.instruction, assigned_to: d.assigned_to,
+    })))
+  }
 }
 
 export default async function DayPage({ params }: { params: Promise<{ date: string }> }) {
@@ -34,54 +59,19 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
     )
   }
 
-  const until = shiftWeek(date, PREP_LOOKAHEAD_DAYS)
-  const [{ data: dayRows }, { data: lookaheadRows }] = await Promise.all([
+  await ensurePrepTasksExist(mondayOf(date))
+
+  const [{ data: dayRows }, { data: prepRows }] = await Promise.all([
     supabase.from('meal_plans').select(`*, dishes(${DISHES_SELECT})`).eq('plan_date', date),
-    supabase.from('meal_plans')
-      .select('plan_date, dish_id, dish_name, skipped, dishes(needs_thaw, needs_marinate, prep_lead_days, prep_note)')
-      .gte('plan_date', date).lte('plan_date', until).eq('skipped', false).not('dish_id', 'is', null),
+    supabase.from('prep_tasks').select('*').eq('prep_date', date).order('created_at'),
   ])
 
   const rows = await reconcileSoup((dayRows ?? []) as MealPlan[])
-
-  // Today's own dishes that needed thaw/marinate — informational recap.
-  const todayPrep: TodayPrepItem[] = rows
-    .filter(r => r.dish_id && !r.skipped && (r.dishes?.needs_thaw || r.dishes?.needs_marinate))
-    .map(r => {
-      const needsThaw = !!r.dishes?.needs_thaw
-      const needsMarinate = !!r.dishes?.needs_marinate
-      const prepNote = r.dishes?.prep_note ?? null
-      const leadDays = r.dishes?.prep_lead_days ?? null
-      return {
-        dish_id: r.dish_id as string,
-        dish_name: r.dish_name ?? 'Dish',
-        phrase: prepPhrase({ needs_thaw: needsThaw, needs_marinate: needsMarinate, prep_note: prepNote }),
-        prepDayLabel: shortDayName(prepDateFor(date, leadDays)),
-      }
-    })
-
-  // Dishes elsewhere in the lookahead window whose computed prep date is TODAY.
-  type LookaheadRow = {
-    plan_date: string; dish_id: string; dish_name: string | null
-    dishes: { needs_thaw: boolean; needs_marinate: boolean; prep_lead_days: number | null; prep_note: string | null } | null
-  }
-  const candidates: PrepCandidate[] = ((lookaheadRows ?? []) as unknown as LookaheadRow[])
-    .filter(r => r.dishes && r.plan_date !== date) // today's own dishes are covered by todayPrep above
-    .map(r => ({
-      dish_id: r.dish_id, dish_name: r.dish_name ?? 'Dish', cook_date: r.plan_date,
-      needs_thaw: r.dishes!.needs_thaw, needs_marinate: r.dishes!.needs_marinate,
-      prep_lead_days: r.dishes!.prep_lead_days, prep_note: r.dishes!.prep_note,
-    }))
-  const dueToday = groupPrepByDate(candidates).get(date) ?? []
-  const upcomingPrep: UpcomingPrepItem[] = dueToday.map(item => ({
-    dish_id: item.dish_id, dish_name: item.dish_name, phrase: prepPhrase(item),
-    cookDate: item.cook_date, cookDayLabel: shortDayName(item.cook_date),
-  }))
+  const prepTasks = (prepRows ?? []) as PrepTask[]
 
   return (
     <DayView
-      date={date} dayName={longDayName(date)} rows={rows}
-      todayPrep={todayPrep} upcomingPrep={upcomingPrep}
+      date={date} dayName={longDayName(date)} rows={rows} prepTasks={prepTasks}
       prevDate={shiftWeek(date, -1)} nextDate={shiftWeek(date, 1)}
       backToWeekHref={`/meals?week=${mondayOf(date)}`}
     />

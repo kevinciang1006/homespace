@@ -51,3 +51,9 @@ export function prepDateFor(cookDate: string, prepLeadDays: number | null): stri
   const lead = Math.max(prepLeadDays ?? 1, 1)
   return shiftWeek(cookDate, -lead)
 }
+
+// Fixed locale (not `undefined`) so this is deterministic across dev,
+// CI, and production regardless of the runtime's default locale.
+export function dayNameShort(dateStr: string): string {
+  return parseLocal(dateStr).toLocaleDateString('en-US', { weekday: 'short' })
+}

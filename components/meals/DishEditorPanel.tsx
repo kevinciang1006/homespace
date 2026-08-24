@@ -7,6 +7,7 @@ import type { Dish } from '@/lib/meals/types'
 import { detectSource, type RecipeLink } from '@/lib/meals/recipeLinks'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
+import Portal from '@/components/Portal'
 
 const SOURCE_EMOJI: Record<string, string> = { youtube: '▶️', instagram: '📸', tiktok: '🎵', web: '🔗' }
 
@@ -51,6 +52,7 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
   }
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end">
       <div className="absolute inset-0 bg-black/25" onClick={onClose} />
       <div className="relative bg-white w-full md:w-[30rem] md:h-full rounded-t-2xl md:rounded-none max-h-[92vh] md:max-h-full overflow-y-auto">
@@ -179,5 +181,6 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
         </div>
       </div>
     </div>
+    </Portal>
   )
 }

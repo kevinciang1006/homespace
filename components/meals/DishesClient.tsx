@@ -19,6 +19,7 @@ const PRODUCE_ROLES_BY_SLOT: Record<string, string[]> = {
   fruit: ['', 'breakfast_fruit', 'evening_fruit'],
   desert: ['', 'dessert_batch', 'dessert_cake'],
 }
+const PREP_TYPES = ['', 'thaw', 'marinate', 'cook_overnight', 'cut', 'portion', 'thaw_marinate']
 const DIFF_LEVEL: Record<string, number> = { easy: 1, medium: 2, hard: 3 }
 const DIFF_COLOR: Record<string, string> = { easy: 'bg-green-400', medium: 'bg-amber-400', hard: 'bg-red-400' }
 
@@ -109,6 +110,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Fruit context</th>
                     <th className="px-3 py-2 font-medium">Cadence</th>
                     <th className="px-3 py-2 font-medium">Produce role</th>
+                    <th className="px-3 py-2 font-medium">Prep type</th>
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -126,7 +128,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={17} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={18} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -210,6 +212,12 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
             {PRODUCE_ROLES_BY_SLOT[dish.slot].map(r => <option key={r} value={r}>{r || '—'}</option>)}
           </select>
         ) : <span className="text-stone-300">—</span>}
+      </td>
+      <td className="px-3 py-1.5">
+        <select value={dish.prep_type ?? ''} onChange={e => onPatch(dish.id, { prep_type: e.target.value || null })}
+          className="bg-transparent text-stone-600 focus:outline-none">
+          {PREP_TYPES.map(p => <option key={p} value={p}>{p || '—'}</option>)}
+        </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}

@@ -49,6 +49,10 @@ export type Dish = {
   fruit_context: string | null
   cadence: Cadence | null
   produce_role: ProduceRole | null
+  prep_type: string | null
+  shop_ingredients: DishIngredient[] | null
+  prep_lead_days: number | null
+  prep_note: string | null
 }
 
 export type MealPlan = {
@@ -68,6 +72,7 @@ export type MealPlan = {
     needs_thaw?: boolean; needs_marinate?: boolean; prep_lead_days?: number | null; prep_note?: string | null
     bumbu_packet?: string | null; fruit_context?: string | null
     cadence?: Cadence | null; produce_role?: ProduceRole | null
+    prep_type?: string | null; shop_ingredients?: DishIngredient[] | null
   } | null
 }
 
@@ -116,4 +121,17 @@ export type DessertWeekItem = {
   dish_id: string
   dish_name: string
   kind: string
+}
+
+export type PrepTask = {
+  id: string
+  cook_date: string
+  prep_date: string
+  dish_id: string | null
+  dish_name: string | null
+  prep_type: string | null
+  instruction: string | null
+  assigned_to: string | null
+  done: boolean
+  done_at: string | null
 }

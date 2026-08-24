@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import type { MealPlan, Role, Slot } from '@/lib/meals/types'
+import Portal from '@/components/Portal'
 
 type Draft = { slot: Slot; role: Role; planned_dish_id: string | null; planned_dish_name: string | null
   actual_dish_id: string | null; actual_dish_name: string | null; cooked: boolean }
@@ -41,44 +42,46 @@ export default function CookLogSheet({ date, rows, entries, onClose, onSaved }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto">
-        <h3 className="text-lg text-stone-900 mb-3" style={{ fontFamily: 'DM Serif Display, serif' }}>What did you cook?</h3>
-        <div className="space-y-3">
-          {drafts.map((d, i) => {
-            const pool = pools[`${d.slot}|${d.role}`] ?? []
-            const options = [
-              ...(d.planned_dish_id ? [{ id: d.planned_dish_id, name: (d.planned_dish_name ?? '') + ' (planned)' }] : []),
-              ...pool.filter(o => o.id !== d.planned_dish_id),
-            ]
-            return (
-              <div key={`${d.slot}-${d.role}`} className={`border border-stone-200 rounded-xl p-2.5 ${!d.cooked ? 'opacity-60' : ''}`}>
-                <div className="text-[10px] uppercase tracking-wide text-stone-400">
-                  {d.slot === 'fruit' ? `fruit (${d.role === 'breakfast' ? 'breakfast' : 'dessert'})` : d.slot}
+    <Portal>
+      <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+        <div onClick={e => e.stopPropagation()} className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto">
+          <h3 className="text-lg text-stone-900 mb-3" style={{ fontFamily: 'DM Serif Display, serif' }}>What did you cook?</h3>
+          <div className="space-y-3">
+            {drafts.map((d, i) => {
+              const pool = pools[`${d.slot}|${d.role}`] ?? []
+              const options = [
+                ...(d.planned_dish_id ? [{ id: d.planned_dish_id, name: (d.planned_dish_name ?? '') + ' (planned)' }] : []),
+                ...pool.filter(o => o.id !== d.planned_dish_id),
+              ]
+              return (
+                <div key={`${d.slot}-${d.role}`} className={`border border-stone-200 rounded-xl p-2.5 ${!d.cooked ? 'opacity-60' : ''}`}>
+                  <div className="text-[10px] uppercase tracking-wide text-stone-400">
+                    {d.slot === 'fruit' ? `fruit (${d.role === 'breakfast' ? 'breakfast' : 'dessert'})` : d.slot}
+                  </div>
+                  <select value={d.actual_dish_id ?? ''} disabled={!d.cooked}
+                    onChange={e => { const id = e.target.value || null; const name = options.find(o => o.id === id)?.name.replace(' (planned)', '') ?? null; set(i, { actual_dish_id: id, actual_dish_name: name }) }}
+                    className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-sm mt-1">
+                    {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    <option value="">Other / free text…</option>
+                  </select>
+                  {!d.actual_dish_id && d.cooked && (
+                    <input value={d.actual_dish_name ?? ''} onChange={e => set(i, { actual_dish_name: e.target.value })}
+                      placeholder="What did you actually cook?" className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-sm mt-1.5" />
+                  )}
+                  <label className="flex items-center gap-2 text-xs text-stone-500 mt-2">
+                    <input type="checkbox" checked={!d.cooked} onChange={e => set(i, { cooked: !e.target.checked })} />
+                    Didn&apos;t cook / ate out
+                  </label>
                 </div>
-                <select value={d.actual_dish_id ?? ''} disabled={!d.cooked}
-                  onChange={e => { const id = e.target.value || null; const name = options.find(o => o.id === id)?.name.replace(' (planned)', '') ?? null; set(i, { actual_dish_id: id, actual_dish_name: name }) }}
-                  className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-sm mt-1">
-                  {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  <option value="">Other / free text…</option>
-                </select>
-                {!d.actual_dish_id && d.cooked && (
-                  <input value={d.actual_dish_name ?? ''} onChange={e => set(i, { actual_dish_name: e.target.value })}
-                    placeholder="What did you actually cook?" className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-sm mt-1.5" />
-                )}
-                <label className="flex items-center gap-2 text-xs text-stone-500 mt-2">
-                  <input type="checkbox" checked={!d.cooked} onChange={e => set(i, { cooked: !e.target.checked })} />
-                  Didn&apos;t cook / ate out
-                </label>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-3 py-1.5 text-sm text-stone-500">Cancel</button>
-          <button onClick={save} disabled={saving} className="px-4 py-1.5 rounded-lg bg-orange-600 text-white text-sm disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+              )
+            })}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={onClose} className="px-3 py-1.5 text-sm text-stone-500">Cancel</button>
+            <button onClick={save} disabled={saving} className="px-4 py-1.5 rounded-lg bg-orange-600 text-white text-sm disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   )
 }

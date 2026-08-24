@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { Camera, Loader2, Upload, Link2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/lib/meals/images'
+import Portal from '@/components/Portal'
 
 export default function PhotoUploadButton({
   dishId, onUploaded, label = 'Add photo', className = '', variant = 'button',
@@ -89,40 +90,42 @@ export default function PhotoUploadButton({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/30" onClick={() => !busy && setOpen(false)} />
-          <div className="relative bg-white rounded-2xl border border-stone-200 shadow-xl w-full max-w-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-stone-800 font-medium" style={{ fontFamily: 'DM Serif Display, serif' }}>Dish photo</h3>
-              <button onClick={() => !busy && setOpen(false)} className="p-1 rounded-lg text-stone-400 hover:bg-stone-100" aria-label="Close"><X size={18} /></button>
-            </div>
-
-            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
-              className="w-full flex items-center gap-2 justify-center px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white text-sm font-medium transition-colors">
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-              {busy ? 'Uploading…' : 'Upload from device'}
-            </button>
-
-            <div className="flex items-center gap-3 my-4 text-xs text-stone-400">
-              <span className="flex-1 h-px bg-stone-200" /> or <span className="flex-1 h-px bg-stone-200" />
-            </div>
-
-            <label className="block text-sm text-stone-600 mb-1.5">Paste an image URL</label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-200 focus-within:border-orange-300">
-                <Link2 size={15} className="text-stone-400 shrink-0" />
-                <input value={url} onChange={e => setUrl(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && saveUrl()}
-                  placeholder="https://…" autoFocus
-                  className="flex-1 min-w-0 bg-transparent text-sm text-stone-800 focus:outline-none" />
+        <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/30" onClick={() => !busy && setOpen(false)} />
+            <div className="relative bg-white rounded-2xl border border-stone-200 shadow-xl w-full max-w-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-stone-800 font-medium" style={{ fontFamily: 'DM Serif Display, serif' }}>Dish photo</h3>
+                <button onClick={() => !busy && setOpen(false)} className="p-1 rounded-lg text-stone-400 hover:bg-stone-100" aria-label="Close"><X size={18} /></button>
               </div>
-              <button type="button" onClick={saveUrl} disabled={busy || !url.trim()}
-                className="px-3 py-2 rounded-lg bg-stone-800 hover:bg-stone-900 disabled:opacity-40 text-white text-sm">Save</button>
-            </div>
 
-            {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
+              <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+                className="w-full flex items-center gap-2 justify-center px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white text-sm font-medium transition-colors">
+                {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {busy ? 'Uploading…' : 'Upload from device'}
+              </button>
+
+              <div className="flex items-center gap-3 my-4 text-xs text-stone-400">
+                <span className="flex-1 h-px bg-stone-200" /> or <span className="flex-1 h-px bg-stone-200" />
+              </div>
+
+              <label className="block text-sm text-stone-600 mb-1.5">Paste an image URL</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-stone-200 focus-within:border-orange-300">
+                  <Link2 size={15} className="text-stone-400 shrink-0" />
+                  <input value={url} onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveUrl()}
+                    placeholder="https://…" autoFocus
+                    className="flex-1 min-w-0 bg-transparent text-sm text-stone-800 focus:outline-none" />
+                </div>
+                <button type="button" onClick={saveUrl} disabled={busy || !url.trim()}
+                  className="px-3 py-2 rounded-lg bg-stone-800 hover:bg-stone-900 disabled:opacity-40 text-white text-sm">Save</button>
+              </div>
+
+              {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </>
   )
