@@ -205,3 +205,33 @@ fruit-slot dishes (Jeruk (sore), Pepaya (sore), Pisang (sore), Semangka
 `components/meals/PlanClient.tsx`, `components/meals/DishesClient.tsx`,
 `lib/meals/overview.ts` (comment only, + one test case), `dishes` table
 (migration), `dessert_week_items` (migration).
+
+## Addendum — discovered while writing the implementation plan
+
+Two ripple effects of the dual fruit-row model weren't caught in the
+original design pass. Both are technical necessities of what's already
+approved above (not scope changes), so they're folded straight into the
+implementation plan rather than reopening this design:
+
+1. **`cook_log` collides on the fruit slot too.** `cook_log` uniques on
+   `(cook_date, slot)` and has no `role` column. Once a day can hold two
+   `slot='fruit'` rows, the "cooked as planned" derivation (and
+   `CookLogSheet`'s per-row draft/pool keys) would produce two entries
+   under the identical `(cook_date, 'fruit')` key. Fix: add a `role`
+   column to `cook_log`, move its unique constraint to
+   `(cook_date, slot, role)` (table is empty, no backfill needed), and
+   make `app/api/meals/cook-log/route.ts` + `components/meals/CookLogSheet.tsx`
+   address rows by `(slot, role)` instead of `slot` alone.
+2. **`meal_plans` needs the same constraint move.** The existing
+   single-cell reroll upserts rely on a `(plan_date, slot)` unique
+   constraint on `meal_plans` for their `onConflict` target. That
+   constraint must become `(plan_date, slot, role)` for the same reason —
+   confirm its current exact name via `pg_constraint` before dropping it,
+   since every other slot's upsert (breakfast, utama, support slots)
+   already always writes a stable single `role` per slot and just needs
+   `role` added to its `onConflict` string.
+
+Both are covered by the implementation plan's Task 1 (migration) and
+Task 11 (cook-log route + sheet); Task 9 covers the `meal_plans`
+constraint migration and the accompanying `onConflict` updates across
+`app/api/meals/reroll/route.ts`.
