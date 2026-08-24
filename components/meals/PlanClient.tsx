@@ -299,7 +299,7 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
         </div>
       </div>
       {(breakfast || breakfastFruit) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-wrap gap-2">
           {breakfast && <SmallDishCard row={breakfast} date={date} emoji="🌅" onReplaceCell={onReplaceCell} />}
           {breakfastFruit && <SmallDishCard row={breakfastFruit} date={date} onReplaceCell={onReplaceCell} />}
         </div>
@@ -321,7 +321,7 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
       )}
 
       {(dessert || dessertFruit) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-wrap gap-2">
           {dessert && <SmallDishCard row={dessert} date={date} onReplaceCell={onReplaceCell} />}
           {dessertFruit && <SmallDishCard row={dessertFruit} date={date} onReplaceCell={onReplaceCell} />}
         </div>
@@ -465,9 +465,9 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
   )
 }
 
-// Compact image-left / label-right card — the breakfast pair and dessert
-// pair both use this, sized for a phone row rather than the dinner hero's
-// video-aspect thumbnail.
+// Vertical card — image on top, label below — matching SupportChip's shape.
+// The breakfast pair and dessert pair both use this, sized for a phone row
+// rather than the dinner hero's video-aspect thumbnail.
 function SmallDishCard({ row, date, emoji, onReplaceCell }: {
   row: MealPlan; date: string; emoji?: string; onReplaceCell: (r: MealPlan) => void
 }) {
@@ -483,25 +483,23 @@ function SmallDishCard({ row, date, emoji, onReplaceCell }: {
     setOpen(false)
   }
   return (
-    <div className="relative flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl pr-1.5 overflow-hidden">
-      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`}
-        className="flex items-center gap-2 min-w-0 flex-1 py-1.5">
+    <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
+      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
-          className="w-10 h-10 shrink-0 ml-1.5" rounded="rounded-lg" iconSize={18} />
-        <div className="min-w-0">
-          <div className="text-xs text-stone-800 leading-snug truncate">
-            {emoji && <span className="mr-1">{emoji}</span>}{row.dish_name ?? '—'}
-          </div>
+          className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
+        <div className="px-2 pt-1 pb-1.5">
+          <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.dishes?.slot ?? row.slot]}</div>
+          <div className="text-xs text-stone-700 leading-snug truncate">{emoji && <span className="mr-1">{emoji}</span>}{row.dish_name ?? '—'}</div>
           <div className="flex items-center gap-1 mt-0.5">
             {isTreat && <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700">eat-out</span>}
             {qty && <span className="text-[10px] text-stone-400 truncate">{qty}</span>}
           </div>
         </div>
       </Link>
-      <div className="flex gap-0.5 shrink-0">
+      <div className="absolute top-1 right-1 flex gap-0.5 z-10">
         <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
-        <button onClick={toggleLock} className={`p-0.5 rounded ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={12} /> : <Unlock size={12} />}</button>
-        <button onClick={openAlts} className="p-0.5 rounded text-stone-400 hover:text-stone-700"><Shuffle size={12} /></button>
+        <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
+        <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
       </div>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
