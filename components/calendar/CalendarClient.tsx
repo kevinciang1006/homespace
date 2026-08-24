@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Calendar, MapPin, Users, Plus, X, Link as LinkIcon } from 'lucide-react'
 import { type CalendarEvent } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
+import Portal from '@/components/Portal'
 
 type Guest = { name: string; email: string }
 
@@ -81,6 +82,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const labelCls = 'block text-xs font-medium text-stone-400 uppercase tracking-wider mb-1'
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="absolute inset-0 bg-black/25" onClick={onClose} />
       <div className="relative w-full md:max-w-md bg-white rounded-t-2xl md:rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
@@ -150,6 +152,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         </button>
       </div>
     </div>
+    </Portal>
   )
 }
 
