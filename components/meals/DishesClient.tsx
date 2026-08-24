@@ -13,6 +13,7 @@ const SALTINESS: { value: string; label: string }[] = [
   { value: 'normal', label: 'normal' }, { value: 'salty', label: 'salty' }, { value: 'very_salty', label: 'very salty' },
 ]
 const DIFFICULTY = ['easy', 'medium', 'hard'] as const
+const FRUIT_CONTEXTS = ['', 'breakfast', 'dessert', 'any']
 const DIFF_LEVEL: Record<string, number> = { easy: 1, medium: 2, hard: 3 }
 const DIFF_COLOR: Record<string, string> = { easy: 'bg-green-400', medium: 'bg-amber-400', hard: 'bg-red-400' }
 
@@ -100,6 +101,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
                     <th className="px-3 py-2 font-medium">Name</th>
                     <th className="px-3 py-2 font-medium">Group</th>
+                    <th className="px-3 py-2 font-medium">Fruit context</th>
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -117,7 +119,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={14} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={15} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -177,6 +179,14 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
           className="bg-transparent text-stone-600 focus:outline-none">
           {SLOTS.map(s => <option key={s} value={s}>{SLOT_LABELS[s]}</option>)}
         </select>
+      </td>
+      <td className="px-3 py-1.5">
+        {dish.slot === 'fruit' ? (
+          <select value={dish.fruit_context ?? ''} onChange={e => onPatch(dish.id, { fruit_context: e.target.value || null })}
+            className="bg-transparent text-stone-600 focus:outline-none">
+            {FRUIT_CONTEXTS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+          </select>
+        ) : <span className="text-stone-300">—</span>}
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}
