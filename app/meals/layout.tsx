@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { Settings } from 'lucide-react'
 import MealsTabs from '@/components/meals/MealsTabs'
 import MealsBottomNav from '@/components/meals/MealsBottomNav'
 
@@ -21,7 +22,13 @@ export default async function MealsLayout({ children }: { children: React.ReactN
             </Link>
             {userName && <span className="text-sm text-stone-500">Hi, {userName}</span>}
           </div>
-          <MealsTabs />
+          <div className="flex items-center gap-3">
+            <MealsTabs />
+            <Link href="/settings" aria-label="Notification settings"
+              className="p-2 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors">
+              <Settings size={18} />
+            </Link>
+          </div>
         </div>
       </header>
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 pb-24 sm:pb-6">{children}</main>
