@@ -69,6 +69,14 @@ describe('computeWeekOverview', () => {
     const o = computeWeekOverview(rows)
     expect(o.signals.find(s => s.emoji === '🍎')!.status).toBe('neutral')
   })
+  it('sums both a breakfast-fruit and a dessert-fruit row into the same day tally', () => {
+    const rows = D.flatMap(d => [
+      row({ plan_date: d, slot: 'fruit', role: 'breakfast', dishes: meta({ fruit_portions: 1 }) }),
+      row({ plan_date: d, slot: 'fruit', role: 'optional', dishes: meta({ fruit_portions: 1 }) }),
+    ])
+    const o = computeWeekOverview(rows)
+    expect(o.signals.find(s => s.emoji === '🍎')!.detail).toMatch(/7 of 7 days/)
+  })
   it('reports 2 eat-out breakfasts as good', () => {
     const rows = [breakfastRow('2026-08-11', 'special'), breakfastRow('2026-08-14', 'special'), breakfastRow('2026-08-12', 'everyday')]
     const o = computeWeekOverview(rows)

@@ -95,7 +95,9 @@ export function computeWeekOverview(rows: MealPlan[]): WeekOverview {
     status: 'neutral',
   }
 
-  // 8. Fruit tally — desert + evening fruit portions summed per day
+  // 8. Fruit tally — desert (dessert item) + both fruit pairings (breakfast,
+  // dessert) summed per day; role-agnostic on purpose, so this needed no
+  // code change when the fruit slot grew a second per-day row.
   const fruitByDay = dates.map(d => planned
     .filter(r => r.plan_date === d && (r.slot === 'fruit' || r.slot === 'desert'))
     .reduce((n, r) => n + (r.dishes?.fruit_portions ?? 0), 0))
