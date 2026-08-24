@@ -44,6 +44,7 @@ export type Dish = {
   qty_note: string | null
   veg_portions: number
   fruit_portions: number
+  fruit_context: string | null
 }
 
 export type MealPlan = {
@@ -61,7 +62,7 @@ export type MealPlan = {
     qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null
     veg_portions?: number; fruit_portions?: number
     needs_thaw?: boolean; needs_marinate?: boolean; prep_lead_days?: number | null; prep_note?: string | null
-    bumbu_packet?: string | null
+    bumbu_packet?: string | null; fruit_context?: string | null
   } | null
 }
 
@@ -102,4 +103,12 @@ export type Pick = {
   role: Role
   skipped: boolean
   note?: string
+}
+
+export type DessertWeekItem = {
+  id: string
+  week_start: string
+  dish_id: string
+  dish_name: string
+  kind: string
 }
