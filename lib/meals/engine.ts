@@ -523,7 +523,7 @@ export function generateWeek(input: {
 
 // Dev-only sanity check: scan a generated week and report any rule violations.
 export function validateWeek(
-  rows: { plan_date: string; slot?: Slot; dish_id: string | null; skipped?: boolean }[],
+  rows: { plan_date: string; slot?: Slot; role?: Role; dish_id: string | null; skipped?: boolean }[],
   dishById: Map<string, Dish>,
 ): string[] {
   const viol: string[] = []
@@ -591,12 +591,16 @@ export function validateWeek(
     if (hasAdjacent(treatDates)) viol.push(`⚠️ week: eat-out breakfasts on adjacent days (${treatDates.join(', ')})`)
   }
 
-  // --- Evening fruit: present every day; advisory on the ~2-fruit-portions target ---
+  // --- Fruit pairings: present every day for each role; advisory on the ~2-fruit-portions target ---
   const fruitRows = rows.filter(r => r.slot === 'fruit')
   if (fruitRows.length) {
-    for (const date of allDates) {
-      const planned = fruitRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
-      if (!planned) viol.push(`⚠️ ${date}: no evening fruit planned`)
+    for (const [role, label] of [['breakfast', 'breakfast fruit'], ['optional', 'dessert fruit']] as const) {
+      const roleRows = fruitRows.filter(r => r.role === role)
+      if (!roleRows.length) continue
+      for (const date of allDates) {
+        const planned = roleRows.some(r => r.plan_date === date && r.dish_id && !r.skipped)
+        if (!planned) viol.push(`⚠️ ${date}: no ${label} planned`)
+      }
     }
     const daysReaching2 = allDates.filter(date => {
       const total = rows
@@ -607,6 +611,12 @@ export function validateWeek(
     if (daysReaching2 < 5) {
       viol.push(`ℹ️ week: only ${daysReaching2} of ${allDates.length} days reach ~2 fruit portions`)
     }
+  }
+
+  // --- Dessert cap: no more than DESSERT_WEEK_CAP distinct dessert types/week ---
+  const dessertIds = new Set(rows.filter(r => r.slot === 'desert' && r.dish_id && !r.skipped).map(r => r.dish_id))
+  if (dessertIds.size > DESSERT_WEEK_CAP) {
+    viol.push(`⚠️ week: ${dessertIds.size} dessert types used (cap is ${DESSERT_WEEK_CAP})`)
   }
 
   return viol

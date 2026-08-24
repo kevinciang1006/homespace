@@ -919,14 +919,24 @@ describe('validateWeek (breakfast + evening fruit)', () => {
     const report = validateWeek(rows, byId)
     expect(report.some(v => v.includes('eat-out breakfast'))).toBe(false)
   })
-  it('flags a day with no evening fruit planned', () => {
+  it('flags a day with no breakfast-fruit planned', () => {
     const byId = new Map<string, Dish>([['fr', dish({ id: 'fr', slot: 'fruit' })]])
     const rows = [
-      { plan_date: '2026-08-17', slot: 'fruit' as Slot, dish_id: 'fr' },
-      { plan_date: '2026-08-18', slot: 'fruit' as Slot, dish_id: null },
+      { plan_date: '2026-08-17', slot: 'fruit' as Slot, role: 'breakfast' as Role, dish_id: 'fr' },
+      { plan_date: '2026-08-18', slot: 'fruit' as Slot, role: 'breakfast' as Role, dish_id: null },
     ]
     const report = validateWeek(rows, byId)
-    expect(report.some(v => v.includes('2026-08-18') && v.includes('no evening fruit'))).toBe(true)
+    expect(report.some(v => v.includes('2026-08-18') && v.includes('no breakfast fruit'))).toBe(true)
+    expect(report.some(v => v.includes('2026-08-17') && v.includes('no breakfast fruit'))).toBe(false)
+  })
+  it('flags a day with no dessert-fruit planned', () => {
+    const byId = new Map<string, Dish>([['fr', dish({ id: 'fr', slot: 'fruit' })]])
+    const rows = [
+      { plan_date: '2026-08-17', slot: 'fruit' as Slot, role: 'optional' as Role, dish_id: 'fr' },
+      { plan_date: '2026-08-18', slot: 'fruit' as Slot, role: 'optional' as Role, dish_id: null },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('2026-08-18') && v.includes('no dessert fruit'))).toBe(true)
   })
   it('gives an advisory when fewer than 5 of 7 days reach ~2 fruit portions', () => {
     const byId = new Map<string, Dish>([
@@ -967,6 +977,38 @@ describe('validateWeek (breakfast + evening fruit)', () => {
 })
 
 import { staleSoupRowIds } from './engine'
+
+describe('validateWeek (dessert cap)', () => {
+  it('flags more than DESSERT_WEEK_CAP distinct dessert dishes in the week', () => {
+    const byId = new Map<string, Dish>([
+      ['d1', dish({ id: 'd1', slot: 'desert', name: 'Kacang ijo' })],
+      ['d2', dish({ id: 'd2', slot: 'desert', name: 'Yogurt' })],
+      ['d3', dish({ id: 'd3', slot: 'desert', name: 'Brownie' })],
+      ['d4', dish({ id: 'd4', slot: 'desert', name: 'Banana cake' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-10', slot: 'desert' as Slot, dish_id: 'd1' },
+      { plan_date: '2026-08-11', slot: 'desert' as Slot, dish_id: 'd2' },
+      { plan_date: '2026-08-12', slot: 'desert' as Slot, dish_id: 'd3' },
+      { plan_date: '2026-08-13', slot: 'desert' as Slot, dish_id: 'd4' },
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('4 dessert types'))).toBe(true)
+  })
+  it('does not flag exactly DESSERT_WEEK_CAP distinct dessert dishes', () => {
+    const byId = new Map<string, Dish>([
+      ['d1', dish({ id: 'd1', slot: 'desert' })],
+      ['d2', dish({ id: 'd2', slot: 'desert' })],
+      ['d3', dish({ id: 'd3', slot: 'desert' })],
+    ])
+    const rows = [
+      { plan_date: '2026-08-10', slot: 'desert' as Slot, dish_id: 'd1' },
+      { plan_date: '2026-08-11', slot: 'desert' as Slot, dish_id: 'd2' },
+      { plan_date: '2026-08-12', slot: 'desert' as Slot, dish_id: 'd3' },
+    ]
+    expect(validateWeek(rows, byId).some(v => v.includes('dessert types'))).toBe(false)
+  })
+})
 
 describe('staleSoupRowIds (consistency: wet main must not keep a separate soup)', () => {
   const row = (over: { slot: Slot; id?: string; locked?: boolean; role?: MealPlan['role']
