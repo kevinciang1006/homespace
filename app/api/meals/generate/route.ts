@@ -2,8 +2,30 @@ import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot } from '@/lib/meals/types'
 import { generateWeek, validateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
+import { deriveWeekPrepTasks, type PlannedDish, type PrepTaskDraft } from '@/lib/meals/prepTasks'
 
 const rng = () => Math.random()
+
+// Insert-only: never updates or deletes an existing row, so a checked
+// `done` is never reset when the same week is generated again.
+async function syncPrepTasks(drafts: PrepTaskDraft[]) {
+  if (drafts.length === 0) return
+  const prepDates = [...new Set(drafts.map(d => d.prep_date))]
+  const { data: existingRaw } = await supabase.from('prep_tasks')
+    .select('cook_date, dish_id, prep_type, prep_date').in('prep_date', prepDates)
+  const existing = (existingRaw ?? []) as { cook_date: string; dish_id: string | null; prep_type: string | null; prep_date: string }[]
+  const existsAlready = (d: PrepTaskDraft) => existing.some(e =>
+    d.prep_type === 'thaw_batch'
+      ? e.prep_type === 'thaw_batch' && e.prep_date === d.prep_date
+      : e.cook_date === d.cook_date && e.dish_id === d.dish_id && e.prep_type === d.prep_type)
+  const toInsert = drafts.filter(d => !existsAlready(d))
+  if (toInsert.length) {
+    await supabase.from('prep_tasks').insert(toInsert.map(d => ({
+      cook_date: d.cook_date, prep_date: d.prep_date, dish_id: d.dish_id, dish_name: d.dish_name,
+      prep_type: d.prep_type, instruction: d.instruction, assigned_to: d.assigned_to,
+    })))
+  }
+}
 
 export async function POST(request: Request) {
   const { weekStart } = await request.json()
@@ -50,6 +72,19 @@ export async function POST(request: Request) {
       week_start: weekStart, dish_id: id, dish_name: dishById.get(id)?.name ?? 'Dish', kind: 'dessert',
     })))
   }
+
+  // Persist any newly-needed prep tasks (marinate/cook-overnight/cut/portion
+  // per dish, plus one consolidated weekend thaw task) for this week.
+  const plannedForPrep: PlannedDish[] = picks
+    .filter(p => p.dish_id && !p.skipped && dishById.get(p.dish_id)?.prep_type)
+    .map(p => {
+      const d = dishById.get(p.dish_id as string)!
+      return {
+        cook_date: p.plan_date, dish_id: p.dish_id as string, dish_name: p.dish_name ?? d.name,
+        prep_type: d.prep_type, prep_lead_days: d.prep_lead_days, prep_note: d.prep_note, protein: d.protein,
+      }
+    })
+  await syncPrepTasks(deriveWeekPrepTasks(weekStart, plannedForPrep))
 
   const rows = picks.filter(p => !p.locked).map(p => ({
     plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,

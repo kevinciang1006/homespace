@@ -47,6 +47,8 @@ export type Dish = {
   fruit_context: string | null
   prep_type: string | null
   shop_ingredients: DishIngredient[] | null
+  prep_lead_days: number | null
+  prep_note: string | null
 }
 
 export type MealPlan = {
