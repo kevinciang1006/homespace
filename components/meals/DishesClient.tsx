@@ -5,6 +5,8 @@ import { SLOTS, SLOT_LABELS, type Dish, type Slot, type Tier } from '@/lib/meals
 import { QTY_UNITS } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import DishEditorPanel from './DishEditorPanel'
+import PhotoUploadButton from './PhotoUploadButton'
+import RecipeLinkButton from './RecipeLinkButton'
 
 const PROTEINS = ['fish', 'chicken', 'pork', 'beef', 'shrimp', 'squid', 'crab', 'duck', 'egg', 'tofu_tempe', 'none', 'mixed']
 const TIERS: Tier[] = ['everyday', 'nice', 'special']
@@ -48,6 +50,12 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields),
     })
     if (!res.ok && prev) setDishes(ds => ds.map(d => d.id === id ? prev : d)) // rollback
+  }
+
+  // For buttons that persist themselves (PhotoUploadButton, RecipeLinkButton) —
+  // local state only, no second PATCH.
+  function syncDish(id: string, fields: Partial<Dish>) {
+    setDishes(ds => ds.map(d => d.id === id ? { ...d, ...fields } : d))
   }
 
   async function addDish(slot: Slot) {
@@ -126,7 +134,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onEdit={() => setEditingId(d.id)}
+                  {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onSync={syncDish} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
                   {rows.length === 0 && <tr><td colSpan={18} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
@@ -143,9 +151,10 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
   )
 }
 
-function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
+function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight }: {
   dish: Dish
   onPatch: (id: string, f: Partial<Dish>) => void
+  onSync: (id: string, f: Partial<Dish>) => void
   onEdit: () => void
   onDelete: (id: string, name: string) => void
   autoFocus?: boolean
@@ -308,6 +317,12 @@ function DishRow({ dish, onPatch, onEdit, onDelete, autoFocus, highlight }: {
       </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2 whitespace-nowrap">
+          <PhotoUploadButton dishId={dish.id} variant="icon"
+            label={dish.recipe_image_url ? 'Change photo' : 'Add photo'}
+            className="text-stone-400 hover:text-stone-700"
+            onUploaded={url => onSync(dish.id, { recipe_image_url: url })} />
+          <RecipeLinkButton dishId={dish.id} links={dish.recipe_links ?? []}
+            onSaved={next => onSync(dish.id, { recipe_links: next })} />
           <button onClick={onEdit}
             className="flex items-center gap-1 text-xs text-stone-500 hover:text-orange-600">
             <BookOpen size={14} /> Edit

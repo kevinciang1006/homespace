@@ -393,7 +393,10 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
         </div>
       </Link>
       <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} iconSize={14} />
+        {row.dish_id && (
+          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []} iconSize={14}
+            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+        )}
         <button onClick={toggleLock} title={row.locked ? 'Unlock' : 'Lock'}
           className={`p-1 rounded-lg bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-500 hover:text-stone-800'}`}>
           {row.locked ? <Lock size={14} /> : <Unlock size={14} />}
@@ -450,7 +453,10 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
             className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
             onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
         )}
-        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
+        {row.dish_id && (
+          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []}
+            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+        )}
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
       </div>
@@ -503,7 +509,10 @@ function SmallDishCard({ row, date, emoji, onReplaceCell }: {
             className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
             onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
         )}
-        <RecipeLinkButton row={row} onReplaceCell={onReplaceCell} />
+        {row.dish_id && (
+          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []}
+            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+        )}
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
       </div>

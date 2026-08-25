@@ -2,20 +2,19 @@
 import { useState } from 'react'
 import { Link2, Plus } from 'lucide-react'
 import { detectSource, type RecipeLink } from '@/lib/meals/recipeLinks'
-import type { MealPlan } from '@/lib/meals/types'
 
-export default function RecipeLinkButton({ row, onReplaceCell, iconSize = 11 }: {
-  row: MealPlan; onReplaceCell: (r: MealPlan) => void; iconSize?: number
+// Self-persisting, like PhotoUploadButton: the caller only needs to sync its
+// own local state via onSaved — this button owns the PATCH to the dish.
+export default function RecipeLinkButton({ dishId, links, onSaved, iconSize = 11 }: {
+  dishId: string; links: RecipeLink[]; onSaved: (next: RecipeLink[]) => void; iconSize?: number
 }) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [url, setUrl] = useState('')
-  const links = row.dishes?.recipe_links ?? []
-  if (!row.dish_id) return null
 
   async function save(next: RecipeLink[]) {
-    onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })
-    await fetch(`/api/meals/dishes/${row.dish_id}`, {
+    onSaved(next)
+    await fetch(`/api/meals/dishes/${dishId}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ recipe_links: next }),
     })
