@@ -113,7 +113,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
               <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium md:sticky md:left-0 md:z-10 bg-white md:border-r md:border-stone-100">Name</th>
                     <th className="px-3 py-2 font-medium">Group</th>
                     <th className="px-3 py-2 font-medium">Fruit context</th>
                     <th className="px-3 py-2 font-medium">Cadence</th>
@@ -179,10 +179,18 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
   }, [])
   return (
     <tr id={`dish-${dish.id}`} className={`border-b border-stone-50 last:border-0 ${highlight ? 'bg-orange-50/60' : ''}`}>
-      <td className="px-3 py-1.5">
+      <td className={`px-3 py-1.5 md:sticky md:left-0 md:z-10 md:border-r md:border-stone-100 ${highlight ? 'bg-orange-50' : 'bg-white'}`}>
         <div className="flex items-center gap-2">
-          <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
-            className="w-7 h-7 shrink-0" rounded="rounded-md" iconSize={14} />
+          <div className="relative shrink-0">
+            <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
+              className="w-10 h-10" rounded="rounded-lg" iconSize={18} />
+            <div className="absolute -bottom-1 -right-1">
+              <PhotoUploadButton dishId={dish.id} variant="icon"
+                label={dish.recipe_image_url ? 'Change photo' : 'Add photo'}
+                className="bg-white shadow border border-stone-200 text-stone-500 hover:text-stone-700"
+                onUploaded={url => onSync(dish.id, { recipe_image_url: url })} />
+            </div>
+          </div>
           <div className="min-w-0 flex-1">
             <input ref={nameRef} value={name} onChange={e => setName(e.target.value)}
               placeholder="Dish name…"
@@ -317,10 +325,6 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
       </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <PhotoUploadButton dishId={dish.id} variant="icon"
-            label={dish.recipe_image_url ? 'Change photo' : 'Add photo'}
-            className="text-stone-400 hover:text-stone-700"
-            onUploaded={url => onSync(dish.id, { recipe_image_url: url })} />
           <RecipeLinkButton dishId={dish.id} links={dish.recipe_links ?? []}
             onSaved={next => onSync(dish.id, { recipe_links: next })} />
           <button onClick={onEdit}
