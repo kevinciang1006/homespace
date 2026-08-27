@@ -100,17 +100,8 @@ function buildBreakfastContext(plan_date: string, allDishes: Dish[], plans: Meal
   return { ctx, breakfastPool, isSpecialDay: breakfastSpecialDays.has(plan_date) }
 }
 
-// On a provides_soup-main day the kuah slot really holds a 2nd vegetable, so it must be
-// rerolled from the sayuran pool (and stored back into the kuah slot).
-function poolSlotFor(slot: Slot, plan_date: string, plans: MealPlan[], allDishes: Dish[]): Slot {
-  if (slot !== 'kuah') return slot
-  const mainRow = plans.find(p => p.plan_date === plan_date && p.slot === 'utama')
-  const mainDish = mainRow?.dish_id ? allDishes.find(d => d.id === mainRow.dish_id) : undefined
-  return mainDish?.provides_soup ? 'sayuran' : 'kuah'
-}
-
 // `slot` is the storage slot (the cell being rerolled); `poolSlot` is the pool/rules slot
-// to pick from (differs only for a 2nd-veg kuah slot on a wet-main day).
+// to pick from — only differs for the 'pelengkap' cell (its pool spans 'sayuran' too).
 function buildSingleContext(plan_date: string, slot: Slot, allDishes: Dish[], plans: MealPlan[], week: string[], poolSlot: Slot = slot) {
   const dishById = new Map(allDishes.map(d => [d.id, d]))
   const weekSet = new Set(week)
@@ -460,8 +451,7 @@ export async function POST(request: Request) {
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ pick: data as MealPlan })
   }
-  const poolSlot = poolSlotFor(slot as Slot, plan_date, plans, allDishes)
-  const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week, poolSlot)
+  const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week)
   const p = pickForSlot(slotDishes, ctx, rng)
   const rowRole = roleForSlot(slot as Slot)
   const { data, error } = await supabase.from('meal_plans')
@@ -517,8 +507,7 @@ export async function GET(request: Request) {
       .map(({ d }) => ({ id: d.id, name: d.name }))
     return Response.json({ alternatives: pool })
   }
-  const poolSlot = poolSlotFor(slot, plan_date, plans, allDishes)
-  const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week, poolSlot)
+  const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week)
   const pool = candidates(slotDishes, ctx)
     .map(d => ({ d, w: weightFor(d, ctx) }))
     .sort((a, b) => b.w - a.w)

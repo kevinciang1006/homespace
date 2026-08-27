@@ -22,6 +22,7 @@ const PRODUCE_ROLES_BY_SLOT: Record<string, string[]> = {
   desert: ['', 'dessert_batch', 'dessert_cake'],
 }
 const PREP_TYPES = ['', 'thaw', 'marinate', 'cook_overnight', 'cut', 'portion', 'thaw_marinate']
+const VEG_STYLES = ['', 'dry', 'wet']
 const DIFF_LEVEL: Record<string, number> = { easy: 1, medium: 2, hard: 3 }
 const DIFF_COLOR: Record<string, string> = { easy: 'bg-green-400', medium: 'bg-amber-400', hard: 'bg-red-400' }
 
@@ -120,6 +121,8 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Produce role</th>
                     <th className="px-3 py-2 font-medium">Prep type</th>
                     <th className="px-3 py-2 font-medium">Helper</th>
+                    <th className="px-3 py-2 font-medium">Veg style</th>
+                    <th className="px-3 py-2 font-medium">Base key</th>
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -137,7 +140,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onSync={syncDish} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={19} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={21} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -164,6 +167,7 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
   const [name, setName] = useState(dish.name)
   const [qtyAmount, setQtyAmount] = useState(dish.qty_amount ?? '')
   const [qtyNote, setQtyNote] = useState(dish.qty_note ?? '')
+  const [baseKey, setBaseKey] = useState(dish.base_key ?? '')
   const nameRef = useRef<HTMLInputElement>(null)
   function saveQtyAmount() {
     const n = qtyAmount === '' ? null : Number(qtyAmount)
@@ -245,6 +249,20 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
             <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.is_dish_helper ? 'left-4' : 'left-0.5'}`} />
           </button>
         ) : <span className="text-stone-300">—</span>}
+      </td>
+      <td className="px-3 py-1.5">
+        {dish.slot === 'sayuran' ? (
+          <select value={dish.veg_style ?? ''} onChange={e => onPatch(dish.id, { veg_style: (e.target.value || null) as Dish['veg_style'] })}
+            className="bg-transparent text-stone-600 focus:outline-none">
+            {VEG_STYLES.map(v => <option key={v} value={v}>{v || '—'}</option>)}
+          </select>
+        ) : <span className="text-stone-300">—</span>}
+      </td>
+      <td className="px-3 py-1.5">
+        <input value={baseKey} onChange={e => setBaseKey(e.target.value)}
+          onBlur={() => { const v = baseKey.trim() || null; if (v !== dish.base_key) onPatch(dish.id, { base_key: v }) }}
+          placeholder="e.g. bakso, tahu…" title="Prevents duplicates on one plate — e.g. never a bakso soup + a bakso helper"
+          className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300" />
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}

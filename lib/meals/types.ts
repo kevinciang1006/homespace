@@ -48,6 +48,8 @@ export type Dish = {
   fruit_portions: number
   fruit_context: string | null
   is_dish_helper: boolean
+  veg_style: 'dry' | 'wet' | null
+  base_key: string | null
   cadence: Cadence | null
   produce_role: ProduceRole | null
   prep_type: string | null

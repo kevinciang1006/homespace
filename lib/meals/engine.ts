@@ -76,6 +76,14 @@ export function proteinClashOk(dish: Dish, ctx: PickContext): boolean {
   return !picksForDate(ctx, ctx.date).some(p => resolveDish(ctx, p.dish_id)?.protein === dish.protein)
 }
 
+// No two dishes on the same plate may share a base_key (e.g. two 'bakso' dishes —
+// a bakso soup + a bakso helper is the classic case). Hard rule, never relaxed —
+// same treatment as the saltiness cap.
+export function baseKeyOk(dish: Dish, ctx: PickContext): boolean {
+  if (!dish.base_key) return true
+  return !picksForDate(ctx, ctx.date).some(p => resolveDish(ctx, p.dish_id)?.base_key === dish.base_key)
+}
+
 export function specialOk(dish: Dish, ctx: PickContext): boolean {
   // day cap: at most one special dish across all slots
   const dayHasSpecial = picksForDate(ctx, ctx.date).some(
@@ -163,6 +171,7 @@ export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
     !dish.is_garnish &&
     dish.slot === ctx.slot &&
     realVegOk(dish, ctx) &&
+    baseKeyOk(dish, ctx) &&
     noRepeatOk(dish, ctx) &&
     proteinOk(dish, ctx) &&
     proteinClashOk(dish, ctx) &&
@@ -263,14 +272,16 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
 // (minus the slot-equality check, which doesn't apply to a cross-slot pool).
 export function helperCandidates(pool: Dish[], ctx: PickContext): Dish[] {
   return pool.filter(d =>
-    d.active && !d.is_garnish && d.is_dish_helper &&
+    d.active && !d.is_garnish && d.is_dish_helper && baseKeyOk(d, ctx) &&
     noRepeatOk(d, ctx) && proteinClashOk(d, ctx) && specialOk(d, ctx) &&
     friedOk(d, ctx) && spicyOk(d, ctx) && saltinessOk(d, ctx) &&
     difficultyOk(d, ctx) && spicyMainSpacingOk(d, ctx))
 }
 
 // Picks the day's one fried dish-helper (the "pelengkap" cell). Only called when
-// the main isn't already fried — see composeDay. Mirrors pickForSlot's relaxation
+// the main isn't fried/grilled — see composeDay. Called AFTER the soup-or-veg pick
+// so baseKeyOk sees whatever base_key that pick contributed (no duplicate bases,
+// e.g. never a bakso soup + a bakso helper). Mirrors pickForSlot's relaxation
 // ladder and last-resort fallback.
 export function pickHelper(pool: Dish[], ctx: PickContext, rng: Rng): Pick {
   for (const level of RELAX_LADDER) {
@@ -282,13 +293,29 @@ export function pickHelper(pool: Dish[], ctx: PickContext, rng: Rng): Pick {
     }
   }
   const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, spicyMainSpacing: true, noRepeatFactor: 0.5 } }
-  const anyActive = pool.filter(d => d.active && !d.is_garnish && d.is_dish_helper && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
+  const anyActive = pool.filter(d => d.active && !d.is_garnish && d.is_dish_helper && baseKeyOk(d, lastCtx) && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
   if (anyActive.length > 0) {
     const chosen = weightedPick(anyActive, lastCtx, rng)!
     return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
   }
   return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null,
     locked: false, role: ctx.role, skipped: false, note: 'no helper candidate available' }
+}
+
+// Picks a vegetable for the sayuran slot, preferring veg_style='dry' when asked
+// (a wet main or a fried/grilled main's exception both want a dry veg alongside
+// the soup/broth already on the plate) — falls back to any style if no dry
+// candidate is available, same "prefer X, fall back to the full pool" pattern
+// used elsewhere (pickBreakfastFruit's staples, fruitPoolFor).
+export function pickVeg(pool: Dish[], ctx: PickContext, rng: Rng, preferDry: boolean): Pick {
+  if (preferDry) {
+    const dryPool = pool.filter(d => d.veg_style === 'dry')
+    if (dryPool.length > 0) {
+      const p = pickForSlot(dryPool, ctx, rng)
+      if (p.dish_id) return p
+    }
+  }
+  return pickForSlot(pool, ctx, rng)
 }
 
 function toPick(ctx: PickContext, dish: Dish, note?: string): Pick {
@@ -472,20 +499,12 @@ export function pickEveningFruitForDay(batch: Dish[], ctx: PickContext, rng: Rng
   return toPick(ctx, weightedPick(pool, ctx, rng)!)
 }
 
-// A provides_soup main frees the kuah slot; fill it with an extra vegetable (stored in the
-// kuah slot to satisfy the one-row-per-slot constraint) picked under the sayuran rules, or
-// fall back to the broth note when no distinct second vegetable fits.
-function secondVegForKuah(sayuranPool: Dish[], ctx: PickContext, date: string, rng: Rng): Pick {
-  const veg = pickForSlot(sayuranPool, ctx, rng)
-  if (veg.dish_id) return { ...veg, slot: 'kuah' }
-  return { plan_date: date, slot: 'kuah', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true }
-}
-
 // Consistency check for stored plans: a provides_soup main must NOT share its day with a
-// separate soup dish (a real kuah-slot dish) in the kuah slot. Returns the ids of such
-// stale, non-locked soup rows so callers can blank them to the broth note. A second
-// vegetable already occupying the kuah slot (dishes.slot === 'sayuran') and locked rows
-// are left untouched (honor the lock).
+// separate soup dish (a real kuah-slot dish) in the kuah slot — UNLESS the main is also
+// fried/grilled (dry), which earns both a soup and a veg by the plate's one exception.
+// Returns the ids of such stale, non-locked soup rows so callers can blank them to the
+// broth note. A second vegetable already occupying the kuah slot (dishes.slot ===
+// 'sayuran') and locked rows are left untouched (honor the lock).
 export function staleSoupRowIds(rows: MealPlan[]): string[] {
   const byDate = new Map<string, MealPlan[]>()
   for (const r of rows) {
@@ -494,8 +513,10 @@ export function staleSoupRowIds(rows: MealPlan[]): string[] {
   }
   const ids: string[] = []
   for (const day of byDate.values()) {
-    const wetMain = day.some(r => r.slot === 'utama' && r.dishes?.provides_soup === true)
-    if (!wetMain) continue
+    const mainRow = day.find(r => r.slot === 'utama')
+    const wetMain = mainRow?.dishes?.provides_soup === true
+    const dryMain = mainRow?.dishes?.method === 'fried' || mainRow?.dishes?.method === 'grilled'
+    if (!wetMain || dryMain) continue
     for (const r of day) {
       if (r.slot === 'kuah' && r.dish_id && !r.skipped && !r.locked && r.dishes?.slot === 'kuah') ids.push(r.id)
     }
@@ -555,38 +576,53 @@ export function composeDay(input: {
     main = p.dish_id ? dishById.get(p.dish_id) : undefined
   }
   const providesSoup = main?.provides_soup ?? false
-  const mainFried = main?.method === 'fried'
+  // "Dry" main = fried or grilled (bakar) — the one exception to the 3-item plate:
+  // it earns BOTH a soup and a (dry-preferred) vegetable, and skips the helper
+  // (no all-fried days). Every other main gets exactly one of soup-or-veg, which
+  // compete for a single slot, PLUS one dish-helper.
+  const dryMain = main?.method === 'fried' || main?.method === 'grilled'
+  const skippedRow = (slot: Slot): Pick =>
+    ({ plan_date: date, slot, dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
 
-  // 2. SAYURAN — the day's ONE real vegetable, always (fried main or not — see
-  // realVegOk, which keeps fried dish-helpers out of this pool regardless of
-  // their own dish.slot). One more savory pick (the kuah slot) always follows,
-  // so plannedRemaining=1.
-  if (!isLocked('sayuran')) {
-    push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng))
-  }
-
-  // 2b. PELENGKAP — the day's ONE fried dish-helper. Only when the main isn't
-  // already fried: a fried main + a fried helper would stack two fried
-  // elements and crowd out the vegetable, so the day gets no helper instead
-  // (the eater's rule — see the spec this implements). The helper pool spans
-  // both 'sayuran' and 'pelengkap' dish.slot values, selected by is_dish_helper.
-  if (!isLocked('pelengkap')) {
-    if (mainFried) {
-      push({ plan_date: date, slot: 'pelengkap', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
-    } else {
-      const helperPool = [...(dishesBySlot.sayuran ?? []), ...(dishesBySlot.pelengkap ?? [])]
-      push(pickHelper(helperPool, mkCtx('pelengkap', 'support', 1), rng))
+  // 2. SOUP-OR-VEG — decided by the main's type. Runs BEFORE the helper so
+  // baseKeyOk (used by pickHelper below) sees whichever base_key this contributes,
+  // preventing e.g. a bakso soup + a bakso helper on the same plate.
+  const sayuranLocked = isLocked('sayuran')
+  const kuahLocked = isLocked('kuah')
+  if (dryMain) {
+    // exception: BOTH a soup and a dry-preferred veg (no helper — see below)
+    if (!sayuranLocked) push(pickVeg(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng, true))
+    if (!kuahLocked) push(pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 1), rng))
+  } else if (providesSoup) {
+    // wet main already brings its own broth → veg only (prefer dry, so the
+    // plate isn't soggy twice over), kuah skipped
+    if (!sayuranLocked) push(pickVeg(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng, true))
+    if (!kuahLocked) push(skippedRow('kuah'))
+  } else {
+    // prefer a soup; fall back to a veg only if no soup candidate exists at all
+    if (!kuahLocked) {
+      const soup = pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 1), rng)
+      push(soup)
+      if (!sayuranLocked) {
+        push(soup.dish_id ? skippedRow('sayuran') : pickVeg(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng, false))
+      }
+    } else if (!sayuranLocked) {
+      // kuah already locked (presumably to a soup) → the one slot is filled; skip sayuran
+      push(lockedDish('kuah') ? skippedRow('sayuran') : pickVeg(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng, false))
     }
   }
 
-  // 3. KUAH slot — a soup for a dry main; a SECOND sayuran for a provides_soup main.
-  //    A wet main already brings the broth, so a separate soup would be a second soup;
-  //    convert the freed slot to an extra vegetable instead (keeping 3 savory components).
-  if (!isLocked('kuah')) {
-    if (providesSoup) {
-      push(secondVegForKuah(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 0), date, rng))
+  // 3. PELENGKAP — the day's ONE fried dish-helper. Only when the main isn't
+  // dry (fried/grilled): a dry main already gets both soup+veg above and would
+  // otherwise stack a 4th, all-fried-adjacent item — the eater's rule this
+  // implements gives it no helper instead. The helper pool spans both 'sayuran'
+  // and 'pelengkap' dish.slot values (selected by is_dish_helper, not slot).
+  if (!isLocked('pelengkap')) {
+    if (dryMain) {
+      push(skippedRow('pelengkap'))
     } else {
-      push(pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 0), rng))
+      const helperPool = [...(dishesBySlot.sayuran ?? []), ...(dishesBySlot.pelengkap ?? [])]
+      push(pickHelper(helperPool, mkCtx('pelengkap', 'support', 0), rng))
     }
   }
 
@@ -667,11 +703,11 @@ export function validateWeek(
     byDate.get(r.plan_date)!.push(d)
   }
   // Row-level lookup (by the CELL's own slot, not the dish's) — needed for the
-  // fried dish-helper check below, since a helper's own dish.slot may be
+  // plate-composition check below, since a helper's own dish.slot may be
   // 'sayuran' (Tahu/Tempe goreng) even while it occupies the 'pelengkap' cell.
   const rowByKey = new Map<string, typeof rows[number]>()
   for (const r of rows) {
-    if (r.slot === 'utama' || r.slot === 'sayuran' || r.slot === 'pelengkap') rowByKey.set(`${r.plan_date}|${r.slot}`, r)
+    if (r.slot === 'utama' || r.slot === 'sayuran' || r.slot === 'kuah' || r.slot === 'pelengkap') rowByKey.set(`${r.plan_date}|${r.slot}`, r)
   }
 
   const dates = [...byDate.keys()].sort()
@@ -683,9 +719,12 @@ export function validateWeek(
     if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
     const garnish = ds.filter(d => d.is_garnish)
     if (garnish.length) viol.push(`⚠️ ${date}: garnish dish planned (${garnish.map(d => d.name).join(', ')})`)
-    const wetMain = ds.some(d => d.slot === 'utama' && d.provides_soup)
+    const mainDishForSoupCheck = ds.find(d => d.slot === 'utama')
+    const wetMain = mainDishForSoupCheck?.provides_soup === true
+    const dryMainForSoupCheck = mainDishForSoupCheck?.method === 'fried' || mainDishForSoupCheck?.method === 'grilled'
     const soups = ds.filter(d => d.slot === 'kuah')
-    if (wetMain && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
+    // A dry (fried/grilled) main is the one exception that legitimately keeps both.
+    if (wetMain && !dryMainForSoupCheck && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
     const byProtein = new Map<string, Dish[]>()
     for (const d of ds.filter(d => MEAT_PROTEINS.has(d.protein))) {
       if (!byProtein.has(d.protein)) byProtein.set(d.protein, [])
@@ -695,18 +734,47 @@ export function validateWeek(
       if (dupes.length > 1) viol.push(`⚠️ ${date}: ${dupes.length} ${protein} dishes (${dupes.map(d => d.name).join(', ')})`)
     }
 
-    // --- Fried dish-helper rule: 1 real veg always; helper present iff main isn't fried ---
+    // --- Plate composition: MAIN + helper + one-of-{soup,veg}, except a
+    // dry (fried/grilled) main which gets BOTH soup and veg and no helper ---
     const mainRow = rowByKey.get(`${date}|utama`)
     const mainDish = mainRow?.dish_id ? dishById.get(mainRow.dish_id) : undefined
     if (mainDish) {
-      const mainFried = mainDish.method === 'fried'
+      const dryMain = mainDish.method === 'fried' || mainDish.method === 'grilled'
       const sayuranRow = rowByKey.get(`${date}|sayuran`)
-      const hasRealVeg = !!(sayuranRow?.dish_id && !sayuranRow.skipped)
+      const vegDish = sayuranRow?.dish_id && !sayuranRow.skipped ? dishById.get(sayuranRow.dish_id) : undefined
+      const kuahRow = rowByKey.get(`${date}|kuah`)
+      const soupDish = kuahRow?.dish_id && !kuahRow.skipped ? dishById.get(kuahRow.dish_id) : undefined
       const pelengkapRow = rowByKey.get(`${date}|pelengkap`)
       const helperDish = pelengkapRow?.dish_id && !pelengkapRow.skipped ? dishById.get(pelengkapRow.dish_id) : undefined
-      if (!hasRealVeg) viol.push(`⚠️ ${date}: no real vegetable planned`)
-      if (mainFried && helperDish) viol.push(`⚠️ ${date}: fried main (${mainDish.name}) + fried helper (${helperDish.name}) — all-fried day`)
-      if (!mainFried && !helperDish) viol.push(`⚠️ ${date}: non-fried main (${mainDish.name}) with no fried dish-helper`)
+
+      // item count: main + helper? + veg? + soup? — 3 normally, 3 or 4 tolerated on a dry-main day
+      const count = 1 + (helperDish ? 1 : 0) + (vegDish ? 1 : 0) + (soupDish ? 1 : 0)
+      const countOk = dryMain ? (count === 3 || count === 4) : count === 3
+      if (!countOk) viol.push(`⚠️ ${date}: ${count} plate items (expected 3${dryMain ? ' or 4' : ''})`)
+
+      if (dryMain && helperDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) + a dish-helper (${helperDish.name}) — all-fried day`)
+      if (!dryMain && !helperDish) viol.push(`⚠️ ${date}: non-fried main (${mainDish.name}) with no dish-helper`)
+
+      if (dryMain) {
+        if (!vegDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) missing its vegetable`)
+        if (!soupDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) missing its soup`)
+      } else if (mainDish.provides_soup) {
+        if (!vegDish) viol.push(`⚠️ ${date}: wet main (${mainDish.name}) missing its vegetable`)
+      } else {
+        if (vegDish && soupDish) viol.push(`⚠️ ${date}: both a soup (${soupDish.name}) and a vegetable (${vegDish.name}) — only one should compete for the slot`)
+        if (!vegDish && !soupDish) viol.push(`⚠️ ${date}: no soup or vegetable planned`)
+      }
+
+      // no duplicate base_key among the day's SUPPORTING dishes (helper/veg/soup)
+      const supportBases = new Map<string, string[]>()
+      for (const d of [helperDish, vegDish, soupDish]) {
+        if (!d?.base_key) continue
+        if (!supportBases.has(d.base_key)) supportBases.set(d.base_key, [])
+        supportBases.get(d.base_key)!.push(d.name)
+      }
+      for (const [base, names] of supportBases) {
+        if (names.length > 1) viol.push(`⚠️ ${date}: duplicate base '${base}' among supporting dishes (${names.join(', ')})`)
+      }
     }
   }
   const hardDates = dates.filter(date => byDate.get(date)!.some(d => d.difficulty === 'hard'))
