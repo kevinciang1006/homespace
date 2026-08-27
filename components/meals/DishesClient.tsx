@@ -119,6 +119,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Cadence</th>
                     <th className="px-3 py-2 font-medium">Produce role</th>
                     <th className="px-3 py-2 font-medium">Prep type</th>
+                    <th className="px-3 py-2 font-medium">Helper</th>
                     <th className="px-3 py-2 font-medium">Protein</th>
                     <th className="px-3 py-2 font-medium">Tier</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -136,7 +137,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onSync={syncDish} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={18} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={19} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -235,6 +236,15 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
           className="bg-transparent text-stone-600 focus:outline-none">
           {PREP_TYPES.map(p => <option key={p} value={p}>{p || '—'}</option>)}
         </select>
+      </td>
+      <td className="px-3 py-1.5">
+        {(dish.slot === 'sayuran' || dish.slot === 'pelengkap') ? (
+          <button onClick={() => onPatch(dish.id, { is_dish_helper: !dish.is_dish_helper })} aria-label="Toggle dish helper"
+            title="Fried, easy-to-make appetite helper (Tahu goreng, Bakwan, Telur dadar…)"
+            className={`w-9 h-5 rounded-full transition-colors relative ${dish.is_dish_helper ? 'bg-orange-500' : 'bg-stone-200'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.is_dish_helper ? 'left-4' : 'left-0.5'}`} />
+          </button>
+        ) : <span className="text-stone-300">—</span>}
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}

@@ -149,11 +149,20 @@ export function spicyMainSpacingOk(dish: Dish, ctx: PickContext): boolean {
   return true
 }
 
+// The sayuran slot is the day's ONE real vegetable — a fried dish-helper (even one
+// whose own dish.slot happens to be 'sayuran', e.g. Tahu/Tempe goreng) must never
+// satisfy it, or the day would silently end up with no real vegetable at all.
+function realVegOk(dish: Dish, ctx: PickContext): boolean {
+  if (ctx.slot !== 'sayuran') return true
+  return !dish.is_dish_helper && dish.method !== 'fried'
+}
+
 export function passesHardRules(dish: Dish, ctx: PickContext): boolean {
   return (
     dish.active &&
     !dish.is_garnish &&
     dish.slot === ctx.slot &&
+    realVegOk(dish, ctx) &&
     noRepeatOk(dish, ctx) &&
     proteinOk(dish, ctx) &&
     proteinClashOk(dish, ctx) &&
@@ -247,6 +256,39 @@ export function pickForSlot(slotDishes: Dish[], ctx: PickContext, rng: Rng): Pic
   }
   return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null,
     locked: false, role: ctx.role, skipped: false, note: 'no candidate available' }
+}
+
+// The fried dish-helper pool spans TWO dish.slot values ('sayuran' and 'pelengkap')
+// — selection is by is_dish_helper, never by slot. Otherwise mirrors passesHardRules
+// (minus the slot-equality check, which doesn't apply to a cross-slot pool).
+export function helperCandidates(pool: Dish[], ctx: PickContext): Dish[] {
+  return pool.filter(d =>
+    d.active && !d.is_garnish && d.is_dish_helper &&
+    noRepeatOk(d, ctx) && proteinClashOk(d, ctx) && specialOk(d, ctx) &&
+    friedOk(d, ctx) && spicyOk(d, ctx) && saltinessOk(d, ctx) &&
+    difficultyOk(d, ctx) && spicyMainSpacingOk(d, ctx))
+}
+
+// Picks the day's one fried dish-helper (the "pelengkap" cell). Only called when
+// the main isn't already fried — see composeDay. Mirrors pickForSlot's relaxation
+// ladder and last-resort fallback.
+export function pickHelper(pool: Dish[], ctx: PickContext, rng: Rng): Pick {
+  for (const level of RELAX_LADDER) {
+    const c: PickContext = { ...ctx, relax: level.relax }
+    const cands = helperCandidates(pool, c)
+    if (cands.length > 0) {
+      const chosen = weightedPick(cands, c, rng)!
+      return toPick(ctx, chosen, level.note)
+    }
+  }
+  const lastCtx: PickContext = { ...ctx, relax: { spicy: true, fried: true, hardDay: true, hardSpacing: true, proteinClash: true, spicyMainSpacing: true, noRepeatFactor: 0.5 } }
+  const anyActive = pool.filter(d => d.active && !d.is_garnish && d.is_dish_helper && noRepeatOk(d, lastCtx) && saltinessOk(d, lastCtx))
+  if (anyActive.length > 0) {
+    const chosen = weightedPick(anyActive, lastCtx, rng)!
+    return toPick(ctx, chosen, 'relaxed: all soft rules dropped')
+  }
+  return { plan_date: ctx.date, slot: ctx.slot, dish_id: null, dish_name: null,
+    locked: false, role: ctx.role, skipped: false, note: 'no helper candidate available' }
 }
 
 function toPick(ctx: PickContext, dish: Dish, note?: string): Pick {
@@ -513,10 +555,28 @@ export function composeDay(input: {
     main = p.dish_id ? dishById.get(p.dish_id) : undefined
   }
   const providesSoup = main?.provides_soup ?? false
+  const mainFried = main?.method === 'fried'
 
-  // 2. SAYURAN — always. One more savory pick (the kuah slot) always follows, so plannedRemaining=1.
+  // 2. SAYURAN — the day's ONE real vegetable, always (fried main or not — see
+  // realVegOk, which keeps fried dish-helpers out of this pool regardless of
+  // their own dish.slot). One more savory pick (the kuah slot) always follows,
+  // so plannedRemaining=1.
   if (!isLocked('sayuran')) {
     push(pickForSlot(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng))
+  }
+
+  // 2b. PELENGKAP — the day's ONE fried dish-helper. Only when the main isn't
+  // already fried: a fried main + a fried helper would stack two fried
+  // elements and crowd out the vegetable, so the day gets no helper instead
+  // (the eater's rule — see the spec this implements). The helper pool spans
+  // both 'sayuran' and 'pelengkap' dish.slot values, selected by is_dish_helper.
+  if (!isLocked('pelengkap')) {
+    if (mainFried) {
+      push({ plan_date: date, slot: 'pelengkap', dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
+    } else {
+      const helperPool = [...(dishesBySlot.sayuran ?? []), ...(dishesBySlot.pelengkap ?? [])]
+      push(pickHelper(helperPool, mkCtx('pelengkap', 'support', 1), rng))
+    }
   }
 
   // 3. KUAH slot — a soup for a dry main; a SECOND sayuran for a provides_soup main.
@@ -606,6 +666,14 @@ export function validateWeek(
     if (!byDate.has(r.plan_date)) byDate.set(r.plan_date, [])
     byDate.get(r.plan_date)!.push(d)
   }
+  // Row-level lookup (by the CELL's own slot, not the dish's) — needed for the
+  // fried dish-helper check below, since a helper's own dish.slot may be
+  // 'sayuran' (Tahu/Tempe goreng) even while it occupies the 'pelengkap' cell.
+  const rowByKey = new Map<string, typeof rows[number]>()
+  for (const r of rows) {
+    if (r.slot === 'utama' || r.slot === 'sayuran' || r.slot === 'pelengkap') rowByKey.set(`${r.plan_date}|${r.slot}`, r)
+  }
+
   const dates = [...byDate.keys()].sort()
   for (const date of dates) {
     const ds = byDate.get(date)!
@@ -615,8 +683,6 @@ export function validateWeek(
     if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
     const garnish = ds.filter(d => d.is_garnish)
     if (garnish.length) viol.push(`⚠️ ${date}: garnish dish planned (${garnish.map(d => d.name).join(', ')})`)
-    const peleng = ds.filter(d => d.slot === 'pelengkap')
-    if (peleng.length) viol.push(`⚠️ ${date}: pelengkap slot generated (${peleng.map(d => d.name).join(', ')})`)
     const wetMain = ds.some(d => d.slot === 'utama' && d.provides_soup)
     const soups = ds.filter(d => d.slot === 'kuah')
     if (wetMain && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
@@ -627,6 +693,20 @@ export function validateWeek(
     }
     for (const [protein, dupes] of byProtein) {
       if (dupes.length > 1) viol.push(`⚠️ ${date}: ${dupes.length} ${protein} dishes (${dupes.map(d => d.name).join(', ')})`)
+    }
+
+    // --- Fried dish-helper rule: 1 real veg always; helper present iff main isn't fried ---
+    const mainRow = rowByKey.get(`${date}|utama`)
+    const mainDish = mainRow?.dish_id ? dishById.get(mainRow.dish_id) : undefined
+    if (mainDish) {
+      const mainFried = mainDish.method === 'fried'
+      const sayuranRow = rowByKey.get(`${date}|sayuran`)
+      const hasRealVeg = !!(sayuranRow?.dish_id && !sayuranRow.skipped)
+      const pelengkapRow = rowByKey.get(`${date}|pelengkap`)
+      const helperDish = pelengkapRow?.dish_id && !pelengkapRow.skipped ? dishById.get(pelengkapRow.dish_id) : undefined
+      if (!hasRealVeg) viol.push(`⚠️ ${date}: no real vegetable planned`)
+      if (mainFried && helperDish) viol.push(`⚠️ ${date}: fried main (${mainDish.name}) + fried helper (${helperDish.name}) — all-fried day`)
+      if (!mainFried && !helperDish) viol.push(`⚠️ ${date}: non-fried main (${mainDish.name}) with no fried dish-helper`)
     }
   }
   const hardDates = dates.filter(date => byDate.get(date)!.some(d => d.difficulty === 'hard'))

@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { SLOTS, type Dish, type MealPlan, type Slot, type Role } from '@/lib/meals/types'
 import { candidates, composeDay, pickForSlot, pickBreakfast, breakfastCandidates, weightFor,
   fruitPoolFor, pickDessertForDay, pickBreakfastFruit, pickEveningFruitForDay,
-  preassignBreakfastSpecialDays, preassignEveningFruitDays,
+  preassignBreakfastSpecialDays, preassignEveningFruitDays, helperCandidates, pickHelper,
   type PickContext } from '@/lib/meals/engine'
 import { pickDessertBatch, DESSERT_WEEK_CAP, type DessertBatchOptions } from '@/lib/meals/dessert'
 import { pickEveningFruitBatch, EVENING_FRUIT_WEEK_CAP, EVENING_FRUIT_MIN_DAYS, EVENING_FRUIT_MAX_DAYS, type EveningFruitOptions } from '@/lib/meals/eveningFruit'
@@ -425,6 +425,29 @@ export async function POST(request: Request) {
     return Response.json({ pick: data as MealPlan })
   }
 
+  // ---- PELENGKAP (fried dish-helper) reroll → pool spans BOTH 'sayuran' and
+  // 'pelengkap' dish.slot values, selected by is_dish_helper — never by slot ----
+  if (slot === 'pelengkap') {
+    const { week: hWeek, allDishes: hAllDishes, plans: hPlans } = await loadWeek(plan_date)
+    if (body.dish_id) {
+      const d = hAllDishes.find(x => x.id === body.dish_id)
+      if (!d) return Response.json({ error: 'dish not found' }, { status: 404 })
+      const { data, error } = await supabase.from('meal_plans')
+        .upsert({ plan_date, slot: 'pelengkap', dish_id: d.id, dish_name: d.name, locked: false, role: 'support', skipped: false },
+          { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
+      if (error) return Response.json({ error: error.message }, { status: 500 })
+      return Response.json({ pick: data as MealPlan })
+    }
+    const helperPool = hAllDishes.filter(d => d.is_dish_helper === true)
+    const { ctx } = buildSingleContext(plan_date, 'pelengkap', hAllDishes, hPlans, hWeek, 'pelengkap')
+    const p = pickHelper(helperPool, ctx, rng)
+    const { data, error } = await supabase.from('meal_plans')
+      .upsert({ plan_date, slot: 'pelengkap', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'support', skipped: p.skipped },
+        { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ pick: data as MealPlan })
+  }
+
   // ---- SUPPORT / OPTIONAL reroll → swap one ----
   const { week, allDishes, plans } = await loadWeek(plan_date)
   if (body.dish_id) {
@@ -483,6 +506,16 @@ export async function GET(request: Request) {
     const staples = pool.filter(d => d.produce_role === 'breakfast_fruit')
     const candidatePool = staples.length > 0 ? staples : pool
     return Response.json({ alternatives: candidatePool.map(d => ({ id: d.id, name: d.name })) })
+  }
+  if (slot === 'pelengkap') {
+    const helperPool = allDishes.filter(d => d.is_dish_helper === true)
+    const { ctx } = buildSingleContext(plan_date, 'pelengkap', allDishes, plans, week, 'pelengkap')
+    const pool = helperCandidates(helperPool, ctx)
+      .map(d => ({ d, w: weightFor(d, ctx) }))
+      .sort((a, b) => b.w - a.w)
+      .slice(0, n)
+      .map(({ d }) => ({ id: d.id, name: d.name }))
+    return Response.json({ alternatives: pool })
   }
   const poolSlot = poolSlotFor(slot, plan_date, plans, allDishes)
   const { ctx, slotDishes } = buildSingleContext(plan_date, slot, allDishes, plans, week, poolSlot)

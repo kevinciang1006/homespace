@@ -12,7 +12,7 @@ function dish(over: Partial<Dish> & { id: string; slot: Slot }): Dish {
     ingredients: null, recipe_steps: null, recipe_image_url: null,
     richness: 'medium', provides_soup: false,
     saltiness: 'normal', difficulty: 'medium', is_garnish: false, fruit_context: null,
-    cadence: null, produce_role: null, ...over,
+    is_dish_helper: false, cadence: null, produce_role: null, ...over,
   } as Dish
 }
 function plan(over: Partial<MealPlan> & { plan_date: string; slot: Slot }): MealPlan {
@@ -492,9 +492,18 @@ function pools() {
   const mk = (slot: Slot, n: number, over: Partial<Dish> = {}) =>
     Array.from({ length: n }, (_, i) => dish({ id: `${slot}-${i}`, slot, ...over,
       protein: slot === 'utama' ? ['beef','chicken','fish','egg','tofu_tempe','shrimp','duck'][i % 7] : 'none' }))
+  // Fried dish-helpers live in MIXED dish.slot values in real data (some
+  // 'pelengkap', some 'sayuran', e.g. Tahu/Tempe goreng) — mirror that here so
+  // the helper pool has candidates from both slots, like production. Added
+  // ON TOP of the plain pools (not converted from them) so tests that rely on
+  // sayuran's original real-vegetable capacity are unaffected.
+  const pelengkap = mk('pelengkap', 9)
+  pelengkap.slice(0, 3).forEach(d => { d.is_dish_helper = true; d.method = 'fried' })
+  const sayuran = mk('sayuran', 8)
+  sayuran.push(dish({ id: 'sayuran-helper', slot: 'sayuran', protein: 'tofu_tempe', is_dish_helper: true, method: 'fried' }))
   return {
-    breakfast: [] as Dish[], utama: mk('utama', 12), kuah: mk('kuah', 8), pelengkap: mk('pelengkap', 9),
-    sayuran: mk('sayuran', 8), fruit: [] as Dish[], desert: mk('desert', 8),
+    breakfast: [] as Dish[], utama: mk('utama', 12), kuah: mk('kuah', 8), pelengkap,
+    sayuran, fruit: [] as Dish[], desert: mk('desert', 8),
   }
 }
 
@@ -507,17 +516,19 @@ describe('composeDay (3-component plate)', () => {
       rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
   }
 
-  it('main that does NOT provide soup → main + sayuran + soup + desert, no pelengkap', () => {
+  it('main that does NOT provide soup → main + sayuran + soup + desert + a fried helper (main is not fried)', () => {
     const p = pools(); p.utama.forEach(d => { d.provides_soup = false })
     const created = run(p)
     expect(created.filter(x => x.role === 'main' && x.slot === 'utama').length).toBe(1)
     expect(created.some(x => x.slot === 'sayuran' && x.dish_id)).toBe(true)
     expect(created.some(x => x.slot === 'kuah' && x.dish_id && !x.skipped)).toBe(true)
     expect(created.some(x => x.slot === 'desert' && x.role === 'optional')).toBe(true)
-    expect(created.some(x => x.slot === 'pelengkap')).toBe(false)
+    const pelengkap = created.find(x => x.slot === 'pelengkap')!
+    expect(pelengkap.dish_id).toBeTruthy()     // non-fried main → a fried helper is included
+    expect(pelengkap.skipped).toBe(false)
   })
 
-  it('main that provides soup → kuah slot becomes a SECOND sayuran (no separate soup), no pelengkap', () => {
+  it('main that provides soup → kuah slot becomes a SECOND sayuran (no separate soup); helper still included (main isn\'t fried)', () => {
     const p = pools(); p.utama.forEach(d => { d.provides_soup = true })
     const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
     const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks: [],
@@ -533,7 +544,8 @@ describe('composeDay (3-component plate)', () => {
     expect(new Set(vegIds).size).toBe(2)
     // no actual soup dish anywhere
     expect(created.some(x => x.dish_id && dishById.get(x.dish_id)!.slot === 'kuah')).toBe(false)
-    expect(created.some(x => x.slot === 'pelengkap')).toBe(false)
+    // provides_soup is independent of method — this main isn't fried, so a helper is still expected
+    expect(created.find(x => x.slot === 'pelengkap')!.dish_id).toBeTruthy()
   })
 
   it('LOCKED provides-soup main (reshuffle case) → kuah still converts to a 2nd veg, no soup', () => {
@@ -774,7 +786,7 @@ describe('generateWeek (compose)', () => {
       .map(p => WEEK.indexOf(p.plan_date)).sort((a,b)=>a-b)
     expect(specialDays.length).toBe(2)
     expect(specialDays[1] - specialDays[0]).toBeGreaterThanOrEqual(2)
-    expect(picks.some(p => p.slot === 'pelengkap' && p.dish_id)).toBe(false)
+    // fried dish-helper composition is covered by its own describe block below
   })
 
   it('preserves a locked cell', () => {
@@ -799,9 +811,13 @@ describe('generateWeek (compose)', () => {
     const report = validateWeek(picks.map(p => ({ plan_date: p.plan_date, dish_id: p.dish_id, skipped: p.skipped })), byId)
     expect(report.filter(v => v.includes('soup'))).toEqual([])            // no stranded soups
     for (const date of WEEK) {
-      const day = picks.filter(p => p.plan_date === date && p.dish_id).map(p => byId.get(p.dish_id!)!)
+      const dayPicks = picks.filter(p => p.plan_date === date && p.dish_id)
+      const day = dayPicks.map(p => byId.get(p.dish_id!)!)
       expect(day.some(d => d.slot === 'kuah')).toBe(false)               // never a real soup dish
-      expect(day.filter(d => d.slot === 'sayuran').length).toBe(2)       // freed slot → a second vegetable
+      // exactly 2 real-vegetable CELLS filled (sayuran + the kuah-converted slot) —
+      // checked by cell, not by dish.slot, since a helper's own dish.slot can also
+      // be 'sayuran' (e.g. Tahu goreng) if it lands in the pelengkap cell instead.
+      expect(dayPicks.filter(p => (p.slot === 'sayuran' || p.slot === 'kuah') && p.dish_id).length).toBe(2)
     }
   })
 })
@@ -963,10 +979,10 @@ describe('validateWeek', () => {
     ]
     expect(validateWeek(rows, byId)).toEqual([])
   })
-  it('flags a garnish dish and a pelengkap pick in the week', () => {
+  it('flags a garnish dish (a pelengkap-slot pick is no longer flagged — it\'s a valid dish-helper slot now)', () => {
     const byId = new Map<string, Dish>([
       ['g', dish({ id: 'g', slot: 'sayuran', name: 'Teri krispi', is_garnish: true })],
-      ['p', dish({ id: 'p', slot: 'pelengkap', name: 'Old side' })],
+      ['p', dish({ id: 'p', slot: 'pelengkap', name: 'Bakwan' })],
     ])
     const rows = [
       { plan_date: '2026-08-17', dish_id: 'g' },
@@ -974,7 +990,7 @@ describe('validateWeek', () => {
     ]
     const report = validateWeek(rows, byId)
     expect(report.some(v => v.includes('garnish') && v.includes('Teri krispi'))).toBe(true)
-    expect(report.some(v => v.includes('pelengkap'))).toBe(true)
+    expect(report.some(v => v.includes('pelengkap slot generated'))).toBe(false)
   })
   it('flags a plate with two dishes sharing a meat protein', () => {
     const byId = new Map<string, Dish>([
@@ -1248,6 +1264,172 @@ describe('garnish + inactive exclusion', () => {
     const garnish = dish({ id: 'g', slot: 'sayuran', is_garnish: true })
     const c = ctx({ date: '2026-08-13', slot: 'sayuran', dishes: [garnish] })
     expect(pickForSlot([garnish], c, seq([0.5])).dish_id).toBeNull()
+  })
+})
+
+import { helperCandidates, pickHelper } from './engine'
+
+describe('passesHardRules (sayuran excludes fried dish-helpers — the "real vegetable" rule)', () => {
+  it('rejects an is_dish_helper dish for the sayuran slot even though dish.slot matches', () => {
+    const helperVeg = dish({ id: 'tahu', slot: 'sayuran', is_dish_helper: true, method: 'fried' })
+    const realVeg = dish({ id: 'kangkung', slot: 'sayuran' })
+    const c = ctx({ date: '2026-08-10', slot: 'sayuran', dishes: [helperVeg, realVeg] })
+    expect(passesHardRules(helperVeg, c)).toBe(false)
+    expect(passesHardRules(realVeg, c)).toBe(true)
+  })
+  it('rejects a fried, non-helper sayuran dish too (defense in depth)', () => {
+    const friedVeg = dish({ id: 'friedveg', slot: 'sayuran', method: 'fried' })
+    const c = ctx({ date: '2026-08-10', slot: 'sayuran', dishes: [friedVeg] })
+    expect(passesHardRules(friedVeg, c)).toBe(false)
+  })
+  it('does not exclude a helper-tagged dish from a non-sayuran slot', () => {
+    const helper = dish({ id: 'bakwan', slot: 'pelengkap', is_dish_helper: true, method: 'fried' })
+    const c = ctx({ date: '2026-08-10', slot: 'pelengkap', dishes: [helper] })
+    expect(passesHardRules(helper, c)).toBe(true)
+  })
+})
+
+describe('helperCandidates / pickHelper', () => {
+  it('only returns is_dish_helper dishes, regardless of their own dish.slot', () => {
+    const helperA = dish({ id: 'tahu', slot: 'sayuran', is_dish_helper: true, method: 'fried' })
+    const helperB = dish({ id: 'bakwan', slot: 'pelengkap', is_dish_helper: true, method: 'fried' })
+    const notHelper = dish({ id: 'kangkung', slot: 'sayuran' })
+    const c = ctx({ date: '2026-08-10', slot: 'pelengkap', dishes: [helperA, helperB, notHelper] })
+    expect(helperCandidates([helperA, helperB, notHelper], c).map(d => d.id).sort()).toEqual(['bakwan', 'tahu'])
+  })
+  it('respects the no-repeat window like other picks', () => {
+    const helperA = dish({ id: 'tahu', slot: 'sayuran', is_dish_helper: true, method: 'fried' })
+    const helperB = dish({ id: 'bakwan', slot: 'pelengkap', is_dish_helper: true, method: 'fried' })
+    const priorPlans = [plan({ plan_date: '2026-08-05', slot: 'pelengkap', dish_id: 'tahu' })] // 5d ago, window=7
+    const c = ctx({ date: '2026-08-10', slot: 'pelengkap', dishes: [helperA, helperB], priorPlans })
+    expect(helperCandidates([helperA, helperB], c).map(d => d.id)).toEqual(['bakwan'])
+  })
+  it('pickHelper returns dish_id: null (not skipped) when no helper candidate exists', () => {
+    const notHelper = dish({ id: 'kangkung', slot: 'sayuran' })
+    const c = ctx({ date: '2026-08-10', slot: 'pelengkap', dishes: [notHelper] })
+    const p = pickHelper([notHelper], c, seq([0.5]))
+    expect(p.dish_id).toBeNull()
+    expect(p.skipped).toBe(false)
+  })
+})
+
+describe('composeDay (fried dish-helper rule)', () => {
+  const run = (dishesBySlot: Record<Slot, Dish[]>, rngSeq: number[]) => {
+    const dishById = new Map(Object.values(dishesBySlot).flat().map(d => [d.id, d]))
+    return composeDay({ date: '2026-08-10', dishesBySlot, dishById, priorPlans: [], runPicks: [],
+      lockedByCell: new Map(), specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: dishesBySlot.desert, eveningFruitBatch: [], eveningFruitDays: new Set(),
+      rng: seq(rngSeq) })
+  }
+
+  it('non-fried main → sayuran gets a real (non-helper) veg AND pelengkap gets a fried helper', () => {
+    const p = pools() // utama dishes have method: null (not fried) by default
+    const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
+    const created = run(p, [0.3,0.6,0.1,0.8,0.5,0.2])
+    const sayuran = created.find(x => x.slot === 'sayuran')!
+    expect(sayuran.dish_id).toBeTruthy()
+    expect(dishById.get(sayuran.dish_id!)!.is_dish_helper).toBeFalsy()
+    const pelengkap = created.find(x => x.slot === 'pelengkap')!
+    expect(pelengkap.dish_id).toBeTruthy()
+    expect(pelengkap.skipped).toBe(false)
+    expect(dishById.get(pelengkap.dish_id!)!.is_dish_helper).toBe(true)
+  })
+
+  it('fried main → pelengkap is skipped (no helper); sayuran still gets a real veg — never an all-fried day', () => {
+    const p = pools()
+    p.utama.forEach(d => { d.method = 'fried' })
+    const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
+    const created = run(p, [0.3,0.6,0.1,0.8,0.5,0.2])
+    const pelengkap = created.find(x => x.slot === 'pelengkap')!
+    expect(pelengkap.dish_id).toBeNull()
+    expect(pelengkap.skipped).toBe(true)
+    const sayuran = created.find(x => x.slot === 'sayuran')!
+    expect(sayuran.dish_id).toBeTruthy()
+    expect(dishById.get(sayuran.dish_id!)!.is_dish_helper).toBeFalsy()
+  })
+
+  it('a LOCKED pelengkap cell is left untouched regardless of the (re-)composed main', () => {
+    const p = pools()
+    p.utama.forEach(d => { d.method = 'fried' })
+    const dishById = new Map(Object.values(p).flat().map(d => [d.id, d]))
+    const lockedByCell = new Map([['2026-08-10|pelengkap',
+      { plan_date: '2026-08-10', slot: 'pelengkap', dish_id: 'pelengkap-0' } as MealPlan]])
+    const created = composeDay({ date: '2026-08-10', dishesBySlot: p, dishById, priorPlans: [], runPicks: [],
+      lockedByCell, specialDays: new Set(), hardDays: new Set(), breakfastSpecialDays: new Set(),
+      dessertBatch: p.desert, eveningFruitBatch: [], eveningFruitDays: new Set(),
+      rng: seq([0.3,0.6,0.1,0.8,0.5,0.2]) })
+    expect(created.some(x => x.slot === 'pelengkap')).toBe(false) // locked cell isn't re-pushed
+  })
+})
+
+describe('validateWeek (fried dish-helper rule)', () => {
+  function row(over: { plan_date: string; slot: Slot; dish_id: string | null; skipped?: boolean }) {
+    return { skipped: false, ...over }
+  }
+  it('flags a fried main paired with a fried helper (all-fried day)', () => {
+    const byId = new Map<string, Dish>([
+      ['m', dish({ id: 'm', slot: 'utama', name: 'Ayam goreng', method: 'fried' })],
+      ['h', dish({ id: 'h', slot: 'pelengkap', name: 'Bakwan', is_dish_helper: true, method: 'fried' })],
+      ['v', dish({ id: 'v', slot: 'sayuran', name: 'Tumis kangkung' })],
+    ])
+    const rows = [
+      row({ plan_date: '2026-08-17', slot: 'utama', dish_id: 'm' }),
+      row({ plan_date: '2026-08-17', slot: 'pelengkap', dish_id: 'h' }),
+      row({ plan_date: '2026-08-17', slot: 'sayuran', dish_id: 'v' }),
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('all-fried day'))).toBe(true)
+  })
+  it('flags a non-fried main with no dish-helper', () => {
+    const byId = new Map<string, Dish>([
+      ['m', dish({ id: 'm', slot: 'utama', name: 'Ayam kecap' })],
+      ['v', dish({ id: 'v', slot: 'sayuran', name: 'Tumis kangkung' })],
+    ])
+    const rows = [
+      row({ plan_date: '2026-08-17', slot: 'utama', dish_id: 'm' }),
+      row({ plan_date: '2026-08-17', slot: 'sayuran', dish_id: 'v' }),
+      row({ plan_date: '2026-08-17', slot: 'pelengkap', dish_id: null, skipped: true }),
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('no fried dish-helper'))).toBe(true)
+  })
+  it('flags a day with no real vegetable planned', () => {
+    const byId = new Map<string, Dish>([
+      ['m', dish({ id: 'm', slot: 'utama', name: 'Ayam kecap' })],
+      ['h', dish({ id: 'h', slot: 'pelengkap', name: 'Bakwan', is_dish_helper: true, method: 'fried' })],
+    ])
+    const rows = [
+      row({ plan_date: '2026-08-17', slot: 'utama', dish_id: 'm' }),
+      row({ plan_date: '2026-08-17', slot: 'pelengkap', dish_id: 'h' }),
+      row({ plan_date: '2026-08-17', slot: 'sayuran', dish_id: null, skipped: true }),
+    ]
+    const report = validateWeek(rows, byId)
+    expect(report.some(v => v.includes('no real vegetable planned'))).toBe(true)
+  })
+  it('is clean for a compliant non-fried-main day: 1 real veg + 1 fried helper', () => {
+    const byId = new Map<string, Dish>([
+      ['m', dish({ id: 'm', slot: 'utama', name: 'Ayam kecap', protein: 'chicken' })],
+      ['h', dish({ id: 'h', slot: 'pelengkap', name: 'Bakwan', protein: 'none', is_dish_helper: true, method: 'fried' })],
+      ['v', dish({ id: 'v', slot: 'sayuran', name: 'Tumis kangkung', protein: 'none' })],
+    ])
+    const rows = [
+      row({ plan_date: '2026-08-17', slot: 'utama', dish_id: 'm' }),
+      row({ plan_date: '2026-08-17', slot: 'pelengkap', dish_id: 'h' }),
+      row({ plan_date: '2026-08-17', slot: 'sayuran', dish_id: 'v' }),
+    ]
+    expect(validateWeek(rows, byId)).toEqual([])
+  })
+  it('is clean for a compliant fried-main day: 1 real veg + NO helper', () => {
+    const byId = new Map<string, Dish>([
+      ['m', dish({ id: 'm', slot: 'utama', name: 'Ayam goreng', protein: 'chicken', method: 'fried' })],
+      ['v', dish({ id: 'v', slot: 'sayuran', name: 'Tumis kangkung', protein: 'none' })],
+    ])
+    const rows = [
+      row({ plan_date: '2026-08-17', slot: 'utama', dish_id: 'm' }),
+      row({ plan_date: '2026-08-17', slot: 'pelengkap', dish_id: null, skipped: true }),
+      row({ plan_date: '2026-08-17', slot: 'sayuran', dish_id: 'v' }),
+    ]
+    expect(validateWeek(rows, byId)).toEqual([])
   })
 })
 
