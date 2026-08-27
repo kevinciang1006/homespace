@@ -10,7 +10,7 @@ import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligib
 import { weekDates, mondayOf } from '@/lib/meals/dates'
 
 const rng = () => Math.random()
-const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)'
+const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, self_sufficient_main)'
 const DESSERT_HISTORY_LOOKBACK_WEEKS = 4
 
 async function loadWeek(plan_date: string) {

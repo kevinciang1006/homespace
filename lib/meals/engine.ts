@@ -500,11 +500,11 @@ export function pickEveningFruitForDay(batch: Dish[], ctx: PickContext, rng: Rng
 }
 
 // Consistency check for stored plans: a provides_soup main must NOT share its day with a
-// separate soup dish (a real kuah-slot dish) in the kuah slot — UNLESS the main is also
-// fried/grilled (dry), which earns both a soup and a veg by the plate's one exception.
-// Returns the ids of such stale, non-locked soup rows so callers can blank them to the
-// broth note. A second vegetable already occupying the kuah slot (dishes.slot ===
-// 'sayuran') and locked rows are left untouched (honor the lock).
+// separate soup dish (a real kuah-slot dish) in the kuah slot. provides_soup always wins
+// over self_sufficient_main (a wet main is never self-sufficient — see composeDay), so
+// this has no exception. Returns the ids of such stale, non-locked soup rows so callers
+// can blank them to the broth note. A second vegetable already occupying the kuah slot
+// (dishes.slot === 'sayuran') and locked rows are left untouched (honor the lock).
 export function staleSoupRowIds(rows: MealPlan[]): string[] {
   const byDate = new Map<string, MealPlan[]>()
   for (const r of rows) {
@@ -513,10 +513,8 @@ export function staleSoupRowIds(rows: MealPlan[]): string[] {
   }
   const ids: string[] = []
   for (const day of byDate.values()) {
-    const mainRow = day.find(r => r.slot === 'utama')
-    const wetMain = mainRow?.dishes?.provides_soup === true
-    const dryMain = mainRow?.dishes?.method === 'fried' || mainRow?.dishes?.method === 'grilled'
-    if (!wetMain || dryMain) continue
+    const wetMain = day.some(r => r.slot === 'utama' && r.dishes?.provides_soup === true)
+    if (!wetMain) continue
     for (const r of day) {
       if (r.slot === 'kuah' && r.dish_id && !r.skipped && !r.locked && r.dishes?.slot === 'kuah') ids.push(r.id)
     }
@@ -576,11 +574,13 @@ export function composeDay(input: {
     main = p.dish_id ? dishById.get(p.dish_id) : undefined
   }
   const providesSoup = main?.provides_soup ?? false
-  // "Dry" main = fried or grilled (bakar) — the one exception to the 3-item plate:
-  // it earns BOTH a soup and a (dry-preferred) vegetable, and skips the helper
-  // (no all-fried days). Every other main gets exactly one of soup-or-veg, which
-  // compete for a single slot, PLUS one dish-helper.
-  const dryMain = main?.method === 'fried' || main?.method === 'grilled'
+  // A self-sufficient main (dishes.self_sufficient_main) is the one exception to the
+  // 3-item plate: it earns BOTH a soup and a (dry-preferred) vegetable, and skips the
+  // helper (no all-fried/self-sufficient-stacked days). provides_soup always wins over
+  // the flag — a wet main is NEVER self-sufficient, regardless of how it's tagged.
+  // Every other main gets exactly one of soup-or-veg, which compete for a single slot,
+  // PLUS one dish-helper.
+  const selfSufficient = main?.self_sufficient_main === true && !providesSoup
   const skippedRow = (slot: Slot): Pick =>
     ({ plan_date: date, slot, dish_id: null, dish_name: null, locked: false, role: 'support', skipped: true })
 
@@ -589,7 +589,7 @@ export function composeDay(input: {
   // preventing e.g. a bakso soup + a bakso helper on the same plate.
   const sayuranLocked = isLocked('sayuran')
   const kuahLocked = isLocked('kuah')
-  if (dryMain) {
+  if (selfSufficient) {
     // exception: BOTH a soup and a dry-preferred veg (no helper — see below)
     if (!sayuranLocked) push(pickVeg(dishesBySlot.sayuran ?? [], mkCtx('sayuran', 'support', 1), rng, true))
     if (!kuahLocked) push(pickForSlot(dishesBySlot.kuah ?? [], mkCtx('kuah', 'support', 1), rng))
@@ -613,12 +613,12 @@ export function composeDay(input: {
   }
 
   // 3. PELENGKAP — the day's ONE fried dish-helper. Only when the main isn't
-  // dry (fried/grilled): a dry main already gets both soup+veg above and would
-  // otherwise stack a 4th, all-fried-adjacent item — the eater's rule this
-  // implements gives it no helper instead. The helper pool spans both 'sayuran'
-  // and 'pelengkap' dish.slot values (selected by is_dish_helper, not slot).
+  // self-sufficient: a self-sufficient main already gets both soup+veg above and
+  // would otherwise stack a 4th item — the eater's rule this implements gives it
+  // no helper instead. The helper pool spans both 'sayuran' and 'pelengkap'
+  // dish.slot values (selected by is_dish_helper, not slot).
   if (!isLocked('pelengkap')) {
-    if (dryMain) {
+    if (selfSufficient) {
       push(skippedRow('pelengkap'))
     } else {
       const helperPool = [...(dishesBySlot.sayuran ?? []), ...(dishesBySlot.pelengkap ?? [])]
@@ -719,12 +719,9 @@ export function validateWeek(
     if (fried.length > 2) viol.push(`⚠️ ${date}: ${fried.length} fried dishes (${fried.map(d => d.name).join(', ')})`)
     const garnish = ds.filter(d => d.is_garnish)
     if (garnish.length) viol.push(`⚠️ ${date}: garnish dish planned (${garnish.map(d => d.name).join(', ')})`)
-    const mainDishForSoupCheck = ds.find(d => d.slot === 'utama')
-    const wetMain = mainDishForSoupCheck?.provides_soup === true
-    const dryMainForSoupCheck = mainDishForSoupCheck?.method === 'fried' || mainDishForSoupCheck?.method === 'grilled'
+    const wetMain = ds.some(d => d.slot === 'utama' && d.provides_soup)
     const soups = ds.filter(d => d.slot === 'kuah')
-    // A dry (fried/grilled) main is the one exception that legitimately keeps both.
-    if (wetMain && !dryMainForSoupCheck && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
+    if (wetMain && soups.length) viol.push(`⚠️ ${date}: provides-soup main + a separate soup (${soups.map(d => d.name).join(', ')})`)
     const byProtein = new Map<string, Dish[]>()
     for (const d of ds.filter(d => MEAT_PROTEINS.has(d.protein))) {
       if (!byProtein.has(d.protein)) byProtein.set(d.protein, [])
@@ -735,11 +732,12 @@ export function validateWeek(
     }
 
     // --- Plate composition: MAIN + helper + one-of-{soup,veg}, except a
-    // dry (fried/grilled) main which gets BOTH soup and veg and no helper ---
+    // self-sufficient main which gets BOTH soup and veg and no helper ---
     const mainRow = rowByKey.get(`${date}|utama`)
     const mainDish = mainRow?.dish_id ? dishById.get(mainRow.dish_id) : undefined
     if (mainDish) {
-      const dryMain = mainDish.method === 'fried' || mainDish.method === 'grilled'
+      // provides_soup always wins over self_sufficient_main — a wet main is never self-sufficient.
+      const selfSufficient = mainDish.self_sufficient_main === true && !mainDish.provides_soup
       const sayuranRow = rowByKey.get(`${date}|sayuran`)
       const vegDish = sayuranRow?.dish_id && !sayuranRow.skipped ? dishById.get(sayuranRow.dish_id) : undefined
       const kuahRow = rowByKey.get(`${date}|kuah`)
@@ -747,17 +745,17 @@ export function validateWeek(
       const pelengkapRow = rowByKey.get(`${date}|pelengkap`)
       const helperDish = pelengkapRow?.dish_id && !pelengkapRow.skipped ? dishById.get(pelengkapRow.dish_id) : undefined
 
-      // item count: main + helper? + veg? + soup? — 3 normally, 3 or 4 tolerated on a dry-main day
+      // item count: main + helper? + veg? + soup? — 3 normally, 3 or 4 tolerated on a self-sufficient-main day
       const count = 1 + (helperDish ? 1 : 0) + (vegDish ? 1 : 0) + (soupDish ? 1 : 0)
-      const countOk = dryMain ? (count === 3 || count === 4) : count === 3
-      if (!countOk) viol.push(`⚠️ ${date}: ${count} plate items (expected 3${dryMain ? ' or 4' : ''})`)
+      const countOk = selfSufficient ? (count === 3 || count === 4) : count === 3
+      if (!countOk) viol.push(`⚠️ ${date}: ${count} plate items (expected 3${selfSufficient ? ' or 4' : ''})`)
 
-      if (dryMain && helperDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) + a dish-helper (${helperDish.name}) — all-fried day`)
-      if (!dryMain && !helperDish) viol.push(`⚠️ ${date}: non-fried main (${mainDish.name}) with no dish-helper`)
+      if (selfSufficient && helperDish) viol.push(`⚠️ ${date}: self-sufficient main (${mainDish.name}) + a dish-helper (${helperDish.name})`)
+      if (!selfSufficient && !helperDish) viol.push(`⚠️ ${date}: non-self-sufficient main (${mainDish.name}) with no dish-helper`)
 
-      if (dryMain) {
-        if (!vegDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) missing its vegetable`)
-        if (!soupDish) viol.push(`⚠️ ${date}: fried/grilled main (${mainDish.name}) missing its soup`)
+      if (selfSufficient) {
+        if (!vegDish) viol.push(`⚠️ ${date}: self-sufficient main (${mainDish.name}) missing its vegetable`)
+        if (!soupDish) viol.push(`⚠️ ${date}: self-sufficient main (${mainDish.name}) missing its soup`)
       } else if (mainDish.provides_soup) {
         if (!vegDish) viol.push(`⚠️ ${date}: wet main (${mainDish.name}) missing its vegetable`)
       } else {

@@ -120,7 +120,7 @@ export async function POST(request: Request) {
 
   const { data: week } = await supabase
     .from('meal_plans')
-    .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)')
+    .select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, self_sufficient_main)')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
   return Response.json({ week: (week ?? []) as MealPlan[], report })
 }

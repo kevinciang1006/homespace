@@ -10,7 +10,7 @@ import DayView from '@/components/meals/DayView'
 
 const DISHES_SELECT = 'tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, ' +
   'slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, ' +
-  'needs_thaw, needs_marinate, prep_lead_days, prep_note, bumbu_packet, prep_type, shop_ingredients'
+  'needs_thaw, needs_marinate, prep_lead_days, prep_note, bumbu_packet, prep_type, shop_ingredients, self_sufficient_main'
 
 function longDayName(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)

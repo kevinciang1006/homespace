@@ -133,6 +133,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                     <th className="px-3 py-2 font-medium">Active</th>
                     <th className="px-3 py-2 font-medium">Garnish</th>
                     <th className="px-3 py-2 font-medium">Soup</th>
+                    <th className="px-3 py-2 font-medium">Self-sufficient</th>
                     <th className="px-3 py-2 font-medium">Quantity</th>
                     <th className="px-3 py-2 font-medium">Recipe</th>
                   </tr>
@@ -140,7 +141,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
                 <tbody>
                   {rows.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onSync={syncDish} onEdit={() => setEditingId(d.id)}
                     onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
-                  {rows.length === 0 && <tr><td colSpan={21} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-4 text-stone-400">No dishes</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -332,6 +333,15 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
             title="Brothy main (tomyam, steamboat, sup…) — the day skips a separate soup"
             className={`w-9 h-5 rounded-full transition-colors relative ${dish.provides_soup ? 'bg-orange-500' : 'bg-stone-200'}`}>
             <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.provides_soup ? 'left-4' : 'left-0.5'}`} />
+          </button>
+        ) : <span className="text-stone-300">—</span>}
+      </td>
+      <td className="px-3 py-1.5">
+        {dish.slot === 'utama' ? (
+          <button onClick={() => onPatch(dish.id, { self_sufficient_main: !dish.self_sufficient_main })} aria-label="Toggle self-sufficient main"
+            title="Earns its own soup + veg with no dish-helper — never applies if this main also provides its own soup"
+            className={`w-9 h-5 rounded-full transition-colors relative ${dish.self_sufficient_main ? 'bg-orange-500' : 'bg-stone-200'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${dish.self_sufficient_main ? 'left-4' : 'left-0.5'}`} />
           </button>
         ) : <span className="text-stone-300">—</span>}
       </td>

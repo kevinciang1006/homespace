@@ -50,6 +50,7 @@ export type Dish = {
   is_dish_helper: boolean
   veg_style: 'dry' | 'wet' | null
   base_key: string | null
+  self_sufficient_main: boolean
   cadence: Cadence | null
   produce_role: ProduceRole | null
   prep_type: string | null
@@ -76,6 +77,7 @@ export type MealPlan = {
     bumbu_packet?: string | null; fruit_context?: string | null
     cadence?: Cadence | null; produce_role?: ProduceRole | null
     prep_type?: string | null; shop_ingredients?: DishIngredient[] | null
+    self_sufficient_main?: boolean
   } | null
 }
 

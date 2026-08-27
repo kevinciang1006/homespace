@@ -18,7 +18,7 @@ export default async function MealsPlanPage({ searchParams }: { searchParams: Pr
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? mondayOf(week) : currentMonday()
   const days = weekDates(weekStart)
   const [{ data }, { data: staplesData }] = await Promise.all([
-    supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions)')
+    supabase.from('meal_plans').select('*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, self_sufficient_main)')
       .gte('plan_date', days[0]).lte('plan_date', days[6]),
     supabase.from('daily_staples').select('*').order('person'),
   ])
