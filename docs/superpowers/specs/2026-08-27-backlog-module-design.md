@@ -47,6 +47,7 @@ failure mode.
 | D4 | Settings live on the **`wa_settings` singleton** (`backlog_enabled bool default true`, `backlog_time text default '19:30'`), surfaced on the existing `/settings` page. |
 | D5 | `last_suggested_at` + `backlog_log` `suggested` are written **at enqueue time** (first `wa_outbound` build of the day), not at send time — the generic due-sender has no per-kind hooks. Dedupe guarantees this fires once per day. |
 | D6 | "Arrived" on a blocked row: set `status='ready'`, **clear `blocked_by`**, log `unblocked` with the old `blocked_by` value in `note`. |
+| D6b | "Snooze" does **not** change `status` — it only sets `snooze_until = tomorrow`. The item stays `status='ready'`; the engine's `snooze_until > today` gate hides it until the date passes, then it returns on its own (self-healing, no un-snooze job). The page's "Snoozed" section = `status='ready'` rows with a future `snooze_until`. |
 | D7 | Candidate filtering happens in **pure JS** (`selectNudgeCandidate`), not SQL — matches the repo's `lib/meals/engine.ts` convention and keeps it unit-testable. The route does broad fetches; the engine picks. |
 | D8 | Nav: new top-level route `/backlog` + a card on the home-page grid. |
 | D9 | Migration file: `migrations/2026-08-27-backlog.sql` (tables + seed + `wa_settings` columns in one file). |
@@ -272,14 +273,16 @@ the `/meals` layout.
   to the API routes, `Saving…` indicator (same pattern as `WaSettingsClient`).
 - **Quick-add** box at top: title text input + category `<select>` →
   `POST /api/backlog/items`.
-- Sections in order: **Ready**, **Blocked**, **Snoozed**, **Done** (Done section
-  collapsed by default, capped at ~20 most-recent).
+- Sections in order: **Ready** (`status='ready'`, no future `snooze_until`),
+  **Blocked** (`status='blocked'`), **Snoozed** (`status='ready'` with
+  `snooze_until > today`), **Done** (`status='done'`, collapsed by default,
+  capped at ~20 most-recent). `status='dropped'` never renders.
 - Row content: title, category chip, `blocked_by` (blocked rows), `notes`,
   small tag summary (time_of_day / day_pref / priority).
 - Row actions:
   - Ready → **Done**, **Snooze**.
   - Blocked → **Arrived**.
-  - Snoozed → **Done**, **Un-snooze** (`snooze_until = null`, `status = 'ready'`, no log).
+  - Snoozed → **Done**, **Un-snooze** (`{ patch: { snooze_until: null } }`, no log).
   - All non-done → **Edit tags** (opens inline editor, 6.3).
 - Buttons call `PATCH /api/backlog/items/[id]` with `{ action }`.
 
@@ -313,7 +316,7 @@ Two shapes:
 | action | item update | log |
 |--------|-------------|-----|
 | `done` | `status='done'`, `last_done_at=now()` | `done` |
-| `snooze` | `snooze_until = tomorrow` (Asia/Jakarta), `status='snoozed'` | `snoozed` |
+| `snooze` | `snooze_until = tomorrow` (Asia/Jakarta) — `status` unchanged | `snoozed` |
 | `arrived` | `status='ready'`, `blocked_by=null` | `unblocked`, `note = <old blocked_by>` |
 
 `tomorrow` computed with `tomorrowOf(jakartaToday())` from `lib/wa/schedule.ts`.
