@@ -8,7 +8,10 @@ const AUTH_ENABLED = process.env.AUTH_ENABLED === 'true'
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const isPublic = pathname === '/login' || pathname.startsWith('/api/auth/') || pathname.startsWith('/api/wa/cron')
+  const isPublic = pathname === '/login'
+    || pathname.startsWith('/api/auth/')
+    || pathname.startsWith('/api/wa/cron')
+    || pathname.startsWith('/api/cc/')
   if (!AUTH_ENABLED || isPublic) return NextResponse.next()
 
   const sessionCookie = request.cookies.get('hs_session')?.value
