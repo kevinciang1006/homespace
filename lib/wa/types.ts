@@ -1,4 +1,4 @@
-export type WaOutboundKind = 'weekly_shopping' | 'daily_reminder' | 'prep_thaw'
+export type WaOutboundKind = 'weekly_shopping' | 'daily_reminder' | 'prep_thaw' | 'backlog_nudge'
 
 export type WaSettings = {
   id: string
@@ -9,6 +9,8 @@ export type WaSettings = {
   daily_time: string
   prep_enabled: boolean
   prep_time: string
+  backlog_enabled: boolean
+  backlog_time: string
   include_kevin: boolean
   updated_at: string
 }

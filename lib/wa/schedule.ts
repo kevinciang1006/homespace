@@ -29,6 +29,11 @@ export function tomorrowOf(today: string): string {
   return shiftWeek(today, 1)
 }
 
+// Saturday or Sunday in Asia/Jakarta terms.
+export function isWeekend(dateStr: string): boolean {
+  return dowMonBased(dateStr) >= 5
+}
+
 // Which Monday-start week the shopping list is FOR, given today's date and a
 // configurable day-of-week cutoff (Mon=0..Sun=6, from wa_settings.weekly_cutoff_dow).
 // Today on/after the cutoff -> next week; before it -> this week. Decoupled from

@@ -3,7 +3,7 @@ import { getOrCreateSettings } from '@/lib/wa/settings'
 
 const FIELDS = [
   'weekly_enabled', 'weekly_time', 'weekly_cutoff_dow', 'daily_enabled', 'daily_time',
-  'prep_enabled', 'prep_time', 'include_kevin',
+  'prep_enabled', 'prep_time', 'backlog_enabled', 'backlog_time', 'include_kevin',
 ]
 
 export async function GET() {
