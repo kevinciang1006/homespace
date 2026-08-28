@@ -2,10 +2,10 @@ import { supabase } from '@/lib/supabase'
 import { weekDates, shiftWeek } from '@/lib/meals/dates'
 import { groupPrepByDate, type PrepCandidate } from '@/lib/meals/prep'
 import { getOrCreateSettings } from '@/lib/wa/settings'
-import { resolveRecipients } from '@/lib/wa/config'
+import { resolveRecipients, WA_NUMBERS } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
 import {
-  jakartaToday, upcomingSaturday, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso,
+  jakartaToday, upcomingSaturday, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso, isWeekend,
 } from '@/lib/wa/schedule'
 import {
   composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,
@@ -13,6 +13,9 @@ import {
 import type {
   WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow,
 } from '@/lib/wa/types'
+import { selectNudgeCandidate, backlogTail, composeBacklogNudge, slotForTime } from '@/lib/backlog/engine'
+import { fetchReadyPool, fetchActiveItems, fetchExcludedMutexGroups, markSuggested } from '@/lib/backlog/queries'
+import type { BacklogItem } from '@/lib/backlog/types'
 
 const PREP_LOOKAHEAD_DAYS = 14
 
@@ -106,7 +109,8 @@ async function upsertOutbound(
 function kindEnabled(kind: WaOutboundKind, settings: WaSettings): boolean {
   if (kind === 'weekly_shopping') return settings.weekly_enabled
   if (kind === 'daily_reminder') return settings.daily_enabled
-  return settings.prep_enabled
+  if (kind === 'prep_thaw') return settings.prep_enabled
+  return settings.backlog_enabled
 }
 
 // ---- Test mode ----------------------------------------------------------------
@@ -130,6 +134,14 @@ const SAMPLE_PREP_DISHES: PrepDishRow[] = [
   },
 ]
 const SAMPLE_TAG = '\n\n_(contoh — belum ada data nyata untuk ini)_'
+const SAMPLE_BACKLOG_ITEM: BacklogItem = {
+  id: 'sample', title: 'Bake banana bread', category: 'kitchen', status: 'ready',
+  blocked_by: null, time_of_day: ['any'], day_pref: 'any',
+  needs_daylight: false, needs_dry: false, prep_ahead: false, lead_time_hours: null,
+  mutex_group: null, recurring: false, recurrence: null, deadline: null, priority: 1,
+  last_suggested_at: null, last_done_at: null, snooze_until: null,
+  notes: 'use the aging bananas', created_at: '2026-08-01T00:00:00Z',
+}
 
 async function runTestMode(to: string): Promise<Response> {
   const today = jakartaToday()
@@ -152,11 +164,21 @@ async function runTestMode(to: string): Promise<Response> {
     ? composePrepThawMessage(firstBatch)!
     : composePrepThawMessage(SAMPLE_PREP_DISHES)! + SAMPLE_TAG
 
+  const [backlogPool, backlogActive] = await Promise.all([fetchReadyPool(), fetchActiveItems()])
+  const backlogCandidate = selectNudgeCandidate(backlogPool, {
+    slot: slotForTime('19:30'),
+    dayType: isWeekend(today) ? 'weekend' : 'weekday',
+    today, now: new Date(), excludedMutexGroups: [],
+  })
+  const backlogMessage = composeBacklogNudge(backlogCandidate, backlogTail(backlogActive, today))
+    ?? (composeBacklogNudge(SAMPLE_BACKLOG_ITEM, [])! + SAMPLE_TAG)
+
   const sentOk: Record<string, boolean> = {}
   for (const [kind, message] of [
     ['weekly_shopping', weeklyMessage],
     ['daily_reminder', dailyMessage],
     ['prep_thaw', prepMessage],
+    ['backlog_nudge', backlogMessage],
   ] as const) {
     const result = await sendWhatsapp(to, message)
     sentOk[kind] = result.ok
@@ -233,6 +255,37 @@ export async function GET(request: Request) {
       }
     } catch (err) {
       console.error('prep_thaw build failed:', err)
+      skipped++
+    }
+  }
+
+  if (settings.backlog_enabled) {
+    try {
+      const slot = slotForTime(settings.backlog_time)
+      const dayType = isWeekend(today) ? 'weekend' : 'weekday'
+      const nowIso = new Date().toISOString()
+      const sinceIso = jakartaDateTimeToUtcIso(today, '00:00')
+      const [pool, active, excludedMutexGroups] = await Promise.all([
+        fetchReadyPool(), fetchActiveItems(), fetchExcludedMutexGroups(sinceIso),
+      ])
+      const candidate = selectNudgeCandidate(pool, {
+        slot, dayType, today, now: new Date(), excludedMutexGroups,
+      })
+      const message = composeBacklogNudge(candidate, backlogTail(active, today))
+      if (message) {
+        const sendAt = jakartaDateTimeToUtcIso(today, settings.backlog_time)
+        const result = await upsertOutbound('backlog_nudge', today, sendAt, [WA_NUMBERS.kevin], message)
+        if (result === 'built') {
+          if (candidate) await markSuggested(candidate.id, nowIso)
+          built++
+        } else {
+          skipped++
+        }
+      } else {
+        skipped++
+      }
+    } catch (err) {
+      console.error('backlog_nudge build failed:', err)
       skipped++
     }
   }

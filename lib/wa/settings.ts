@@ -5,6 +5,7 @@ const DEFAULTS = {
   weekly_enabled: true, weekly_time: '09:00', weekly_cutoff_dow: 4,
   daily_enabled: true, daily_time: '17:30',
   prep_enabled: true, prep_time: '19:30',
+  backlog_enabled: true, backlog_time: '19:30',
   include_kevin: false,
 }
 

@@ -6,7 +6,7 @@ import { ArrowLeft, Bell } from 'lucide-react'
 import type { WaSettings } from '@/lib/wa/types'
 
 type Row = {
-  key: 'weekly' | 'daily' | 'prep'
+  key: 'weekly' | 'daily' | 'prep' | 'backlog'
   label: string
   description: string
 }
@@ -15,6 +15,7 @@ const ROWS: Row[] = [
   { key: 'weekly', label: 'Weekly shopping list', description: 'Saturday morning, a flat ingredient list' },
   { key: 'daily', label: 'Daily meal reminder', description: "Tomorrow's meals, sent the evening before" },
   { key: 'prep', label: 'Prep/thaw reminder', description: 'Batches same-evening thaw & marinate prep' },
+  { key: 'backlog', label: 'Backlog nudge', description: 'One evening chore suggestion that fits the moment' },
 ]
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] // Mon=0..Sun=6
