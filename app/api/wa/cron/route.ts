@@ -16,6 +16,7 @@ import type {
 import { selectNudgeCandidate, backlogTail, composeBacklogNudge, slotForTime } from '@/lib/backlog/engine'
 import { fetchReadyPool, fetchActiveItems, fetchExcludedMutexGroups, markSuggested } from '@/lib/backlog/queries'
 import type { BacklogItem } from '@/lib/backlog/types'
+import { runCcCheck } from '@/lib/cc/checker'
 
 const PREP_LOOKAHEAD_DAYS = 14
 
@@ -288,6 +289,15 @@ export async function GET(request: Request) {
       console.error('backlog_nudge build failed:', err)
       skipped++
     }
+  }
+
+  // Claude Code hang-nudge: separate from the wa_outbound queue — sends straight
+  // out via sendWhatsapp, doesn't touch the built/sent/skipped/failed counters.
+  try {
+    const r = await runCcCheck()
+    if (r.nudged || r.skipped) console.log('cc_hang_nudge:', r)
+  } catch (err) {
+    console.error('cc_hang_nudge check failed:', err)
   }
 
   const { data: due } = await supabase.from('wa_outbound').select('*')
