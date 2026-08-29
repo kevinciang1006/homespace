@@ -101,6 +101,13 @@ export type DishIngredientRow = {
   unit: string | null
 }
 
+// dish_ingredients joined to its ingredient, as returned by
+// /api/meals/dishes/[id]/ingredients — what the dish editor's ingredients
+// section actually renders.
+export type DishIngredientDetail = DishIngredientRow & {
+  ingredients: { name: string; category: IngredientCategory | null; default_unit: string | null; shelf_stable: boolean } | null
+}
+
 export type DailyStaple = {
   id: string
   name: string

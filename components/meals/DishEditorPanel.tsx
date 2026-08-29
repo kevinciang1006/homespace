@@ -2,11 +2,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
-import { SHOP_CATEGORIES, type DishIngredient } from '@/lib/meals/shopping'
 import type { Dish } from '@/lib/meals/types'
 import { detectSource, type RecipeLink } from '@/lib/meals/recipeLinks'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
+import DishIngredientsEditor from './DishIngredientsEditor'
 import Portal from '@/components/Portal'
 
 const SOURCE_EMOJI: Record<string, string> = { youtube: '▶️', instagram: '📸', tiktok: '🎵', web: '🔗' }
@@ -23,14 +23,12 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
   onSynced?: (id: string, fields: Partial<Dish>) => void
 }) {
   const [imageUrl, setImageUrl] = useState(dish.recipe_image_url ?? '')
-  const [ingredients, setIngredients] = useState<DishIngredient[]>(dish.ingredients ?? [])
   const [steps, setSteps] = useState<string[]>(dish.recipe_steps ?? [])
   const [links, setLinks] = useState<RecipeLink[]>(dish.recipe_links ?? [])
   const [newUrl, setNewUrl] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [providesSoup, setProvidesSoup] = useState(dish.provides_soup)
 
-  function saveIngredients(next: DishIngredient[]) { setIngredients(next); onPatch(dish.id, { ingredients: next }) }
   function saveSteps(next: string[]) { setSteps(next); onPatch(dish.id, { recipe_steps: next }) }
   function saveLinks(next: RecipeLink[]) { setLinks(next); onPatch(dish.id, { recipe_links: next }) }
   function addLink() {
@@ -39,11 +37,6 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
     setNewUrl(''); setNewTitle('')
   }
   const removeLink = (i: number) => saveLinks(links.filter((_, idx) => idx !== i))
-
-  const addIng = () => saveIngredients([...ingredients, { name: '', quantity: '', category: 'other' }])
-  const removeIng = (i: number) => saveIngredients(ingredients.filter((_, idx) => idx !== i))
-  const setIngField = (i: number, patch: Partial<DishIngredient>) =>
-    setIngredients(list => list.map((it, idx) => (idx === i ? { ...it, ...patch } : it)))
 
   const addStep = () => saveSteps([...steps, ''])
   const removeStep = (i: number) => saveSteps(steps.filter((_, idx) => idx !== i))
@@ -104,31 +97,8 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
             </section>
           )}
 
-          {/* ingredients */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-stone-600">Ingredients</h3>
-              <button onClick={addIng} className="flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus size={15} /> Add</button>
-            </div>
-            {ingredients.length === 0 && <p className="text-sm text-stone-400">No ingredients yet.</p>}
-            <div className="space-y-2">
-              {ingredients.map((ing, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input value={ing.name ?? ''} onChange={e => setIngField(i, { name: e.target.value })}
-                    onBlur={() => saveIngredients(ingredients)} placeholder="Ingredient"
-                    className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
-                  <input value={ing.quantity ?? ''} onChange={e => setIngField(i, { quantity: e.target.value })}
-                    onBlur={() => saveIngredients(ingredients)} placeholder="qty"
-                    className="w-20 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-500 focus:outline-none focus:border-orange-300" />
-                  <select value={(ing.category ?? 'other') as string} onChange={e => saveIngredients(ingredients.map((it, idx) => idx === i ? { ...it, category: e.target.value } : it))}
-                    className="px-1.5 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none focus:border-orange-300">
-                    {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <button onClick={() => removeIng(i)} className="p-1 text-stone-300 hover:text-red-500 shrink-0" aria-label="Remove ingredient"><Trash2 size={15} /></button>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* ingredients — normalized (dish_ingredients + ingredients tables) */}
+          <DishIngredientsEditor dishId={dish.id} />
 
           {/* recipe steps */}
           <section>
