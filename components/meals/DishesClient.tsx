@@ -150,7 +150,7 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
       })}
 
       {editing && (
-        <DishEditorPanel key={editing.id} dish={editing} onClose={() => setEditingId(null)} onPatch={patch} />
+        <DishEditorPanel key={editing.id} dish={editing} onClose={() => setEditingId(null)} onPatch={patch} onSynced={syncDish} />
       )}
     </div>
   )

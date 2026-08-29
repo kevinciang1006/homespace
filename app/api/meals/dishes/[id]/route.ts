@@ -2,6 +2,16 @@ import { supabase } from '@/lib/supabase'
 
 const FIELDS = ['name', 'slot', 'protein', 'tier', 'method', 'spicy', 'rating', 'active', 'no_repeat_days', 'ingredients', 'recipe_steps', 'recipe_image_url', 'saltiness', 'difficulty', 'is_garnish', 'provides_soup', 'recipe_links', 'qty_amount', 'qty_unit', 'qty_note', 'fruit_context', 'cadence', 'produce_role', 'prep_type', 'is_dish_helper', 'veg_style', 'base_key', 'self_sufficient_main']
 
+// Full dish record — used by the meal-plan page to populate DishEditorPanel
+// (the same edit drawer the Dishes tab uses) without navigating away.
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { data, error } = await supabase.from('dishes').select('*').eq('id', id).maybeSingle()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (!data) return Response.json({ error: 'dish not found' }, { status: 404 })
+  return Response.json(data)
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await request.json()

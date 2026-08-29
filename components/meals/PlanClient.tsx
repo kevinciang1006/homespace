@@ -1,14 +1,14 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
-import { SLOT_LABELS, type DailyStaple, type MealPlan, type Role, type Slot, type Tier } from '@/lib/meals/types'
+import { SLOT_LABELS, type DailyStaple, type Dish, type MealPlan, type Role, type Slot, type Tier } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
 import { formatQty, qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
+import DishEditorPanel from './DishEditorPanel'
 import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
 import StaplesBanner from './StaplesBanner'
@@ -44,6 +44,7 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   const [randomizingDesserts, setRandomizingDesserts] = useState(false)
   const [cookLog, setCookLog] = useState<Record<string, CookRow[]>>({})
   const [genReport, setGenReport] = useState<string[] | null>(null)
+  const [editingDish, setEditingDish] = useState<Dish | null>(null)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
 
@@ -147,6 +148,29 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
     })
   }
 
+  // Clicking a card opens the same edit drawer the Dishes tab uses, instead of
+  // navigating to the recipe page — fetch the full Dish record to populate it.
+  async function openDish(dishId: string) {
+    const res = await fetch(`/api/meals/dishes/${dishId}`)
+    if (res.ok) setEditingDish(await res.json())
+  }
+  // A dish can appear on several cells across the visible week (e.g. a repeated
+  // staple, or the dessert batch) — sync every matching row's `dishes` snapshot,
+  // local-state only (no PATCH; used for fields something else already persisted).
+  function syncDishEverywhere(id: string, fields: Partial<Dish>) {
+    setWeek(w => w.map(row => row.dish_id === id
+      ? { ...row, dish_name: fields.name ?? row.dish_name, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), ...fields } }
+      : row))
+  }
+  // Same, but also persists — for edits DishEditorPanel doesn't already save itself
+  // (ingredients, steps, links, the manual image-URL field, provides_soup).
+  async function patchDishEverywhere(id: string, fields: Partial<Dish>) {
+    syncDishEverywhere(id, fields)
+    await fetch(`/api/meals/dishes/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields),
+    })
+  }
+
   return (
     <div>
       <div className="mb-4">
@@ -207,20 +231,26 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
         {days.map((date, i) => (
           <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
             entries={cookLog[date] ?? []} onCooked={onCooked}
-            onReplaceDay={replaceDay} onReplaceCell={replaceCell} />
+            onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish} />
         ))}
       </div>
 
       <WeekOverview overview={overview} />
+
+      {editingDish && (
+        <DishEditorPanel dish={editingDish} onClose={() => setEditingDish(null)}
+          onPatch={patchDishEverywhere} onSynced={syncDishEverywhere} />
+      )}
     </div>
   )
 }
 
-function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onReplaceCell }: {
+function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onReplaceCell, onOpenDish }: {
   date: string; dayName: string; rows: MealPlan[]
   entries: CookRow[]; onCooked: (date: string, entries: CookRow[]) => void
   onReplaceDay: (date: string, rows: MealPlan[]) => void
   onReplaceCell: (row: MealPlan) => void
+  onOpenDish: (dishId: string) => void
 }) {
   const breakfast = rows.find(r => r.slot === 'breakfast')
   const main = rows.find(r => r.role === 'main')
@@ -300,18 +330,18 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
       </div>
       {(breakfast || breakfastFruit) && (
         <div className="flex flex-wrap gap-2">
-          {breakfast && <SmallDishCard row={breakfast} date={date} emoji="🌅" onReplaceCell={onReplaceCell} />}
-          {breakfastFruit && <SmallDishCard row={breakfastFruit} date={date} onReplaceCell={onReplaceCell} />}
+          {breakfast && <SmallDishCard row={breakfast} date={date} emoji="🌅" onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
+          {breakfastFruit && <SmallDishCard row={breakfastFruit} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
         </div>
       )}
 
       {main
-        ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} />
+        ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}
 
       {(supports.length > 0 || soupSkipped) && (
         <div className="flex flex-wrap gap-2">
-          {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} />)}
+          {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />)}
           {soupSkipped && (
             <div className="basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 text-[11px] text-stone-400 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-2 flex items-center leading-tight">
               🥣 broth from the main — no extra soup
@@ -322,8 +352,8 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
 
       {(dessert || dessertFruit) && (
         <div className="flex flex-wrap gap-2">
-          {dessert && <SmallDishCard row={dessert} date={date} onReplaceCell={onReplaceCell} />}
-          {dessertFruit && <SmallDishCard row={dessertFruit} date={date} onReplaceCell={onReplaceCell} />}
+          {dessert && <SmallDishCard row={dessert} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
+          {dessertFruit && <SmallDishCard row={dessertFruit} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
         </div>
       )}
 
@@ -370,17 +400,19 @@ function useCellControls(date: string, row: MealPlan, onReplaceCell: (r: MealPla
   return { open, setOpen, alts, toggleLock, openAlts }
 }
 
-function MainHero({ row, date, onReroll, onReplaceCell }: {
+function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
   row: MealPlan; date: string
   onReroll: (dishId?: string) => void
   onReplaceCell: (r: MealPlan) => void
+  onOpenDish: (dishId: string) => void
 }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const tier = row.dishes?.tier; const spicy = row.dishes?.spicy
   const qty = qtyDisplay(row.dishes)
   return (
     <div className={`relative rounded-xl overflow-hidden border ${tier === 'special' ? 'border-orange-300 ring-1 ring-orange-200' : 'border-stone-200'}`}>
-      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
+      <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
+        aria-label={`Edit ${row.dish_name}`} className="block w-full text-left">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-none" iconSize={34} showName={!row.dishes?.recipe_image_url} />
         <div className="p-2.5">
@@ -391,7 +423,7 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
             {spicy && <span title="Spicy">🌶️</span>}
           </div>
         </div>
-      </Link>
+      </button>
       <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
         {row.dish_id && (
           <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []} iconSize={14}
@@ -423,7 +455,9 @@ function MainHero({ row, date, onReroll, onReplaceCell }: {
   )
 }
 
-function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void }) {
+function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
+  row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
+}) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const spicy = row.dishes?.spicy
   const qty = qtyDisplay(row.dishes)
@@ -437,7 +471,8 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
   }
   return (
     <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
-      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
+      <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
+        aria-label={`Edit ${row.dish_name}`} className="block w-full text-left">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
         <div className="px-2 pt-1 pb-1.5">
@@ -445,7 +480,7 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>
           {qty && <div className="text-[10px] text-stone-400 mt-0.5">{qty}</div>}
         </div>
-      </Link>
+      </button>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
         {row.dish_id && (
           <PhotoUploadButton dishId={row.dish_id} variant="icon"
@@ -474,8 +509,8 @@ function SupportChip({ row, date, onReplaceCell }: { row: MealPlan; date: string
 // Vertical card — image on top, label below — matching SupportChip's shape.
 // The breakfast pair and dessert pair both use this, sized for a phone row
 // rather than the dinner hero's video-aspect thumbnail.
-function SmallDishCard({ row, date, emoji, onReplaceCell }: {
-  row: MealPlan; date: string; emoji?: string; onReplaceCell: (r: MealPlan) => void
+function SmallDishCard({ row, date, emoji, onReplaceCell, onOpenDish }: {
+  row: MealPlan; date: string; emoji?: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
 }) {
   const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
   const qty = qtyDisplay(row.dishes)
@@ -490,7 +525,8 @@ function SmallDishCard({ row, date, emoji, onReplaceCell }: {
   }
   return (
     <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
-      <Link href={row.dish_id ? `/meals/dish/${row.dish_id}` : '#'} aria-label={`View recipe for ${row.dish_name}`} className="block">
+      <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
+        aria-label={`Edit ${row.dish_name}`} className="block w-full text-left">
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
         <div className="px-2 pt-1 pb-1.5">
@@ -501,7 +537,7 @@ function SmallDishCard({ row, date, emoji, onReplaceCell }: {
             {qty && <span className="text-[10px] text-stone-400 truncate">{qty}</span>}
           </div>
         </div>
-      </Link>
+      </button>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
         {row.dish_id && (
           <PhotoUploadButton dishId={row.dish_id} variant="icon"

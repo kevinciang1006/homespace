@@ -14,10 +14,13 @@ const SOURCE_EMOJI: Record<string, string> = { youtube: '▶️', instagram: '�
 // Slide-over editor for a dish's photo, ingredients, and recipe steps.
 // Structural edits (add/remove/reorder/category) persist immediately; free-text
 // fields persist on blur — matching the app's inline-edit convention.
-export default function DishEditorPanel({ dish, onClose, onPatch }: {
+export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
   dish: Dish
   onClose: () => void
   onPatch: (id: string, fields: Partial<Dish>) => void
+  // For fields PhotoUploadButton already persists itself — the caller only
+  // needs to sync its own local state, not PATCH again. Defaults to a no-op.
+  onSynced?: (id: string, fields: Partial<Dish>) => void
 }) {
   const [imageUrl, setImageUrl] = useState(dish.recipe_image_url ?? '')
   const [ingredients, setIngredients] = useState<DishIngredient[]>(dish.ingredients ?? [])
@@ -80,7 +83,7 @@ export default function DishEditorPanel({ dish, onClose, onPatch }: {
             <div className="mt-2">
               <PhotoUploadButton dishId={dish.id}
                 label={imageUrl ? 'Change photo' : 'Add photo'}
-                onUploaded={url => setImageUrl(url)} />
+                onUploaded={url => { setImageUrl(url); onSynced?.(dish.id, { recipe_image_url: url }) }} />
             </div>
           </section>
 
