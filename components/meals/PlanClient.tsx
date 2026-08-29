@@ -2,9 +2,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
-import { SLOT_LABELS, type DailyStaple, type Dish, type MealPlan, type Role, type Slot, type Tier } from '@/lib/meals/types'
+import { SLOT_LABELS, type DailyStaple, type Dish, type MealPlan, type Role, type Slot } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
-import { formatQty, qtyDisplay } from '@/lib/meals/qty'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
 import RecipeLinkButton from './RecipeLinkButton'
@@ -27,9 +26,6 @@ function label(dateStr: string): string {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const TIER_STYLE: Record<Tier, string> = {
-  everyday: 'bg-stone-100 text-stone-600', nice: 'bg-amber-100 text-amber-700', special: 'bg-orange-100 text-orange-700',
-}
 
 
 export default function PlanClient({ initialWeekStart, initialWeek, initialStaples }:
@@ -47,6 +43,15 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
+  // Fruit is bought once for the whole week (a banana or papaya covers all
+  // 7 days), so it doesn't earn a picture card on every day — just a single
+  // deduped, clickable list for the week. Breakfast and evening fruit rows
+  // both count; a repeated fruit across days collapses to one chip.
+  const weekFruit = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const r of week) if (r.slot === 'fruit' && r.dish_id && r.dish_name) byId.set(r.dish_id, r.dish_name)
+    return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [week])
 
   function dayRows(date: string) { return week.filter(p => p.plan_date === date) }
 
@@ -235,6 +240,18 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
         ))}
       </div>
 
+      {weekFruit.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mt-4">
+          <span className="text-xs font-medium text-stone-400 mr-0.5">🍎 This week&apos;s fruit:</span>
+          {weekFruit.map(f => (
+            <button key={f.id} onClick={() => openDish(f.id)}
+              className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors">
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <WeekOverview overview={overview} />
 
       {editingDish && (
@@ -252,24 +269,21 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
   onReplaceCell: (row: MealPlan) => void
   onOpenDish: (dishId: string) => void
 }) {
-  const breakfast = rows.find(r => r.slot === 'breakfast')
   const main = rows.find(r => r.role === 'main')
-  const supports = rows.filter(r => r.role === 'support' && r.dish_id)
+  // Cleared-but-not-skipped support rows (dish_id null, skipped false) are a
+  // user delete waiting for a re-randomize — keep them so SupportChip can
+  // render its empty-placeholder state. The system's own "skipped" rows
+  // (e.g. kuah covered by the main's broth) stay excluded — that's a
+  // designed state with its own caption below, not a deletable slot.
+  const supports = rows.filter(r => r.role === 'support' && !r.skipped)
   const soupSkipped = rows.some(r => r.slot === 'kuah' && r.skipped)
-  const breakfastFruit = rows.find(r => r.slot === 'fruit' && r.role === 'breakfast')
   const dessert = rows.find(r => r.slot === 'desert')
-  const dessertFruit = rows.find(r => r.slot === 'fruit' && r.role === 'optional')
 
   const [rerollingDay, setRerollingDay] = useState(false)
   const [showLog, setShowLog] = useState(false)
   const dayLocked = rows.length > 0 && rows.every(r => r.locked)
   const cooked = entries.some(e => e.cooked)
   const hasPlan = rows.some(r => r.dish_id && !r.skipped)
-
-  // Lightweight produce glance for the day — just a sum of what's on the
-  // cards shown, no targets/tracking. See qtyDisplay for the per-dish version.
-  const dayVeg = rows.reduce((n, r) => n + (r.dish_id && !r.skipped ? r.dishes?.veg_portions ?? 0 : 0), 0)
-  const dayFruit = rows.reduce((n, r) => n + (r.dish_id && !r.skipped ? r.dishes?.fruit_portions ?? 0 : 0), 0)
 
   async function markCooked() {
     const res = await fetch('/api/meals/cook-log', {
@@ -328,13 +342,6 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
           </button>
         </div>
       </div>
-      {(breakfast || breakfastFruit) && (
-        <div className="flex flex-wrap gap-2">
-          {breakfast && <SmallDishCard row={breakfast} date={date} emoji="🌅" onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
-          {breakfastFruit && <SmallDishCard row={breakfastFruit} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
-        </div>
-      )}
-
       {main
         ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}
@@ -350,18 +357,7 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
         </div>
       )}
 
-      {(dessert || dessertFruit) && (
-        <div className="flex flex-wrap gap-2">
-          {dessert && <SmallDishCard row={dessert} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
-          {dessertFruit && <SmallDishCard row={dessertFruit} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
-        </div>
-      )}
-
-      {(dayVeg > 0 || dayFruit > 0) && (
-        <div className="text-[10px] text-stone-400 text-center -mt-1">
-          Day total: {[dayVeg > 0 && `🥗 ${dayVeg} veg`, dayFruit > 0 && `🍎 ${dayFruit} fruit`].filter(Boolean).join(' · ')}
-        </div>
-      )}
+      {dessert && <DessertRow row={dessert} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
 
       {hasPlan && (
         <div className="flex items-center gap-2 border-t border-stone-100 pt-2 mt-0.5">
@@ -397,7 +393,21 @@ function useCellControls(date: string, row: MealPlan, onReplaceCell: (r: MealPla
     const res = await fetch(`/api/meals/reroll?plan_date=${date}&slot=${row.slot}&role=${row.role}&alternatives=5`)
     const { alternatives } = await res.json(); setAlts(alternatives ?? [])
   }
-  return { open, setOpen, alts, toggleLock, openAlts }
+  // "Delete" a planned dish without touching the rest of the day — clears
+  // just this cell to an empty, re-rollable placeholder (dish_id/name null).
+  // Distinct from the engine's own `skipped` rows (e.g. "broth from the
+  // main"): this is a user choice, so it stays re-fillable via the same
+  // reroll/"surprise me" flow the card already offers.
+  async function clear() {
+    const prev = row
+    onReplaceCell({ ...row, dish_id: null, dish_name: null, dishes: null, locked: false })
+    const res = await fetch(`/api/meals/plan/${row.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dish_id: null, dish_name: null, locked: false }),
+    })
+    if (!res.ok) onReplaceCell(prev)
+  }
+  return { open, setOpen, alts, toggleLock, openAlts, clear }
 }
 
 function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
@@ -406,9 +416,20 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
   onReplaceCell: (r: MealPlan) => void
   onOpenDish: (dishId: string) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
+  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell)
   const tier = row.dishes?.tier; const spicy = row.dishes?.spicy
-  const qty = qtyDisplay(row.dishes)
+
+  if (!row.dish_id) {
+    return (
+      <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 aspect-video flex flex-col items-center justify-center gap-2">
+        <span className="text-2xl text-stone-300">🍽️</span>
+        <button onClick={() => onReroll()} className="flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700">
+          <Shuffle size={14} /> Add a main
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className={`relative rounded-xl overflow-hidden border ${tier === 'special' ? 'border-orange-300 ring-1 ring-orange-200' : 'border-stone-200'}`}>
       <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
@@ -416,11 +437,8 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
         <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
           className="w-full aspect-video" rounded="rounded-none" iconSize={34} showName={!row.dishes?.recipe_image_url} />
         <div className="p-2.5">
-          <div className="text-stone-900 font-medium leading-snug" style={{ fontFamily: 'DM Serif Display, serif' }}>{row.dish_name ?? '—'}</div>
-          {qty && <div className="text-xs text-stone-500 mt-0.5">{qty}</div>}
-          <div className="flex items-center gap-1.5 mt-1">
-            {tier && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TIER_STYLE[tier]}`}>{tier}</span>}
-            {spicy && <span title="Spicy">🌶️</span>}
+          <div className="text-stone-900 font-medium leading-snug" style={{ fontFamily: 'DM Serif Display, serif' }}>
+            {row.dish_name ?? '—'} {spicy && <span title="Spicy">🌶️</span>}
           </div>
         </div>
       </button>
@@ -434,6 +452,7 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
           {row.locked ? <Lock size={14} /> : <Unlock size={14} />}
         </button>
         <button onClick={openAlts} title="Want something else?" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-stone-800"><Shuffle size={14} /></button>
+        <button onClick={clear} title="Remove" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-red-600"><Trash2 size={14} /></button>
       </div>
       {row.dish_id && (
         <div className="absolute top-1.5 left-1.5 z-10">
@@ -458,9 +477,8 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
 function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
   row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
+  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell)
   const spicy = row.dishes?.spicy
-  const qty = qtyDisplay(row.dishes)
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -469,6 +487,16 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
     if (res.ok) { const { pick } = await res.json(); onReplaceCell(pick) }
     setOpen(false)
   }
+
+  if (!row.dish_id) {
+    return (
+      <button onClick={() => swap()}
+        className="basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 min-h-[88px] flex items-center justify-center gap-1 text-xs font-medium text-stone-400 hover:text-orange-600 border border-dashed border-stone-300 rounded-xl">
+        <Shuffle size={12} /> Add
+      </button>
+    )
+  }
+
   return (
     <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
       <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
@@ -478,7 +506,6 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
         <div className="px-2 pt-1 pb-1.5">
           <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.dishes?.slot ?? row.slot]}</div>
           <div className="text-xs text-stone-700 leading-snug">{row.dish_name} {spicy && '🌶️'}</div>
-          {qty && <div className="text-[10px] text-stone-400 mt-0.5">{qty}</div>}
         </div>
       </button>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
@@ -494,6 +521,7 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
         )}
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
         <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
+        <button onClick={clear} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-red-600"><Trash2 size={11} /></button>
       </div>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
@@ -506,15 +534,15 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
   )
 }
 
-// Vertical card — image on top, label below — matching SupportChip's shape.
-// The breakfast pair and dessert pair both use this, sized for a phone row
-// rather than the dinner hero's video-aspect thumbnail.
-function SmallDishCard({ row, date, emoji, onReplaceCell, onOpenDish }: {
-  row: MealPlan; date: string; emoji?: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
+// Minimal text-only row for the day's dessert slot — no thumbnail, just a
+// clickable name (opens the dish editor), a reroll die, and a delete. Kept
+// deliberately lighter than the meal cards above: unlike the main/veg/helper
+// trio, dessert doesn't need a picture to be useful at a glance.
+function DessertRow({ row, date, onReplaceCell, onOpenDish }: {
+  row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock } = useCellControls(date, row, onReplaceCell)
-  const qty = qtyDisplay(row.dishes)
-  const isTreat = row.dishes?.tier === 'special'
+  const { open, setOpen, alts, openAlts, clear } = useCellControls(date, row, onReplaceCell)
+  const spicy = row.dishes?.spicy
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -523,35 +551,24 @@ function SmallDishCard({ row, date, emoji, onReplaceCell, onOpenDish }: {
     if (res.ok) { const { pick } = await res.json(); onReplaceCell(pick) }
     setOpen(false)
   }
-  return (
-    <div className="relative basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 bg-stone-50 border border-stone-200 rounded-xl">
-      <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
-        aria-label={`Edit ${row.dish_name}`} className="block w-full text-left">
-        <DishImage imageUrl={row.dishes?.recipe_image_url ?? null} protein={row.dishes?.protein ?? 'none'} name={row.dish_name ?? undefined}
-          className="w-full aspect-video" rounded="rounded-t-xl" iconSize={26} />
-        <div className="px-2 pt-1 pb-1.5">
-          <div className="text-[9px] uppercase tracking-wide text-stone-400">{SLOT_LABELS[row.dishes?.slot ?? row.slot]}</div>
-          <div className="text-xs text-stone-700 leading-snug truncate">{emoji && <span className="mr-1">{emoji}</span>}{row.dish_name ?? '—'}</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            {isTreat && <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-100 text-orange-700">eat-out</span>}
-            {qty && <span className="text-[10px] text-stone-400 truncate">{qty}</span>}
-          </div>
-        </div>
+
+  if (!row.dish_id) {
+    return (
+      <button onClick={() => swap()}
+        className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-stone-400 hover:text-orange-600 border border-dashed border-stone-300 rounded-xl px-3 py-2">
+        <Shuffle size={12} /> Add dessert
       </button>
-      <div className="absolute top-1 right-1 flex gap-0.5 z-10">
-        {row.dish_id && (
-          <PhotoUploadButton dishId={row.dish_id} variant="icon"
-            label={row.dishes?.recipe_image_url ? 'Change photo' : 'Add photo'}
-            className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
-            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
-        )}
-        {row.dish_id && (
-          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []}
-            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
-        )}
-        <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
-        <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
-      </div>
+    )
+  }
+
+  return (
+    <div className="relative flex items-center gap-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
+      <button type="button" onClick={() => row.dish_id && onOpenDish(row.dish_id)}
+        aria-label={`Edit ${row.dish_name}`} className="flex-1 min-w-0 text-left text-xs text-stone-700 truncate">
+        🍡 {row.dish_name} {spicy && '🌶️'}
+      </button>
+      <button onClick={openAlts} title="Want something else?" className="p-1 rounded text-stone-400 hover:text-stone-700"><Shuffle size={12} /></button>
+      <button onClick={clear} title="Remove" className="p-1 rounded text-stone-400 hover:text-red-600"><Trash2 size={12} /></button>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
           <button onClick={() => swap()} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs">🎲 Surprise me</button>
