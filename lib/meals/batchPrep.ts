@@ -134,6 +134,18 @@ function withAmount(instruction: string, amount_display: string | null): string 
   return amount_display ? `${instruction} (${amount_display})` : instruction
 }
 
+// A dish with several ingredients under the same prep_action/prep_note
+// (e.g. Kentang wortel: both Kentang and Wortel are "potong dadu/sesuai")
+// used to render as two identical, unattributable lines — "potong
+// dadu/sesuai (2 pcs); potong dadu/sesuai (2 pcs)", no way to tell which
+// was which. Leading with the ingredient name fixes that; shared by the
+// persisted prep_tasks.instruction (below) and the WA message (lib/wa/
+// messages.ts's own copy of this same format).
+export function formatStepLine(step: { ingredient_name: string; instruction: string; amount_display: string | null }): string {
+  const amount = step.amount_display ? ` (${step.amount_display})` : ''
+  return `${step.ingredient_name}${amount} — ${step.instruction}`
+}
+
 export function deriveBatchPrepTaskDrafts(
   weekStart: string, prepDate: string, dishBlocks: BatchPrepDishBlock[], fruitItems: FruitPrepItem[],
 ): BatchPrepTaskDraft[] {
@@ -143,7 +155,7 @@ export function deriveBatchPrepTaskDrafts(
       drafts.push({
         week_start: weekStart, cook_date: block.cook_date, prep_date: prepDate,
         dish_id: block.dish_id, dish_name: block.dish_name,
-        instruction: withAmount(step.instruction, step.amount_display),
+        instruction: formatStepLine(step),
         prep_action: step.prep_action, assigned_to: 'Wife',
       })
     }

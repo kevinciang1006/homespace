@@ -1,8 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import {
-  stepInstruction, groupBatchPrepByDish, deriveFruitPrepItems, deriveBatchPrepTaskDrafts,
+  stepInstruction, groupBatchPrepByDish, deriveFruitPrepItems, deriveBatchPrepTaskDrafts, formatStepLine,
   type BatchPrepIngredientRow, type FruitDishRow, type BatchPrepDishBlock, type FruitPrepItem,
 } from './batchPrep'
+
+describe('formatStepLine', () => {
+  it('leads with the ingredient name, then amount, then instruction', () => {
+    expect(formatStepLine({ ingredient_name: 'Wortel', amount_display: '2 pcs', instruction: 'potong dadu/sesuai' }))
+      .toBe('Wortel (2 pcs) — potong dadu/sesuai')
+  })
+  it('omits the amount parens when there is no amount', () => {
+    expect(formatStepLine({ ingredient_name: 'Sawi Hijau', amount_display: null, instruction: 'potong + cuci' }))
+      .toBe('Sawi Hijau — potong + cuci')
+  })
+  it('disambiguates two ingredients that share the same instruction', () => {
+    const kentang = formatStepLine({ ingredient_name: 'Kentang', amount_display: '2 pcs', instruction: 'potong dadu/sesuai' })
+    const wortel = formatStepLine({ ingredient_name: 'Wortel', amount_display: '2 pcs', instruction: 'potong dadu/sesuai' })
+    expect(kentang).not.toBe(wortel)
+  })
+})
 
 describe('stepInstruction', () => {
   it('prefers prep_note when present', () => {
@@ -118,9 +134,13 @@ describe('deriveBatchPrepTaskDrafts', () => {
     expect(drafts.find(d => d.dish_id === 'f2')!.assigned_to).toBe('Kevin')
   })
 
-  it('bakes the amount into the instruction text', () => {
+  it('leads dish-block instructions with the ingredient name (so two ingredients sharing one instruction stay distinguishable)', () => {
     const drafts = deriveBatchPrepTaskDrafts('2026-08-24', '2026-08-22', dishBlocks, fruitItems)
-    expect(drafts.find(d => d.dish_id === 'd1')!.instruction).toBe('marinate bumbu bakar (600g)')
+    expect(drafts.find(d => d.dish_id === 'd1')!.instruction).toBe('Ayam (600g) — marinate bumbu bakar')
+  })
+
+  it('bakes the amount into a fruit item instruction as before (no ingredient-name ambiguity there)', () => {
+    const drafts = deriveBatchPrepTaskDrafts('2026-08-24', '2026-08-22', dishBlocks, fruitItems)
     expect(drafts.find(d => d.dish_id === 'f2')!.instruction).toBe('siapkan yogurt porsi kecil (500ml)')
   })
 

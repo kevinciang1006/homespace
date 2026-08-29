@@ -74,7 +74,7 @@ export type PrepDishRow = {
 // matching every other message composer in this file).
 export type BatchPrepDishBlockRow = {
   dish_name: string
-  steps: { instruction: string; amount_display: string | null }[]
+  steps: { ingredient_name: string; instruction: string; amount_display: string | null }[]
 }
 export type FruitPrepItemRow = {
   instruction: string

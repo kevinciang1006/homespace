@@ -201,31 +201,48 @@ describe('composeBatchPrepWifeMessage', () => {
     expect(composeBatchPrepWifeMessage([], '2026-08-24')).toBeNull()
   })
 
-  it('groups multi-step dishes onto one line, joined with "; "', () => {
+  it('renders a bold dish header, then one bullet per ingredient step', () => {
     const msg = composeBatchPrepWifeMessage([
       { dish_name: 'Kuah lobak wortel', steps: [
-        { instruction: 'potong wortel & lobak', amount_display: '3 pcs' },
-        { instruction: 'siapkan bareng Bamboe SOP untuk direbus', amount_display: '1 pack' },
+        { ingredient_name: 'Lobak', instruction: 'potong dadu/sesuai', amount_display: '1 pcs' },
+        { ingredient_name: 'Wortel', instruction: 'potong dadu/sesuai', amount_display: '3 pcs' },
+        { ingredient_name: 'Tulang Ayam', instruction: 'siapkan bareng Bamboe SOP untuk direbus', amount_display: '1 pack' },
       ] },
     ], '2026-08-24')
-    expect(msg).toContain('🥕 Kuah lobak wortel — potong wortel & lobak (3 pcs); siapkan bareng Bamboe SOP untuk direbus (1 pack)')
+    expect(msg).toContain('🥕 *Kuah lobak wortel*')
+    expect(msg).toContain('• Lobak (1 pcs) — potong dadu/sesuai')
+    expect(msg).toContain('• Wortel (3 pcs) — potong dadu/sesuai')
+    expect(msg).toContain('• Tulang Ayam (1 pack) — siapkan bareng Bamboe SOP untuk direbus')
+  })
+
+  it('disambiguates two ingredients sharing the same instruction (the Kentang wortel case)', () => {
+    const msg = composeBatchPrepWifeMessage([
+      { dish_name: 'Kentang wortel', steps: [
+        { ingredient_name: 'Kentang', instruction: 'potong dadu/sesuai', amount_display: '2 pcs' },
+        { ingredient_name: 'Wortel', instruction: 'potong dadu/sesuai', amount_display: '2 pcs' },
+      ] },
+    ], '2026-08-24')
+    expect(msg).toContain('• Kentang (2 pcs) — potong dadu/sesuai')
+    expect(msg).toContain('• Wortel (2 pcs) — potong dadu/sesuai')
   })
 
   it('picks a dish emoji by protein keyword and ends with the wife-view prep link', () => {
     const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Ayam bakar', steps: [{ instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
-      { dish_name: 'Cumi cabe setan', steps: [{ instruction: 'potong ring', amount_display: '500g' }] },
+      { dish_name: 'Ayam bakar', steps: [{ ingredient_name: 'Ayam', instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
+      { dish_name: 'Cumi cabe setan', steps: [{ ingredient_name: 'Cumi-Cumi', instruction: 'potong ring', amount_display: '500g' }] },
     ], '2026-08-24')
-    expect(msg).toContain('🍗 Ayam bakar — marinate bumbu bakar (600g)')
-    expect(msg).toContain('🦑 Cumi cabe setan — potong ring (500g)')
+    expect(msg).toContain('🍗 *Ayam bakar*')
+    expect(msg).toContain('• Ayam (600g) — marinate bumbu bakar')
+    expect(msg).toContain('🦑 *Cumi cabe setan*')
+    expect(msg).toContain('• Cumi-Cumi (500g) — potong ring')
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/prep?week=2026-08-24&who=wife')
   })
 
   it('omits the amount parens when a step has no amount', () => {
     const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Bayam tumis', steps: [{ instruction: 'potong + cuci', amount_display: null }] },
+      { dish_name: 'Bayam tumis', steps: [{ ingredient_name: 'Bayam', instruction: 'potong + cuci', amount_display: null }] },
     ], '2026-08-24')
-    expect(msg).toContain('Bayam tumis — potong + cuci')
+    expect(msg).toContain('• Bayam — potong + cuci')
     expect(msg).not.toContain('potong + cuci (')
   })
 })

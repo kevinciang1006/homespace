@@ -127,14 +127,31 @@ function stepText(step: { instruction: string; amount_display: string | null }):
   return step.amount_display ? `${step.instruction} (${step.amount_display})` : step.instruction
 }
 
+// Ingredient name leads each line — a dish with two ingredients under the
+// same instruction (Kentang wortel: both Kentang and Wortel are "potong
+// dadu/sesuai") used to render as two identical, unattributable bullets.
+// Same format as lib/meals/batchPrep.ts's formatStepLine, which the
+// persisted prep_tasks.instruction (the /meals/prep page) also uses —
+// duplicated rather than shared so lib/wa never imports lib/meals directly.
+function ingredientStepLine(step: { ingredient_name: string; instruction: string; amount_display: string | null }): string {
+  const amount = step.amount_display ? ` (${step.amount_display})` : ''
+  return `${step.ingredient_name}${amount} — ${step.instruction}`
+}
+
+// One block per dish: an emoji + bold name header, then each ingredient's
+// step as its own bullet — replaces the old single semicolon-joined line,
+// which got both unreadable and ambiguous once soups grew a 3-4 ingredient
+// star+base (see the kuah normalization pass this followed).
 export function composeBatchPrepWifeMessage(dishBlocks: BatchPrepDishBlockRow[], weekStart: string): string | null {
   if (dishBlocks.length === 0) return null
-  const lines = dishBlocks.map(block =>
-    `${dishEmoji(block.dish_name)} ${block.dish_name} — ${block.steps.map(stepText).join('; ')}`)
+  const blocks = dishBlocks.map(block => [
+    `${dishEmoji(block.dish_name)} *${block.dish_name}*`,
+    ...block.steps.map(s => `• ${ingredientStepLine(s)}`),
+  ].join('\n'))
   return [
     '🔪 Prep minggu ini (setelah belanja):',
     '',
-    ...lines,
+    blocks.join('\n\n'),
     '',
     'Makasih ya 🧡',
     prepPageUrl(weekStart, 'wife'),

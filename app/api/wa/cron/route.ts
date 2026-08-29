@@ -152,8 +152,8 @@ const SAMPLE_PREP_DISHES: PrepDishRow[] = [
   },
 ]
 const SAMPLE_BATCH_PREP_DISHES = [
-  { dish_name: 'Ayam bakar', steps: [{ instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
-  { dish_name: 'Cumi cabe setan', steps: [{ instruction: 'potong ring', amount_display: '500g' }] },
+  { dish_name: 'Ayam bakar', steps: [{ ingredient_name: 'Ayam', instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
+  { dish_name: 'Cumi cabe setan', steps: [{ ingredient_name: 'Cumi-Cumi', instruction: 'potong ring', amount_display: '500g' }] },
 ]
 const SAMPLE_BATCH_PREP_FRUIT = [
   { instruction: 'potong pepaya, bagi porsi', amount_display: '6 slices' },
