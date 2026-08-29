@@ -18,7 +18,7 @@ export function formatQtyAmount(amount: number, unit: string): string {
 // dish editor and the Ingredients page.
 export const INGREDIENT_UNITS = [
   'g', 'kg', 'ml', 'L', 'pcs', 'butir', 'papan', 'ekor', 'pack', 'packet',
-  'stalk', 'batang', 'siung', 'sdm', 'sdt', 'tsp', 'tbsp', 'pot', 'batch', 'to taste',
+  'stalk', 'batang', 'siung', 'ikat', 'iris', 'sdm', 'sdt', 'tsp', 'tbsp', 'pot', 'batch', 'to taste',
 ] as const
 export type IngredientUnit = (typeof INGREDIENT_UNITS)[number]
 
