@@ -174,7 +174,9 @@ async function runTestMode(to: string): Promise<Response> {
   const backlogMessage = composeBacklogNudge(backlogCandidate, backlogTail(backlogActive, today))
     ?? (composeBacklogNudge(SAMPLE_BACKLOG_ITEM, [])! + SAMPLE_TAG)
 
-  const sentOk: Record<string, boolean> = {}
+  // Report the true send result per kind — on failure, include *why* (relay
+  // HTTP status, response body, or the thrown error) instead of a bare false.
+  const sent: Record<string, { ok: boolean; error?: string }> = {}
   for (const [kind, message] of [
     ['weekly_shopping', weeklyMessage],
     ['daily_reminder', dailyMessage],
@@ -182,9 +184,9 @@ async function runTestMode(to: string): Promise<Response> {
     ['backlog_nudge', backlogMessage],
   ] as const) {
     const result = await sendWhatsapp(to, message)
-    sentOk[kind] = result.ok
+    sent[kind] = result.ok ? { ok: true } : { ok: false, error: result.error }
   }
-  return Response.json({ sent: sentOk })
+  return Response.json({ sent })
 }
 
 export async function GET(request: Request) {
@@ -312,6 +314,8 @@ export async function GET(request: Request) {
       await supabase.from('wa_outbound').update({ sent: true, sent_at: new Date().toISOString() }).eq('id', row.id)
       sent++
     } else {
+      const reasons = results.filter(r => !r.ok).map(r => (r as { error: string }).error)
+      console.error(`wa_outbound send failed [${row.kind} ${row.ref_date}]:`, reasons)
       failed++
     }
   }
