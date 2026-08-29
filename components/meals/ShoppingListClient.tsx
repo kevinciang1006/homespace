@@ -3,34 +3,36 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Plus } from 'lucide-react'
 import { SHOP_CATEGORIES, type ShopCategory } from '@/lib/meals/shopping'
+import {
+  classifyShoppingGroup, sectionOf, SHOPPING_SECTION_ORDER, SHOPPING_SECTION_LABEL, type ShoppingSection,
+} from '@/lib/meals/shoppingGroups'
 import { currentMonday, shiftWeek, weekDates } from '@/lib/meals/dates'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
-import type { WeekMealDay } from '@/lib/meals/weekMeals'
 
-const CAT_LABEL: Record<string, string> = {
-  protein: 'Protein', vegetable: 'Vegetable', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other', dish: 'Dishes this week',
+const RAW_CATEGORY_LABEL: Record<ShopCategory, string> = {
+  protein: 'Protein', vegetable: 'Vegetable', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
 }
-const CAT_BADGE: Record<string, string> = {
-  protein: 'bg-rose-100 text-rose-700', vegetable: 'bg-green-100 text-green-700',
-  bumbu: 'bg-orange-100 text-orange-700',
-  pantry: 'bg-amber-100 text-amber-700', other: 'bg-stone-100 text-stone-600', dish: 'bg-stone-100 text-stone-500',
-}
+
 function label(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function ShoppingListClient({ initialWeekStart, initialList, initialItems, initialMeals }: {
+// Grouped the same way as the WhatsApp message (lib/meals/shoppingGroups) so
+// the two stay consistent: Protein -> Sayur -> Bumbu -> Buah. Non-fruit
+// "bought as-is" items with no real ingredient breakdown ("lainnya" — the
+// item still exists and can be seen/edited via the API, just not surfaced
+// here) are left off, same as the message — this page is a shopping list,
+// not a catch-all.
+export default function ShoppingListClient({ initialWeekStart, initialList, initialItems }: {
   initialWeekStart: string
   initialList: MealShoppingList | null
   initialItems: MealShoppingItem[]
-  initialMeals: WeekMealDay[]
 }) {
   const router = useRouter()
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [list, setList] = useState<MealShoppingList | null>(initialList)
   const [items, setItems] = useState<MealShoppingItem[]>(initialItems)
-  const [meals, setMeals] = useState<WeekMealDay[]>(initialMeals)
   const [busy, setBusy] = useState(false)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
 
@@ -45,8 +47,8 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
       const res = await fetch('/api/meals/shopping/generate', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart: ws }),
       })
-      const { list, items, meals } = await res.json()
-      setList(list ?? null); setItems(items ?? []); setMeals(meals ?? [])
+      const { list, items } = await res.json()
+      setList(list ?? null); setItems(items ?? [])
     } finally { setBusy(false) }
   }
 
@@ -78,9 +80,13 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
     if (res.ok) { const row = await res.json(); setItems(is => [...is, row as MealShoppingItem]) }
   }
 
-  const buyable = items.filter(i => i.category !== 'dish' && !i.already_have)
+  const visibleItems = useMemo(
+    () => items.filter(i => classifyShoppingGroup(i.ingredient, i.category) !== 'lainnya'),
+    [items],
+  )
+  const buyable = visibleItems.filter(i => !i.already_have)
   const remaining = buyable.filter(i => !i.checked).length
-  const dishRows = items.filter(i => i.category === 'dish')
+  const sections = SHOPPING_SECTION_ORDER.filter((s): s is Exclude<ShoppingSection, 'lainnya'> => s !== 'lainnya')
 
   return (
     <div>
@@ -100,8 +106,6 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
         </div>
       </div>
 
-      <WeekMealsSummary meals={meals} />
-
       {!list && !busy && (
         <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-500">
           No shopping list for this week yet.<br />
@@ -109,13 +113,13 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
         </div>
       )}
 
-      {list && SHOP_CATEGORIES.map(cat => {
-        const rows = items.filter(i => i.category === cat)
+      {list && sections.map(section => {
+        const rows = visibleItems.filter(i => sectionOf(classifyShoppingGroup(i.ingredient, i.category)) === section)
           .sort((a, b) => Number(a.already_have) - Number(b.already_have))
         if (rows.length === 0) return null
         return (
-          <section key={cat} className="mb-5">
-            <h2 className="text-sm font-semibold text-stone-500 mb-2">{CAT_LABEL[cat]}</h2>
+          <section key={section} className="mb-5">
+            <h2 className="text-sm font-semibold text-stone-500 mb-2">{SHOPPING_SECTION_LABEL[section]}</h2>
             <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
               {rows.map(item => <ItemRow key={item.id} item={item} onPatch={patchItem} onDelete={deleteItem} />)}
             </div>
@@ -124,47 +128,7 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
       })}
 
       {list && <AddItem onAdd={addItem} />}
-
-      {dishRows.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-sm font-semibold text-stone-500 mb-1">Dishes this week</h2>
-          <p className="text-xs text-stone-400 mb-2">These dishes have no ingredients yet — add what to buy manually above.</p>
-          <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
-            {dishRows.map(item => (
-              <div key={item.id} className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-stone-700">{item.ingredient}</span>
-                <button onClick={() => deleteItem(item.id)} className="text-stone-300 hover:text-stone-600" aria-label="Delete"><Trash2 size={15} /></button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
-  )
-}
-
-function WeekMealsSummary({ meals }: { meals: WeekMealDay[] }) {
-  const withAnything = meals.filter(d => d.main || d.supports.length > 0)
-  if (withAnything.length === 0) return null
-  return (
-    <section className="mb-6">
-      <h2 className="text-sm font-semibold text-stone-500 mb-2">This week&apos;s meals</h2>
-      <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
-        {withAnything.map(d => (
-          <div key={d.date} className="flex items-center gap-3 px-4 py-2 text-sm">
-            <span className="w-16 shrink-0 text-stone-400">{label(d.date)}</span>
-            <span className="min-w-0 flex-1 text-stone-700 truncate">
-              {d.main && <span className="font-medium">{d.main}</span>}
-              {d.supports.length > 0 && (
-                <span className={d.main ? 'text-stone-400' : ''}>
-                  {d.main ? ' + ' : ''}{d.supports.join(', ')}
-                </span>
-              )}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
   )
 }
 
@@ -191,7 +155,6 @@ function ItemRow({ item, onPatch, onDelete }: {
           <input value={qty} onChange={e => setQty(e.target.value)} placeholder="qty"
             onBlur={() => (qty.trim() || null) !== item.quantity && onPatch(item.id, { quantity: qty.trim() || null })}
             className="bg-transparent focus:outline-none focus:bg-stone-50 rounded px-1 text-sm text-stone-500 w-24" />
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${CAT_BADGE[item.category]}`}>{CAT_LABEL[item.category]}</span>
         </div>
         {dishes.length > 0 && <div className="text-[11px] text-stone-400 mt-0.5 truncate">for: {dishes.join(', ')}</div>}
       </div>
@@ -216,7 +179,7 @@ function AddItem({ onAdd }: { onAdd: (ingredient: string, quantity: string, cate
       <input value={qty} onChange={e => setQty(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
         placeholder="qty" className="w-20 bg-transparent focus:outline-none text-sm text-stone-500 px-1" />
       <select value={cat} onChange={e => setCat(e.target.value as ShopCategory)} className="text-sm text-stone-600 bg-transparent focus:outline-none">
-        {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
+        {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{RAW_CATEGORY_LABEL[c]}</option>)}
       </select>
       <button onClick={submit} className="flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus size={15} /> Add</button>
     </div>

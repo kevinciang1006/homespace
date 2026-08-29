@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { supabase } from '@/lib/supabase'
-import { currentMonday, mondayOf, weekDates } from '@/lib/meals/dates'
-import { buildWeekMealsSummary, type WeekMealPlanRow } from '@/lib/meals/weekMeals'
+import { currentMonday, mondayOf } from '@/lib/meals/dates'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
 import ShoppingListClient from '@/components/meals/ShoppingListClient'
 
@@ -21,17 +20,11 @@ export default async function MealShoppingPage({ searchParams }: { searchParams:
     items = (data ?? []) as MealShoppingItem[]
   }
 
-  const days = weekDates(weekStart)
-  const { data: plansRaw } = await supabase.from('meal_plans')
-    .select('plan_date, dish_name, role, skipped').gte('plan_date', days[0]).lte('plan_date', days[6])
-  const meals = buildWeekMealsSummary(weekStart, (plansRaw ?? []) as WeekMealPlanRow[])
-
   return (
     <ShoppingListClient
       initialWeekStart={weekStart}
       initialList={(list ?? null) as MealShoppingList | null}
       initialItems={items}
-      initialMeals={meals}
     />
   )
 }

@@ -4,7 +4,6 @@ import {
   buildShoppingListFromDishIngredients, mergeShoppingItems,
   type IngredientRef, type DishIngredientLink, type ExistingShoppingItem,
 } from '@/lib/meals/shopping'
-import { buildWeekMealsSummary, type WeekMealPlanRow } from '@/lib/meals/weekMeals'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
 
 export async function POST(request: Request) {
@@ -18,12 +17,12 @@ export async function POST(request: Request) {
   // breakfast items (bubur, roti, telur rebus...) are "buy as-is" dishes with
   // no dish_ingredients anyway, so they only ever cluttered the "dishes with
   // no ingredients" bucket.
+  type PlanRow = { plan_date: string; dish_id: string | null; dish_name: string | null; role: string; skipped: boolean }
   const { data: plansRaw } = await supabase.from('meal_plans')
     .select('plan_date, dish_id, dish_name, role, skipped')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
     .neq('slot', 'breakfast')
-  const plans = (plansRaw ?? []) as (WeekMealPlanRow & { dish_id: string | null })[]
-  const meals = buildWeekMealsSummary(weekStart, plans)
+  const plans = (plansRaw ?? []) as PlanRow[]
 
   const dishIds = [...new Set(plans.map(p => p.dish_id).filter((id): id is string => !!id))]
   const [{ data: dishesRaw }, { data: dishIngredientsRaw }] = dishIds.length
@@ -98,5 +97,5 @@ export async function POST(request: Request) {
   const { data: items } = await supabase.from('meal_shopping_items')
     .select('*').eq('list_id', list.id).order('created_at', { ascending: true })
 
-  return Response.json({ list: list as MealShoppingList, items: (items ?? []) as MealShoppingItem[], meals })
+  return Response.json({ list: list as MealShoppingList, items: (items ?? []) as MealShoppingItem[] })
 }

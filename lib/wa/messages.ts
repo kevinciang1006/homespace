@@ -1,49 +1,13 @@
 import { addToUnitClasses, dominantUnitClass, formatUnitClass, type UnitClass } from '../meals/qty'
 import { weekDates } from '../meals/dates'
+import {
+  classifyShoppingGroup, sectionOf, SHOPPING_GROUP_RANK, SHOPPING_SECTION_EMOJI, SHOPPING_SECTION_LABEL,
+} from '../meals/shoppingGroups'
 import { shoppingPageUrl, dayPageUrl, mealsWeekUrl } from './config'
 import { indonesianDayName } from './schedule'
 import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow, WeeklyMealPlanRow } from './types'
 
 // ---- Weekly shopping ---------------------------------------------------------
-
-// Message-only grouping — deliberately finer than the app's ShopCategory
-// (protein/vegetable/bumbu/pantry/other/dish): "aromatics" (chilies, garlic,
-// ginger, scallion, celery, tomato, lime) read to a home cook as bumbu even
-// though they're stored as category='veg' (they're fresh, not a packet), and
-// fruit needs splitting out of the generic "dishes with no ingredients"
-// bucket. Classified by ingredient NAME so it works regardless of whether the
-// item came from a live dish_ingredients join or a persisted/raw fallback.
-type MsgGroup = 'protein' | 'veg_main' | 'bumbu_packet' | 'bumbu_aromatic' | 'fruit' | 'lainnya'
-const GROUP_RANK: Record<MsgGroup, number> = {
-  protein: 0, veg_main: 1, bumbu_packet: 2, bumbu_aromatic: 3, fruit: 4, lainnya: 5,
-}
-const GROUP_HEADER: Record<MsgGroup, string> = {
-  protein: '🥩 Protein', veg_main: '🥦 Sayur', bumbu_packet: '🧂 Bumbu', bumbu_aromatic: '🧂 Bumbu',
-  fruit: '🍎 Buah', lainnya: '🛍️ Lainnya',
-}
-const AROMATIC_NAMES = new Set([
-  'Cabai Rawit', 'Cabai Hijau', 'Cabai Merah Besar', 'Cabai Merah Keriting', 'Cabai Kering',
-  'Bawang Putih', 'Jahe', 'Daun Bawang', 'Daun Bawang Prei', 'Seledri', 'Tomat', 'Tomat Hijau',
-  'Jeruk Nipis', 'Jeruk Limau',
-])
-const FRUIT_KEYWORDS = [
-  'apple', 'banana', 'pisang', 'jeruk', 'orange', 'pear', 'pepaya', 'papaya', 'semangka',
-  'watermelon', 'mangga', 'mango', 'anggur', 'grape', 'nanas', 'pineapple', 'alpukat',
-  'avocado', 'guava', 'jambu',
-]
-
-function messageGroup(ingredient: string, category: string): MsgGroup {
-  const cat = category.trim().toLowerCase()
-  if (cat === 'dish') {
-    const lower = ingredient.toLowerCase()
-    return FRUIT_KEYWORDS.some(k => lower.includes(k)) ? 'fruit' : 'lainnya'
-  }
-  if (cat === 'protein') return 'protein'
-  if (cat === 'bumbu') return 'bumbu_packet'
-  if (AROMATIC_NAMES.has(ingredient)) return 'bumbu_aromatic'
-  if (cat === 'vegetable' || cat === 'veg') return 'veg_main'
-  return 'lainnya'
-}
 
 // Sums items across dishes with proper unit conversion (g/kg -> g, ml/L ->
 // ml; count units summed only against an exact matching unit) instead of the
@@ -65,30 +29,28 @@ export function sumShopIngredients(rows: ShopIngredientRow[]): WeeklyShoppingIte
 }
 
 export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[], weekStart?: string): string {
-  // "Lainnya" (breakfast-ish/bought-as-is items with no real ingredient
-  // breakdown, e.g. leftover from before breakfast dishes were excluded from
-  // the shopping build, or anything else that doesn't fit protein/veg/bumbu/
-  // fruit) is deliberately left off the WhatsApp message — this is meant to
-  // read as an actual market list, not a catch-all. It still shows on the
-  // app's shopping page under "Dishes this week" for completeness.
+  // "Lainnya" (bought-as-is items with no real ingredient breakdown that
+  // aren't fruit — e.g. a dessert) is dropped from the message entirely, same
+  // as the app's shopping page — this is meant to read as an actual market
+  // list, not a catch-all.
   const withGroup = items
-    .map(i => ({ ...i, group: messageGroup(i.ingredient, i.category) }))
+    .map(i => ({ ...i, group: classifyShoppingGroup(i.ingredient, i.category) }))
     .filter(i => i.group !== 'lainnya')
 
   if (withGroup.length === 0) {
     return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl(weekStart)}`
   }
 
-  withGroup.sort((a, b) => GROUP_RANK[a.group] - GROUP_RANK[b.group] || a.ingredient.localeCompare(b.ingredient))
+  withGroup.sort((a, b) => SHOPPING_GROUP_RANK[a.group] - SHOPPING_GROUP_RANK[b.group] || a.ingredient.localeCompare(b.ingredient))
 
   const lines: string[] = []
-  let lastHeader: string | null = null
+  let lastSection: string | null = null
   for (const item of withGroup) {
-    const header = GROUP_HEADER[item.group]
-    if (header !== lastHeader) {
-      if (lastHeader !== null) lines.push('')
-      lines.push(header)
-      lastHeader = header
+    const section = sectionOf(item.group)
+    if (section !== lastSection) {
+      if (lastSection !== null) lines.push('')
+      lines.push(`${SHOPPING_SECTION_EMOJI[section]} ${SHOPPING_SECTION_LABEL[section]}`)
+      lastSection = section
     }
     lines.push(item.quantity ? `- ${item.ingredient} ${item.quantity}` : `- ${item.ingredient}`)
   }
