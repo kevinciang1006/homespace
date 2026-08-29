@@ -81,6 +81,26 @@ export type MealPlan = {
   } | null
 }
 
+export const INGREDIENT_CATEGORIES = ['protein', 'veg', 'bumbu', 'pantry', 'other'] as const
+export type IngredientCategory = (typeof INGREDIENT_CATEGORIES)[number]
+
+export type Ingredient = {
+  id: string
+  name: string
+  aliases: string[]
+  category: IngredientCategory | null
+  default_unit: string | null
+  shelf_stable: boolean
+}
+
+export type DishIngredientRow = {
+  id: string
+  dish_id: string
+  ingredient_id: string
+  amount: number | null
+  unit: string | null
+}
+
 export type DailyStaple = {
   id: string
   name: string
