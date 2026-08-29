@@ -55,3 +55,31 @@ export function classifyShoppingGroup(ingredient: string, category: string): Sho
   if (cat === 'vegetable' || cat === 'veg') return 'veg_main'
   return 'lainnya'
 }
+
+// Secondary sort key WITHIN a section, so a long shopping list doesn't force
+// backtracking across the store — e.g. seeing "Cumi-Cumi" near the top of
+// Protein and "Udang" near the bottom (alphabetical, with Tahu in between)
+// means walking back to the seafood counter after already leaving it.
+// Keyword-based on the ingredient NAME (not a fixed ingredient list) so a
+// new item like "Ceker Ayam" or "Ikan Tongkol" clusters correctly without a
+// code change. Only 'protein' has sub-families today; every other section
+// ranks 0, leaving its existing alphabetical order untouched.
+type ProteinFamily = 'chicken' | 'pork' | 'seafood' | 'egg' | 'soy' | 'other'
+const PROTEIN_FAMILY_RANK: Record<ProteinFamily, number> = {
+  chicken: 0, pork: 1, seafood: 2, egg: 3, soy: 4, other: 5,
+}
+const SEAFOOD_KEYWORDS = ['ikan', 'udang', 'cumi', 'kepiting', 'kepah', 'ebi']
+
+function proteinFamily(name: string): ProteinFamily {
+  const n = name.toLowerCase()
+  if (n.includes('ayam')) return 'chicken'
+  if (n.includes('babi')) return 'pork'
+  if (n.includes('telur')) return 'egg'
+  if (n.includes('tahu') || n.includes('tempe')) return 'soy'
+  if (SEAFOOD_KEYWORDS.some(k => n.includes(k))) return 'seafood'
+  return 'other'
+}
+
+export function shoppingSubRank(section: ShoppingSection, ingredient: string): number {
+  return section === 'protein' ? PROTEIN_FAMILY_RANK[proteinFamily(ingredient)] : 0
+}

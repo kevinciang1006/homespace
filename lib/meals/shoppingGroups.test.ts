@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyShoppingGroup, sectionOf, SHOPPING_GROUP_RANK, SHOPPING_SECTION_ORDER } from './shoppingGroups'
+import { classifyShoppingGroup, sectionOf, shoppingSubRank, SHOPPING_GROUP_RANK, SHOPPING_SECTION_ORDER } from './shoppingGroups'
 
 describe('classifyShoppingGroup', () => {
   it('classifies by stored category first', () => {
@@ -50,5 +50,39 @@ describe('SHOPPING_GROUP_RANK / SHOPPING_SECTION_ORDER', () => {
   })
   it('lists lainnya last, so it is easy for callers to slice it off', () => {
     expect(SHOPPING_SECTION_ORDER[SHOPPING_SECTION_ORDER.length - 1]).toBe('lainnya')
+  })
+})
+
+describe('shoppingSubRank', () => {
+  it('clusters chicken-family protein items together', () => {
+    const ayam = shoppingSubRank('protein', 'Ayam')
+    const ayamKampung = shoppingSubRank('protein', 'Ayam Kampung')
+    const tulangAyam = shoppingSubRank('protein', 'Tulang Ayam')
+    const cekerAyam = shoppingSubRank('protein', 'Ceker Ayam') // not a real ingredient yet — keyword match still works
+    expect(new Set([ayam, ayamKampung, tulangAyam, cekerAyam]).size).toBe(1)
+  })
+
+  it('clusters seafood-family protein items together, separate from chicken', () => {
+    const udang = shoppingSubRank('protein', 'Udang')
+    const cumi = shoppingSubRank('protein', 'Cumi-Cumi')
+    const ikan = shoppingSubRank('protein', 'Ikan')
+    const ayam = shoppingSubRank('protein', 'Ayam')
+    expect(new Set([udang, cumi, ikan]).size).toBe(1)
+    expect(udang).not.toBe(ayam)
+  })
+
+  it('puts an unrelated protein item (e.g. Tahu) between chicken and seafood in a real sort', () => {
+    const items = ['Udang', 'Tahu', 'Ayam', 'Cumi-Cumi', 'Tulang Ayam']
+    const sorted = [...items].sort((a, b) =>
+      shoppingSubRank('protein', a) - shoppingSubRank('protein', b) || a.localeCompare(b))
+    // both chicken items land before both seafood items — no backtracking
+    const chickenIdx = [sorted.indexOf('Ayam'), sorted.indexOf('Tulang Ayam')]
+    const seafoodIdx = [sorted.indexOf('Udang'), sorted.indexOf('Cumi-Cumi')]
+    expect(Math.max(...chickenIdx)).toBeLessThan(Math.min(...seafoodIdx))
+  })
+
+  it('is a no-op outside the protein section', () => {
+    expect(shoppingSubRank('veg_main', 'Ayam')).toBe(0)
+    expect(shoppingSubRank('bumbu', 'Udang')).toBe(0)
   })
 })

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Plus } from 'lucide-react'
 import { SHOP_CATEGORIES, type ShopCategory } from '@/lib/meals/shopping'
 import {
-  classifyShoppingGroup, sectionOf, SHOPPING_SECTION_ORDER, SHOPPING_SECTION_LABEL, type ShoppingSection,
+  classifyShoppingGroup, sectionOf, shoppingSubRank, SHOPPING_SECTION_ORDER, SHOPPING_SECTION_LABEL, type ShoppingSection,
 } from '@/lib/meals/shoppingGroups'
 import { currentMonday, shiftWeek, weekDates } from '@/lib/meals/dates'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
@@ -115,7 +115,10 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
 
       {list && sections.map(section => {
         const rows = visibleItems.filter(i => sectionOf(classifyShoppingGroup(i.ingredient, i.category)) === section)
-          .sort((a, b) => Number(a.already_have) - Number(b.already_have))
+          .sort((a, b) =>
+            Number(a.already_have) - Number(b.already_have)
+            || shoppingSubRank(section, a.ingredient) - shoppingSubRank(section, b.ingredient)
+            || a.ingredient.localeCompare(b.ingredient))
         if (rows.length === 0) return null
         return (
           <section key={section} className="mb-5">

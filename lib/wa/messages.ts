@@ -1,7 +1,7 @@
 import { addToUnitClasses, dominantUnitClass, formatUnitClass, type UnitClass } from '../meals/qty'
 import { weekDates } from '../meals/dates'
 import {
-  classifyShoppingGroup, sectionOf, SHOPPING_GROUP_RANK, SHOPPING_SECTION_EMOJI, SHOPPING_SECTION_LABEL,
+  classifyShoppingGroup, sectionOf, shoppingSubRank, SHOPPING_GROUP_RANK, SHOPPING_SECTION_EMOJI, SHOPPING_SECTION_LABEL,
 } from '../meals/shoppingGroups'
 import { shoppingPageUrl, dayPageUrl, mealsWeekUrl } from './config'
 import { indonesianDayName } from './schedule'
@@ -41,7 +41,10 @@ export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[], weekSt
     return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl(weekStart)}`
   }
 
-  withGroup.sort((a, b) => SHOPPING_GROUP_RANK[a.group] - SHOPPING_GROUP_RANK[b.group] || a.ingredient.localeCompare(b.ingredient))
+  withGroup.sort((a, b) =>
+    SHOPPING_GROUP_RANK[a.group] - SHOPPING_GROUP_RANK[b.group]
+    || shoppingSubRank(sectionOf(a.group), a.ingredient) - shoppingSubRank(sectionOf(b.group), b.ingredient)
+    || a.ingredient.localeCompare(b.ingredient))
 
   const lines: string[] = []
   let lastSection: string | null = null
