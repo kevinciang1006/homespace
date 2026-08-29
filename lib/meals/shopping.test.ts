@@ -175,6 +175,21 @@ describe('buildShoppingListFromDishIngredients', () => {
     )
     expect(out.dishesWithoutIngredients).toEqual(['Banana 6 pcs'])
   })
+
+  it('excludes shelf_stable ingredients from the buy list, without treating the dish as having no ingredients', () => {
+    const withPantry = new Map<string, IngredientRef>([
+      ...ingredientById,
+      ['garam', { id: 'garam', name: 'Garam', category: 'pantry', default_unit: null, shelf_stable: true }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([
+      ['a', [{ ingredient_id: 'ayam', amount: 500, unit: 'g' }, { ingredient_id: 'garam', amount: null, unit: 'to taste' }]],
+    ])
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'a', dish_name: 'Dish A' }], links, withPantry, dishMetaById,
+    )
+    expect(out.ingredients.map(i => i.ingredient)).toEqual(['Ayam'])
+    expect(out.dishesWithoutIngredients).toEqual([]) // has real (shelf-stable) links, so not "no ingredients"
+  })
 })
 
 // Build a BuiltList fixture concisely.

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const ingredientIds = [...new Set((dishIngredientsRaw as DishIngredientRawRow[] ?? []).map(r => r.ingredient_id))]
   const { data: ingredientsRaw } = ingredientIds.length
-    ? await supabase.from('ingredients').select('id, name, category, default_unit').in('id', ingredientIds)
+    ? await supabase.from('ingredients').select('id, name, category, default_unit, shelf_stable').in('id', ingredientIds)
     : { data: [] }
   const ingredientById = new Map<string, IngredientRef>((ingredientsRaw as IngredientRef[] ?? []).map(i => [i.id, i]))
 

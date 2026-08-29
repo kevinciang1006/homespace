@@ -89,7 +89,7 @@ export function buildShoppingList(
 // units for the same ingredient are kept as separate "amount unit" segments
 // joined with " + "), just keyed by ingredient_id instead of a normalized
 // name string — the normalization already happened once, at migration time.
-export type IngredientRef = { id: string; name: string; category: string | null; default_unit: string | null }
+export type IngredientRef = { id: string; name: string; category: string | null; default_unit: string | null; shelf_stable?: boolean }
 export type DishIngredientLink = { ingredient_id: string; amount: number | null; unit: string | null }
 
 export function buildShoppingListFromDishIngredients(
@@ -121,6 +121,13 @@ export function buildShoppingListFromDishIngredients(
     for (const link of links) {
       const ing = ingredientById.get(link.ingredient_id)
       if (!ing) continue
+      // Shelf-stable pantry items (salt, oil, garlic powder…) are things a
+      // household always has — they show on the dish's own ingredient list
+      // (via /api/meals/dishes/[id]/ingredients) but never on the shopping
+      // list. The dish still counts as "has ingredients" (links.length was
+      // already checked above), so it doesn't fall into the no-ingredients
+      // fallback just because everything it needs happens to be pantry.
+      if (ing.shelf_stable) continue
       let row = agg.get(ing.id)
       if (!row) {
         row = { ingredient: ing.name, category: normalizeCategory(ing.category), from_dishes: [], byUnit: new Map() }
