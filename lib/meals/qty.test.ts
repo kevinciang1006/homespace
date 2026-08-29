@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   formatQty, formatQtyAmount, QTY_UNITS,
   unitKind, toBaseAmount, formatBaseAmount, addToUnitClasses, dominantUnitClass, formatUnitClass,
+  formatIngredientAmount,
   type UnitClass,
 } from './qty'
 
@@ -133,5 +134,22 @@ describe('addToUnitClasses / dominantUnitClass / formatUnitClass', () => {
 
   it('returns null for an empty map', () => {
     expect(dominantUnitClass(new Map())).toBeNull()
+  })
+})
+
+describe('formatIngredientAmount', () => {
+  it('formats weight/volume with the kg/L rollover', () => {
+    expect(formatIngredientAmount(600, 'g')).toBe('600g')
+    expect(formatIngredientAmount(1, 'kg')).toBe('1kg')
+    expect(formatIngredientAmount(500, 'ml')).toBe('500ml')
+    expect(formatIngredientAmount(1.5, 'L')).toBe('1.5L')
+  })
+  it('formats count units with a space, unconverted', () => {
+    expect(formatIngredientAmount(2, 'ekor')).toBe('2 ekor')
+    expect(formatIngredientAmount(1.5, 'ikat')).toBe('1.5 ikat')
+  })
+  it('returns null when amount or unit is missing', () => {
+    expect(formatIngredientAmount(null, 'g')).toBeNull()
+    expect(formatIngredientAmount(600, null)).toBeNull()
   })
 })

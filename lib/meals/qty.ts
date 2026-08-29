@@ -93,6 +93,16 @@ export function formatUnitClass(cls: UnitClass): string {
   return cls.kind === 'count' ? formatQtyAmount(cls.total, cls.label) : formatBaseAmount(cls.total, cls.kind)
 }
 
+// One ingredient line's amount, nicely formatted the same way the shopping
+// list is (g/kg or ml/L collapse at 1000, count units keep their own unit) —
+// but for a SINGLE dish_ingredients row, not a cross-dish sum. Used by the
+// batch-prep feature (dish cards, WhatsApp prep messages).
+export function formatIngredientAmount(amount: number | null | undefined, unit: string | null | undefined): string | null {
+  if (amount == null || !unit) return null
+  const kind = unitKind(unit)
+  return kind === 'count' ? formatQtyAmount(amount, unit) : formatBaseAmount(toBaseAmount(amount, unit), kind)
+}
+
 // Full display string for a dish's quantity, e.g. "400g", "2 ekor (~600g total)".
 // Returns null when there's nothing worth showing (no amount/unit and no note).
 export function formatQty(amount: number | null | undefined, unit: string | null | undefined, note?: string | null): string | null {

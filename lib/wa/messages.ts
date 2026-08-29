@@ -3,9 +3,12 @@ import { weekDates } from '../meals/dates'
 import {
   classifyShoppingGroup, sectionOf, shoppingSubRank, SHOPPING_GROUP_RANK, SHOPPING_SECTION_EMOJI, SHOPPING_SECTION_LABEL,
 } from '../meals/shoppingGroups'
-import { shoppingPageUrl, dayPageUrl, mealsWeekUrl } from './config'
+import { shoppingPageUrl, dayPageUrl, mealsWeekUrl, prepPageUrl } from './config'
 import { indonesianDayName } from './schedule'
-import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow, WeeklyMealPlanRow } from './types'
+import type {
+  WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow, WeeklyMealPlanRow,
+  BatchPrepDishBlockRow, FruitPrepItemRow,
+} from './types'
 
 // ---- Weekly shopping ---------------------------------------------------------
 
@@ -100,6 +103,54 @@ export function composeMealOverview(weekStart: string, rows: WeeklyMealPlanRow[]
   if (lines.length === 0) return null
 
   return ['🍽️ Menu minggu ini:', ...lines, '', mealsWeekUrl(weekStart)].join('\n')
+}
+
+// ---- Weekly batch prep (post-shopping) ---------------------------------------
+// Two independent messages for the SAME weekly prep session: Wife gets the
+// cooking prep grouped by dish, Kevin gets the fruit/yogurt portioning.
+// Deliberately built from already-persisted prep_tasks-shaped rows (not
+// recomputed from scratch) so the message always matches what the /meals/prep
+// page shows. See lib/meals/batchPrep.ts for how those rows are derived.
+
+function dishEmoji(name: string): string {
+  const n = name.toLowerCase()
+  if (n.includes('ayam')) return '🍗'
+  if (n.includes('babi') || n.includes('iga')) return '🥩'
+  if (n.includes('cumi')) return '🦑'
+  if (n.includes('udang')) return '🦐'
+  if (n.includes('ikan')) return '🐟'
+  if (n.includes('kacang')) return '🫘'
+  return '🥕'
+}
+
+function stepText(step: { instruction: string; amount_display: string | null }): string {
+  return step.amount_display ? `${step.instruction} (${step.amount_display})` : step.instruction
+}
+
+export function composeBatchPrepWifeMessage(dishBlocks: BatchPrepDishBlockRow[], weekStart: string): string | null {
+  if (dishBlocks.length === 0) return null
+  const lines = dishBlocks.map(block =>
+    `${dishEmoji(block.dish_name)} ${block.dish_name} — ${block.steps.map(stepText).join('; ')}`)
+  return [
+    '🔪 Prep minggu ini (setelah belanja):',
+    '',
+    ...lines,
+    '',
+    'Makasih ya 🧡',
+    prepPageUrl(weekStart, 'wife'),
+  ].join('\n')
+}
+
+export function composeBatchPrepKevinMessage(fruitItems: FruitPrepItemRow[], weekStart: string): string | null {
+  if (fruitItems.length === 0) return null
+  const lines = fruitItems.map(item => `• ${stepText(item)}`)
+  return [
+    '🍌 Prep buah minggu ini:',
+    '',
+    ...lines,
+    '',
+    prepPageUrl(weekStart, 'kevin'),
+  ].join('\n')
 }
 
 // ---- Daily meal reminder ------------------------------------------------------

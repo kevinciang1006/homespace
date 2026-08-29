@@ -20,9 +20,16 @@ function dowMonBased(dateStr: string): number {
 
 // The next Saturday on/after `today` (inclusive).
 export function upcomingSaturday(today: string): string {
+  return upcomingDow(today, 5)
+}
+
+// The next date on/after `today` (inclusive) matching the given weekday
+// (Mon=0..Sun=6, same convention as wa_settings.weekly_cutoff_dow/
+// batch_prep_dow). Generalizes upcomingSaturday for a configurable day.
+export function upcomingDow(today: string, targetDow: number): string {
   const dow = dowMonBased(today)
-  const daysUntilSat = dow <= 5 ? 5 - dow : 6
-  return shiftWeek(today, daysUntilSat)
+  const daysUntil = dow <= targetDow ? targetDow - dow : 7 - (dow - targetDow)
+  return shiftWeek(today, daysUntil)
 }
 
 export function tomorrowOf(today: string): string {

@@ -21,3 +21,7 @@ export function dayPageUrl(date: string): string {
 export function mealsWeekUrl(weekStart: string): string {
   return `${HOMESPACE_URL}/meals?week=${weekStart}`
 }
+
+export function prepPageUrl(weekStart: string, who: 'wife' | 'kevin'): string {
+  return `${HOMESPACE_URL}/meals/prep?week=${weekStart}&who=${who}`
+}

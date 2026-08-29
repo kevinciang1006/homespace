@@ -7,6 +7,8 @@ const DEFAULTS = {
   prep_enabled: true, prep_time: '19:30',
   backlog_enabled: true, backlog_time: '19:30',
   include_kevin: false,
+  batch_prep_enabled: true, batch_prep_time: '15:00', batch_prep_dow: 5, // Sat=5
+  batch_prep_wife_enabled: true, batch_prep_kevin_enabled: true,
 }
 
 // The app operates on a single settings row. The migration seeds one, but

@@ -19,12 +19,15 @@ function longDayName(dateStr: string): string {
 
 // Ensures this week's prep_tasks exist (backfills weeks generated before
 // this feature shipped). A no-op once the week has any prep_tasks rows —
-// never re-derives or overwrites an already-generated week.
+// never re-derives or overwrites an already-generated week. Scoped to
+// prep_category IS NULL — this system's own rows — so the newer weekly
+// batch-prep feature (prep_category='batch_prep', lib/meals/batchPrep.ts)
+// generating first for a week can't make this think it already ran.
 async function ensurePrepTasksExist(weekStart: string) {
   const weekEnd = shiftWeek(weekStart, 6)
   const weekendBefore = shiftWeek(weekStart, -1)
   const { data: existing } = await supabase.from('prep_tasks').select('id')
-    .gte('prep_date', weekendBefore).lte('prep_date', weekEnd).limit(1)
+    .gte('prep_date', weekendBefore).lte('prep_date', weekEnd).is('prep_category', null).limit(1)
   if (existing && existing.length > 0) return
 
   const { data: weekPlans } = await supabase.from('meal_plans')
@@ -63,7 +66,10 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
 
   const [{ data: dayRows }, { data: prepRows }] = await Promise.all([
     supabase.from('meal_plans').select(`*, dishes(${DISHES_SELECT})`).eq('plan_date', date),
-    supabase.from('prep_tasks').select('*').eq('prep_date', date).order('created_at'),
+    // prep_category IS NULL keeps this to the day-before thaw/marinate
+    // checklist this page owns — the weekly batch-prep tasks (prep_category
+    // ='batch_prep') live on their own page (/meals/prep) instead.
+    supabase.from('prep_tasks').select('*').eq('prep_date', date).is('prep_category', null).order('created_at'),
   ])
 
   const rows = await reconcileSoup((dayRows ?? []) as MealPlan[])

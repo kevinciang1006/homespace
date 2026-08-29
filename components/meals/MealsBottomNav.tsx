@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, UtensilsCrossed, Carrot, ShoppingCart } from 'lucide-react'
+import { CalendarDays, UtensilsCrossed, Carrot, ShoppingCart, ChefHat } from 'lucide-react'
 
 const tabs = [
   { href: '/meals', label: 'Plan', Icon: CalendarDays },
   { href: '/meals/dishes', label: 'Dishes', Icon: UtensilsCrossed },
   { href: '/meals/ingredients', label: 'Ingredients', Icon: Carrot },
   { href: '/meals/shopping', label: 'Shopping', Icon: ShoppingCart },
+  { href: '/meals/prep', label: 'Prep', Icon: ChefHat },
 ]
 
 export default function MealsBottomNav() {

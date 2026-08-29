@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   sumShopIngredients, composeWeeklyShoppingMessage, composeMealOverview,
   composeDailyReminderMessage, composePrepThawMessage,
+  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
 } from './messages'
 
 describe('sumShopIngredients', () => {
@@ -192,5 +193,56 @@ describe('composePrepThawMessage', () => {
       { dish_name: 'Ayam', cook_date: '2026-08-24', needs_thaw: true, needs_marinate: true, prep_note: null },
     ])
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/day/2026-08-24')
+  })
+})
+
+describe('composeBatchPrepWifeMessage', () => {
+  it('returns null when there are no dish blocks', () => {
+    expect(composeBatchPrepWifeMessage([], '2026-08-24')).toBeNull()
+  })
+
+  it('groups multi-step dishes onto one line, joined with "; "', () => {
+    const msg = composeBatchPrepWifeMessage([
+      { dish_name: 'Kuah lobak wortel', steps: [
+        { instruction: 'potong wortel & lobak', amount_display: '3 pcs' },
+        { instruction: 'siapkan bareng Bamboe SOP untuk direbus', amount_display: '1 pack' },
+      ] },
+    ], '2026-08-24')
+    expect(msg).toContain('🥕 Kuah lobak wortel — potong wortel & lobak (3 pcs); siapkan bareng Bamboe SOP untuk direbus (1 pack)')
+  })
+
+  it('picks a dish emoji by protein keyword and ends with the wife-view prep link', () => {
+    const msg = composeBatchPrepWifeMessage([
+      { dish_name: 'Ayam bakar', steps: [{ instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
+      { dish_name: 'Cumi cabe setan', steps: [{ instruction: 'potong ring', amount_display: '500g' }] },
+    ], '2026-08-24')
+    expect(msg).toContain('🍗 Ayam bakar — marinate bumbu bakar (600g)')
+    expect(msg).toContain('🦑 Cumi cabe setan — potong ring (500g)')
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/prep?week=2026-08-24&who=wife')
+  })
+
+  it('omits the amount parens when a step has no amount', () => {
+    const msg = composeBatchPrepWifeMessage([
+      { dish_name: 'Bayam tumis', steps: [{ instruction: 'potong + cuci', amount_display: null }] },
+    ], '2026-08-24')
+    expect(msg).toContain('Bayam tumis — potong + cuci')
+    expect(msg).not.toContain('potong + cuci (')
+  })
+})
+
+describe('composeBatchPrepKevinMessage', () => {
+  it('returns null when there are no fruit items', () => {
+    expect(composeBatchPrepKevinMessage([], '2026-08-24')).toBeNull()
+  })
+
+  it('lists each item as a bullet with its amount and ends with the kevin-view prep link', () => {
+    const msg = composeBatchPrepKevinMessage([
+      { instruction: 'potong pepaya, bagi porsi', amount_display: '6 slices' },
+      { instruction: 'siapkan yogurt porsi kecil', amount_display: '500ml' },
+    ], '2026-08-24')
+    expect(msg).toContain('🍌 Prep buah minggu ini:')
+    expect(msg).toContain('• potong pepaya, bagi porsi (6 slices)')
+    expect(msg).toContain('• siapkan yogurt porsi kecil (500ml)')
+    expect(msg).toContain('https://homespace-chi.vercel.app/meals/prep?week=2026-08-24&who=kevin')
   })
 })

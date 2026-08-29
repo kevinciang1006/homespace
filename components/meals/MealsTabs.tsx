@@ -7,6 +7,7 @@ const tabs = [
   { href: '/meals/dishes', label: 'Dishes' },
   { href: '/meals/ingredients', label: 'Ingredients' },
   { href: '/meals/shopping', label: 'Shopping List' },
+  { href: '/meals/prep', label: 'Prep' },
 ]
 
 export default function MealsTabs() {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  jakartaToday, upcomingSaturday, tomorrowOf, shoppingWeekStart,
+  jakartaToday, upcomingSaturday, upcomingDow, tomorrowOf, shoppingWeekStart,
   indonesianDayName, jakartaDateTimeToUtcIso,
 } from './schedule'
 
@@ -23,6 +23,22 @@ describe('upcomingSaturday', () => {
   })
   it('returns the Saturday later this week for a midweek day', () => {
     expect(upcomingSaturday('2026-08-17')).toBe('2026-08-22') // Monday -> that week's Saturday
+  })
+})
+
+describe('upcomingDow', () => {
+  it('returns today when today already matches the target weekday', () => {
+    expect(upcomingDow('2026-08-17', 0)).toBe('2026-08-17') // Monday, target Mon=0
+  })
+  it('returns the next occurrence later in the same week', () => {
+    expect(upcomingDow('2026-08-17', 3)).toBe('2026-08-20') // Monday -> Thursday
+  })
+  it('wraps to next week when the target weekday already passed', () => {
+    expect(upcomingDow('2026-08-20', 0)).toBe('2026-08-24') // Thursday -> next Monday
+  })
+  it('matches upcomingSaturday for target=5', () => {
+    expect(upcomingDow('2026-08-17', 5)).toBe(upcomingSaturday('2026-08-17'))
+    expect(upcomingDow('2026-08-23', 5)).toBe(upcomingSaturday('2026-08-23'))
   })
 })
 

@@ -166,4 +166,9 @@ export type PrepTask = {
   assigned_to: string | null
   done: boolean
   done_at: string | null
+  // Both added for the weekly batch-prep feature; null on the older
+  // day-before thaw/marinate tasks (lib/meals/prepTasks.ts), which don't set
+  // them. prep_category distinguishes the two systems sharing this table.
+  week_start: string | null
+  prep_category: string | null
 }

@@ -1,4 +1,6 @@
-export type WaOutboundKind = 'weekly_shopping' | 'daily_reminder' | 'prep_thaw' | 'backlog_nudge'
+export type WaOutboundKind =
+  | 'weekly_shopping' | 'daily_reminder' | 'prep_thaw' | 'backlog_nudge'
+  | 'batch_prep_wife' | 'batch_prep_kevin'
 
 export type WaSettings = {
   id: string
@@ -13,6 +15,15 @@ export type WaSettings = {
   backlog_time: string
   include_kevin: boolean
   updated_at: string
+  // Weekly batch-prep (lib/meals/batchPrep.ts) — a separate feature from
+  // prep_enabled/prep_time above (the day-before thaw/marinate reminder).
+  // Two independent per-recipient toggles since Wife and Kevin get
+  // different message content, not a CC of the same text.
+  batch_prep_enabled: boolean
+  batch_prep_time: string
+  batch_prep_dow: number // Mon=0 .. Sun=6 — which day the batch-prep messages go out
+  batch_prep_wife_enabled: boolean
+  batch_prep_kevin_enabled: boolean
 }
 
 export type WaOutboundRow = {
@@ -55,4 +66,17 @@ export type PrepDishRow = {
   needs_thaw: boolean
   needs_marinate: boolean
   prep_note: string | null
+}
+
+// Input shapes for composeBatchPrepWifeMessage/composeBatchPrepKevinMessage —
+// structurally identical to lib/meals/batchPrep.ts's BatchPrepDishBlock/
+// FruitPrepItem (kept separate so lib/wa never imports lib/meals directly,
+// matching every other message composer in this file).
+export type BatchPrepDishBlockRow = {
+  dish_name: string
+  steps: { instruction: string; amount_display: string | null }[]
+}
+export type FruitPrepItemRow = {
+  instruction: string
+  amount_display: string | null
 }

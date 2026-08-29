@@ -1,15 +1,17 @@
 import { supabase } from '@/lib/supabase'
 import { weekDates, shiftWeek } from '@/lib/meals/dates'
 import { groupPrepByDate, type PrepCandidate } from '@/lib/meals/prep'
+import { generateWeekBatchPrep } from '@/lib/meals/batchPrepGenerate'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients, WA_NUMBERS } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
 import {
-  jakartaToday, upcomingSaturday, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso, isWeekend,
+  jakartaToday, upcomingSaturday, upcomingDow, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso, isWeekend,
 } from '@/lib/wa/schedule'
 import {
   composeWeeklyShoppingMessage, composeMealOverview, sumShopIngredients,
   composeDailyReminderMessage, composePrepThawMessage,
+  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
 } from '@/lib/wa/messages'
 import type {
   WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, WeeklyMealPlanRow,
@@ -124,6 +126,8 @@ function kindEnabled(kind: WaOutboundKind, settings: WaSettings): boolean {
   if (kind === 'weekly_shopping') return settings.weekly_enabled
   if (kind === 'daily_reminder') return settings.daily_enabled
   if (kind === 'prep_thaw') return settings.prep_enabled
+  if (kind === 'batch_prep_wife') return settings.batch_prep_enabled && settings.batch_prep_wife_enabled
+  if (kind === 'batch_prep_kevin') return settings.batch_prep_enabled && settings.batch_prep_kevin_enabled
   return settings.backlog_enabled
 }
 
@@ -146,6 +150,14 @@ const SAMPLE_PREP_DISHES: PrepDishRow[] = [
     dish_name: 'Babi', cook_date: '2026-08-27', needs_thaw: false, needs_marinate: true,
     prep_note: 'bisa marinate sekarang, tahan seminggu',
   },
+]
+const SAMPLE_BATCH_PREP_DISHES = [
+  { dish_name: 'Ayam bakar', steps: [{ instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
+  { dish_name: 'Cumi cabe setan', steps: [{ instruction: 'potong ring', amount_display: '500g' }] },
+]
+const SAMPLE_BATCH_PREP_FRUIT = [
+  { instruction: 'potong pepaya, bagi porsi', amount_display: '6 slices' },
+  { instruction: 'siapkan yogurt porsi kecil', amount_display: '500ml' },
 ]
 const SAMPLE_TAG = '\n\n_(contoh — belum ada data nyata untuk ini)_'
 const SAMPLE_BACKLOG_ITEM: BacklogItem = {
@@ -180,6 +192,12 @@ async function runTestMode(to: string): Promise<Response> {
     ? composePrepThawMessage(firstBatch)!
     : composePrepThawMessage(SAMPLE_PREP_DISHES)! + SAMPLE_TAG
 
+  const batchPrep = await generateWeekBatchPrep(weeklyWeekStart, today)
+  const batchPrepWifeMessage = composeBatchPrepWifeMessage(batchPrep.dishBlocks, weeklyWeekStart)
+    ?? composeBatchPrepWifeMessage(SAMPLE_BATCH_PREP_DISHES, weeklyWeekStart)! + SAMPLE_TAG
+  const batchPrepKevinMessage = composeBatchPrepKevinMessage(batchPrep.fruitItems, weeklyWeekStart)
+    ?? composeBatchPrepKevinMessage(SAMPLE_BATCH_PREP_FRUIT, weeklyWeekStart)! + SAMPLE_TAG
+
   const [backlogPool, backlogActive] = await Promise.all([fetchReadyPool(), fetchActiveItems()])
   const backlogCandidate = selectNudgeCandidate(backlogPool, {
     slot: slotForTime('19:30'),
@@ -196,6 +214,8 @@ async function runTestMode(to: string): Promise<Response> {
     ['weekly_shopping', weeklyMessage],
     ['daily_reminder', dailyMessage],
     ['prep_thaw', prepMessage],
+    ['batch_prep_wife', batchPrepWifeMessage],
+    ['batch_prep_kevin', batchPrepKevinMessage],
     ['backlog_nudge', backlogMessage],
   ] as const) {
     const result = await sendWhatsapp(to, message)
@@ -275,6 +295,40 @@ export async function GET(request: Request) {
       }
     } catch (err) {
       console.error('prep_thaw build failed:', err)
+      skipped++
+    }
+  }
+
+  if (settings.batch_prep_enabled) {
+    try {
+      // Targets the same week the weekly shopping list is currently
+      // covering, so "sent after shopping" holds regardless of which day
+      // batch_prep_dow lands on relative to weekly_time.
+      const weekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
+      const sendDate = upcomingDow(today, settings.batch_prep_dow)
+      const sendAt = jakartaDateTimeToUtcIso(sendDate, settings.batch_prep_time)
+      const batchPrep = await generateWeekBatchPrep(weekStart, today)
+
+      if (settings.batch_prep_wife_enabled) {
+        const message = composeBatchPrepWifeMessage(batchPrep.dishBlocks, weekStart)
+        if (message) {
+          const result = await upsertOutbound('batch_prep_wife', sendDate, sendAt, [WA_NUMBERS.wife], message)
+          if (result === 'built') built++; else skipped++
+        } else {
+          skipped++
+        }
+      }
+      if (settings.batch_prep_kevin_enabled) {
+        const message = composeBatchPrepKevinMessage(batchPrep.fruitItems, weekStart)
+        if (message) {
+          const result = await upsertOutbound('batch_prep_kevin', sendDate, sendAt, [WA_NUMBERS.kevin], message)
+          if (result === 'built') built++; else skipped++
+        } else {
+          skipped++
+        }
+      }
+    } catch (err) {
+      console.error('batch_prep build failed:', err)
       skipped++
     }
   }

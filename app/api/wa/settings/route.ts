@@ -4,6 +4,7 @@ import { getOrCreateSettings } from '@/lib/wa/settings'
 const FIELDS = [
   'weekly_enabled', 'weekly_time', 'weekly_cutoff_dow', 'daily_enabled', 'daily_time',
   'prep_enabled', 'prep_time', 'backlog_enabled', 'backlog_time', 'include_kevin',
+  'batch_prep_enabled', 'batch_prep_time', 'batch_prep_dow', 'batch_prep_wife_enabled', 'batch_prep_kevin_enabled',
 ]
 
 export async function GET() {
