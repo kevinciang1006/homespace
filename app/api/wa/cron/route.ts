@@ -36,7 +36,7 @@ async function buildWeeklyItems(weekStart: string): Promise<WeeklyShoppingItem[]
   const days = weekDates(weekStart)
   const { data: plans } = await supabase.from('meal_plans').select('dish_id')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
-    .eq('skipped', false).not('dish_id', 'is', null)
+    .eq('skipped', false).not('dish_id', 'is', null).neq('slot', 'breakfast')
   const dishIds = [...new Set((plans ?? []).map(p => p.dish_id as string))]
   if (dishIds.length === 0) return []
 
@@ -167,7 +167,7 @@ async function runTestMode(to: string): Promise<Response> {
   const weeklyShoppingText = weeklyItems.length > 0
     ? composeWeeklyShoppingMessage(weeklyItems, weeklyWeekStart)
     : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS, weeklyWeekStart) + SAMPLE_TAG
-  const weeklyMessage = weeklyOverview ? `${weeklyOverview}\n\n${weeklyShoppingText}` : weeklyShoppingText
+  const weeklyMessage = weeklyOverview ? `${weeklyShoppingText}\n\n${weeklyOverview}` : weeklyShoppingText
 
   const tomorrow = tomorrowOf(today)
   const dailyRows = await buildDailyRows(tomorrow)
@@ -229,7 +229,7 @@ export async function GET(request: Request) {
       const items = await buildWeeklyItems(weekStart)
       const overview = await buildWeeklyMealOverview(weekStart)
       const shoppingText = composeWeeklyShoppingMessage(items, weekStart)
-      const message = overview ? `${overview}\n\n${shoppingText}` : shoppingText
+      const message = overview ? `${shoppingText}\n\n${overview}` : shoppingText
       const sendAt = jakartaDateTimeToUtcIso(saturday, settings.weekly_time)
       const result = await upsertOutbound(
         'weekly_shopping', saturday, sendAt, resolveRecipients(settings.include_kevin), message,

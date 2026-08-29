@@ -14,9 +14,14 @@ export async function POST(request: Request) {
   }
   const days = weekDates(weekStart)
 
+  // Breakfast is excluded here on purpose — this is a shopping list, and
+  // breakfast items (bubur, roti, telur rebus...) are "buy as-is" dishes with
+  // no dish_ingredients anyway, so they only ever cluttered the "dishes with
+  // no ingredients" bucket.
   const { data: plansRaw } = await supabase.from('meal_plans')
     .select('plan_date, dish_id, dish_name, role, skipped')
     .gte('plan_date', days[0]).lte('plan_date', days[6])
+    .neq('slot', 'breakfast')
   const plans = (plansRaw ?? []) as (WeekMealPlanRow & { dish_id: string | null })[]
   const meals = buildWeekMealsSummary(weekStart, plans)
 

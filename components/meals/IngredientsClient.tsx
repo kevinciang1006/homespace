@@ -28,6 +28,15 @@ export default function IngredientsClient({ initialIngredients }: { initialIngre
     if (res.ok) { const row = await res.json() as Ingredient; setIngredients(is => [...is, row]) }
   }
 
+  // "No matches for your search" -> create it with that exact name, so a
+  // missed ingredient can be added right where you noticed it was missing.
+  async function createFromSearch(name: string) {
+    const res = await fetch('/api/meals/ingredients', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
+    })
+    if (res.ok) { const row = await res.json() as Ingredient; setIngredients(is => [...is, row]); setSearch('') }
+  }
+
   async function deleteIngredient(id: string, name: string) {
     if (!window.confirm(`Delete "${name}"? Any dishes using it will lose that shopping-list link.`)) return
     const prev = ingredients
@@ -95,6 +104,13 @@ export default function IngredientsClient({ initialIngredients }: { initialIngre
           </button>
           <button onClick={() => { setSelected(new Set()); setKeepId(null) }} className="text-sm text-stone-400 hover:text-stone-700">Cancel</button>
         </div>
+      )}
+
+      {search.trim() && filtered.length === 0 && (
+        <button onClick={() => createFromSearch(search.trim())}
+          className="mb-5 flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+          <Plus size={15} /> No match — create &quot;{search.trim()}&quot; as a new ingredient
+        </button>
       )}
 
       {INGREDIENT_CATEGORIES.map(cat => {

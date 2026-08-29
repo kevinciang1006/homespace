@@ -17,3 +17,7 @@ export function shoppingPageUrl(weekStart?: string): string {
 export function dayPageUrl(date: string): string {
   return `${HOMESPACE_URL}/meals/day/${date}`
 }
+
+export function mealsWeekUrl(weekStart: string): string {
+  return `${HOMESPACE_URL}/meals?week=${weekStart}`
+}

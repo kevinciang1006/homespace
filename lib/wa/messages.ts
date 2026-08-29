@@ -1,6 +1,6 @@
 import { addToUnitClasses, dominantUnitClass, formatUnitClass, type UnitClass } from '../meals/qty'
 import { weekDates } from '../meals/dates'
-import { shoppingPageUrl, dayPageUrl } from './config'
+import { shoppingPageUrl, dayPageUrl, mealsWeekUrl } from './config'
 import { indonesianDayName } from './schedule'
 import type { WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow, WeeklyMealPlanRow } from './types'
 
@@ -65,11 +65,20 @@ export function sumShopIngredients(rows: ShopIngredientRow[]): WeeklyShoppingIte
 }
 
 export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[], weekStart?: string): string {
-  if (items.length === 0) {
+  // "Lainnya" (breakfast-ish/bought-as-is items with no real ingredient
+  // breakdown, e.g. leftover from before breakfast dishes were excluded from
+  // the shopping build, or anything else that doesn't fit protein/veg/bumbu/
+  // fruit) is deliberately left off the WhatsApp message — this is meant to
+  // read as an actual market list, not a catch-all. It still shows on the
+  // app's shopping page under "Dishes this week" for completeness.
+  const withGroup = items
+    .map(i => ({ ...i, group: messageGroup(i.ingredient, i.category) }))
+    .filter(i => i.group !== 'lainnya')
+
+  if (withGroup.length === 0) {
     return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl(weekStart)}`
   }
 
-  const withGroup = items.map(i => ({ ...i, group: messageGroup(i.ingredient, i.category) }))
   withGroup.sort((a, b) => GROUP_RANK[a.group] - GROUP_RANK[b.group] || a.ingredient.localeCompare(b.ingredient))
 
   const lines: string[] = []
@@ -125,7 +134,7 @@ export function composeMealOverview(weekStart: string, rows: WeeklyMealPlanRow[]
   }
   if (lines.length === 0) return null
 
-  return ['🍽️ Menu minggu ini:', ...lines].join('\n')
+  return ['🍽️ Menu minggu ini:', ...lines, '', mealsWeekUrl(weekStart)].join('\n')
 }
 
 // ---- Daily meal reminder ------------------------------------------------------

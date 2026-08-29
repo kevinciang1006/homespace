@@ -29,30 +29,34 @@ describe('sumShopIngredients', () => {
 })
 
 describe('composeWeeklyShoppingMessage', () => {
-  it('groups protein -> sayur -> bumbu -> buah -> lainnya, with headers, no "+"-joined amounts', () => {
+  it('groups protein -> sayur -> bumbu -> buah, with headers, no "+"-joined amounts, and drops Lainnya entirely', () => {
     const msg = composeWeeklyShoppingMessage([
       { ingredient: 'Kangkung', quantity: '400g', category: 'vegetable' },
       { ingredient: 'Bumbu Rendang', quantity: null, category: 'bumbu' },
       { ingredient: 'Cabai Rawit', quantity: '100g', category: 'vegetable' }, // aromatic -> bumbu group, after packets
       { ingredient: 'Ayam', quantity: '1kg', category: 'protein' },
       { ingredient: 'Banana', quantity: null, category: 'dish' }, // fruit-slot dish w/ no ingredients
-      { ingredient: 'Yogurt', quantity: null, category: 'dish' }, // not fruit -> lainnya
-      { ingredient: 'Tahu', quantity: null, category: 'other' },
+      { ingredient: 'Yogurt', quantity: null, category: 'dish' }, // not fruit -> lainnya -> dropped
+      { ingredient: 'Tahu', quantity: null, category: 'other' }, // -> lainnya -> dropped
     ])
     expect(msg).toContain('🥩 Protein')
     expect(msg).toContain('🥦 Sayur')
     expect(msg).toContain('🧂 Bumbu')
     expect(msg).toContain('🍎 Buah')
-    expect(msg).toContain('🛍️ Lainnya')
+    expect(msg).not.toContain('Lainnya')
     const lines = msg.split('\n').filter(l => l.startsWith('- '))
-    expect(lines).toEqual([
-      '- Ayam 1kg', '- Kangkung 400g', '- Bumbu Rendang', '- Cabai Rawit 100g',
-      '- Banana', '- Tahu', '- Yogurt',
-    ])
+    expect(lines).toEqual(['- Ayam 1kg', '- Kangkung 400g', '- Bumbu Rendang', '- Cabai Rawit 100g', '- Banana'])
+    expect(msg).not.toContain('Yogurt')
+    expect(msg).not.toContain('Tahu')
     expect(msg).not.toContain('+')
     expect(msg).toContain('🛒 Belanja minggu ini:')
     expect(msg).toContain('Makasih ya 🧡')
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/shopping')
+  })
+
+  it('falls back to the "nothing to buy" message when everything present is Lainnya', () => {
+    const msg = composeWeeklyShoppingMessage([{ ingredient: 'Yogurt', quantity: null, category: 'dish' }])
+    expect(msg).toContain('Belum ada yang perlu dibeli')
   })
 
   it('bumbu packets sort before aromatics within the same Bumbu group', () => {
@@ -105,6 +109,7 @@ describe('composeMealOverview', () => {
     expect(overview).not.toContain('Yogurt')
     const dayLine = overview!.split('\n').find(l => l.startsWith('Sen'))!
     expect(dayLine).toBe('Sen 24/8: Ayam bumbu bakar, Sop bayam jagung, Cha buncis, Tahu goreng')
+    expect(overview).toContain('https://homespace-chi.vercel.app/meals?week=2026-08-24')
   })
 
   it('skips skipped rows and days with nothing planned', () => {
