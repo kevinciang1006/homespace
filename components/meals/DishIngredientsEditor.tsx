@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { INGREDIENT_CATEGORIES, type Ingredient, type DishIngredientDetail, type IngredientCategory } from '@/lib/meals/types'
+import { INGREDIENT_UNITS } from '@/lib/meals/qty'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
   protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
@@ -93,16 +94,11 @@ function IngredientLinkRow({ link, onPatch, onRemove }: {
   onRemove: (linkId: string) => void
 }) {
   const [amount, setAmount] = useState(link.amount ?? '')
-  const [unit, setUnit] = useState(link.unit ?? '')
   const shelfStable = link.ingredients?.shelf_stable ?? false
 
   function saveAmount() {
     const n = amount === '' ? null : Number(amount)
     if (n !== link.amount) onPatch(link.id, { amount: n === null || Number.isNaN(n) ? null : n })
-  }
-  function saveUnit() {
-    const v = unit.trim() || null
-    if (v !== link.unit) onPatch(link.id, { unit: v })
   }
 
   return (
@@ -117,9 +113,13 @@ function IngredientLinkRow({ link, onPatch, onRemove }: {
       <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} onBlur={saveAmount}
         placeholder="amt"
         className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none focus:border-orange-300" />
-      <input value={unit} onChange={e => setUnit(e.target.value)} onBlur={saveUnit}
-        placeholder="unit"
-        className="w-20 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-500 focus:outline-none focus:border-orange-300" />
+      <select value={link.unit ?? ''} onChange={e => onPatch(link.id, { unit: e.target.value || null })}
+        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-500 focus:outline-none focus:border-orange-300">
+        <option value="">—</option>
+        {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+        {/* legacy free-text unit from before the dropdown existed — keep it selectable/visible rather than silently blanking it */}
+        {link.unit && !(INGREDIENT_UNITS as readonly string[]).includes(link.unit) && <option value={link.unit}>{link.unit}</option>}
+      </select>
       <button onClick={() => onRemove(link.id)} className="p-1 text-stone-300 hover:text-red-500 shrink-0" aria-label="Remove ingredient">
         <Trash2 size={15} />
       </button>
@@ -140,7 +140,7 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
   const [newUnit, setNewUnit] = useState('')
   const [newShelfStable, setNewShelfStable] = useState(false)
   const [amount, setAmount] = useState('')
-  const [unit, setUnit] = useState('')
+  const [unit, setUnit] = useState('') // pre-filled from the ingredient's default_unit on selection
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -178,7 +178,7 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
         {matches.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
             {matches.map(m => (
-              <button key={m.id} onClick={() => { setSelected(m); setQuery(m.name) }}
+              <button key={m.id} onClick={() => { setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? '') }}
                 className="w-full text-left px-2.5 py-1.5 text-sm hover:bg-orange-50 flex items-center justify-between gap-2">
                 <span className="truncate">{m.name}</span>
                 {m.shelf_stable && <span className="text-[10px] text-amber-600 shrink-0">pantry</span>}
@@ -206,8 +206,11 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
             className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
             {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
           </select>
-          <input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="default unit"
-            className="w-28 px-2 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+          <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            <option value="">default unit —</option>
+            {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
           <label className="flex items-center gap-1.5 text-sm text-stone-600">
             <input type="checkbox" checked={newShelfStable} onChange={e => setNewShelfStable(e.target.checked)} />
             Pantry (shelf-stable)
@@ -219,8 +222,11 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
         <div className="flex items-center gap-1.5">
           <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} placeholder="amount"
             className="w-20 px-2 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
-          <input value={unit} onChange={e => setUnit(e.target.value)} placeholder="unit"
-            className="w-24 px-2 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+          <select value={unit} onChange={e => setUnit(e.target.value)}
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            <option value="">—</option>
+            {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
           <button onClick={submit} className="flex items-center gap-1 text-sm text-white bg-orange-600 hover:bg-orange-700 px-3 py-1.5 rounded-lg">
             <Plus size={14} /> {creating ? 'Create & add' : 'Add'}
           </button>

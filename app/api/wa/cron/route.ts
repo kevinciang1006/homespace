@@ -8,10 +8,12 @@ import {
   jakartaToday, upcomingSaturday, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso, isWeekend,
 } from '@/lib/wa/schedule'
 import {
-  composeWeeklyShoppingMessage, sumShopIngredients, composeDailyReminderMessage, composePrepThawMessage,
+  composeWeeklyShoppingMessage, composeMealOverview, sumShopIngredients,
+  composeDailyReminderMessage, composePrepThawMessage,
 } from '@/lib/wa/messages'
 import type {
-  WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow,
+  WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, WeeklyMealPlanRow,
+  DailyPlanRow, PrepDishRow,
 } from '@/lib/wa/types'
 import { selectNudgeCandidate, backlogTail, composeBacklogNudge, slotForTime } from '@/lib/backlog/engine'
 import { fetchReadyPool, fetchActiveItems, fetchExcludedMutexGroups, markSuggested } from '@/lib/backlog/queries'
@@ -41,6 +43,17 @@ async function buildWeeklyItems(weekStart: string): Promise<WeeklyShoppingItem[]
   const { data: dishes } = await supabase.from('dishes').select('shop_ingredients').in('id', dishIds)
   const rows: ShopIngredientRow[] = (dishes ?? []).flatMap(d => (d.shop_ingredients ?? []) as ShopIngredientRow[])
   return sumShopIngredients(rows)
+}
+
+// The compact "what's for dinner" block prepended to the weekly shopping
+// message — independent of whether the shopping items above came from a
+// persisted list or the raw fallback, since it reads meal_plans directly.
+async function buildWeeklyMealOverview(weekStart: string): Promise<string | null> {
+  const days = weekDates(weekStart)
+  const { data } = await supabase.from('meal_plans')
+    .select('plan_date, slot, dish_name, skipped')
+    .gte('plan_date', days[0]).lte('plan_date', days[6])
+  return composeMealOverview(weekStart, (data ?? []) as WeeklyMealPlanRow[])
 }
 
 async function buildDailyRows(tomorrow: string): Promise<DailyPlanRow[]> {
@@ -150,9 +163,11 @@ async function runTestMode(to: string): Promise<Response> {
 
   const weeklyWeekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
   const weeklyItems = await buildWeeklyItems(weeklyWeekStart)
-  const weeklyMessage = weeklyItems.length > 0
+  const weeklyOverview = await buildWeeklyMealOverview(weeklyWeekStart)
+  const weeklyShoppingText = weeklyItems.length > 0
     ? composeWeeklyShoppingMessage(weeklyItems, weeklyWeekStart)
     : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS, weeklyWeekStart) + SAMPLE_TAG
+  const weeklyMessage = weeklyOverview ? `${weeklyOverview}\n\n${weeklyShoppingText}` : weeklyShoppingText
 
   const tomorrow = tomorrowOf(today)
   const dailyRows = await buildDailyRows(tomorrow)
@@ -212,7 +227,9 @@ export async function GET(request: Request) {
       const saturday = upcomingSaturday(today)
       const weekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
       const items = await buildWeeklyItems(weekStart)
-      const message = composeWeeklyShoppingMessage(items, weekStart)
+      const overview = await buildWeeklyMealOverview(weekStart)
+      const shoppingText = composeWeeklyShoppingMessage(items, weekStart)
+      const message = overview ? `${overview}\n\n${shoppingText}` : shoppingText
       const sendAt = jakartaDateTimeToUtcIso(saturday, settings.weekly_time)
       const result = await upsertOutbound(
         'weekly_shopping', saturday, sendAt, resolveRecipients(settings.include_kevin), message,

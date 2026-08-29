@@ -145,17 +145,36 @@ describe('buildShoppingListFromDishIngredients', () => {
     expect(ayam.from_dishes).toEqual([{ dish: 'Dish A', quantity: '300g' }, { dish: 'Dish B', quantity: '200g' }])
   })
 
-  it('keeps different units of the same ingredient as separate segments', () => {
+  it('converts g/kg (and ml/L) to one base unit before summing, instead of concatenating with "+"', () => {
+    const links = new Map<string, DishIngredientLink[]>([
+      ['a', [{ ingredient_id: 'ayam', amount: 1, unit: 'kg' }]],
+      ['b', [{ ingredient_id: 'ayam', amount: 600, unit: 'g' }]],
+    ])
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'a', dish_name: 'Dish A' }, { dish_id: 'b', dish_name: 'Dish B' }],
+      links, ingredientById, dishMetaById,
+    )
+    const ayam = out.ingredients.find(i => i.ingredient === 'Ayam')!
+    expect(ayam.quantity).toBe('1.6kg')
+    expect(ayam.quantity).not.toContain('+')
+    expect(out.mixedUnitWarnings).toEqual([])
+  })
+
+  it('flags genuinely incompatible units (pcs vs g) as a mixed-unit warning and prefers weight for the shown total', () => {
     const links = new Map<string, DishIngredientLink[]>([
       ['a', [{ ingredient_id: 'wortel', amount: 2, unit: 'pcs' }]],
-      ['b', [{ ingredient_id: 'wortel', amount: 100, unit: 'g' }]],
+      ['b', [{ ingredient_id: 'wortel', amount: 550, unit: 'g' }]],
     ])
     const out = buildShoppingListFromDishIngredients(
       [{ dish_id: 'a', dish_name: 'Dish A' }, { dish_id: 'b', dish_name: 'Dish B' }],
       links, ingredientById, dishMetaById,
     )
     const wortel = out.ingredients.find(i => i.ingredient === 'Wortel')!
-    expect(wortel.quantity).toBe('2 pcs + 100g')
+    expect(wortel.quantity).toBe('550g') // weight wins over count when mixed
+    expect(wortel.quantity).not.toContain('+')
+    expect(out.mixedUnitWarnings).toEqual([
+      { ingredient: 'Wortel', detail: 'mixed units: 2 pcs (1x) vs 550g (1x) — using 550g' },
+    ])
   })
 
   it('maps ingredient category veg -> vegetable and sorts protein before veg', () => {

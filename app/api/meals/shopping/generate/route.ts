@@ -50,6 +50,12 @@ export async function POST(request: Request) {
   const built = buildShoppingListFromDishIngredients(
     plans.map(p => ({ dish_id: p.dish_id, dish_name: p.dish_name })), dishIngredientsByDish, ingredientById, dishMetaById,
   )
+  // Surfaced here (not thrown) — a mixed-unit ingredient still gets a usable
+  // total (see dominantUnitClass), this is just a nudge to go fix the dish
+  // data that caused it.
+  for (const w of built.mixedUnitWarnings ?? []) {
+    console.warn(`[shopping] ${w.ingredient}: ${w.detail}`)
+  }
 
   // upsert the list row for the week
   const { data: list, error: listErr } = await supabase.from('meal_shopping_lists')

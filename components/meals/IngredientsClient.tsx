@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, Merge } from 'lucide-react'
 import { INGREDIENT_CATEGORIES, type Ingredient, type IngredientCategory } from '@/lib/meals/types'
+import { INGREDIENT_UNITS } from '@/lib/meals/qty'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
   protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
@@ -139,7 +140,6 @@ function IngredientRow({ ingredient, onPatch, onDelete, selected, onToggleSelect
 }) {
   const [name, setName] = useState(ingredient.name)
   const [aliases, setAliases] = useState((ingredient.aliases ?? []).join(', '))
-  const [unit, setUnit] = useState(ingredient.default_unit ?? '')
 
   function saveAliases() {
     const next = aliases.split(',').map(a => a.trim()).filter(Boolean)
@@ -170,10 +170,14 @@ function IngredientRow({ ingredient, onPatch, onDelete, selected, onToggleSelect
         </select>
       </td>
       <td className="px-3 py-1.5">
-        <input value={unit} onChange={e => setUnit(e.target.value)}
-          onBlur={() => { const v = unit.trim() || null; if (v !== ingredient.default_unit) onPatch(ingredient.id, { default_unit: v }) }}
-          placeholder="g, pcs…"
-          className="w-20 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300" />
+        <select value={ingredient.default_unit ?? ''}
+          onChange={e => onPatch(ingredient.id, { default_unit: e.target.value || null })}
+          className="px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300">
+          <option value="">—</option>
+          {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          {ingredient.default_unit && !(INGREDIENT_UNITS as readonly string[]).includes(ingredient.default_unit) &&
+            <option value={ingredient.default_unit}>{ingredient.default_unit}</option>}
+        </select>
       </td>
       <td className="px-3 py-1.5">
         <button onClick={() => onPatch(ingredient.id, { shelf_stable: !ingredient.shelf_stable })} aria-label="Toggle shelf-stable"

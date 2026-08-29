@@ -1,4 +1,6 @@
-import { formatQtyAmount } from './qty'
+import {
+  formatQtyAmount, addToUnitClasses, dominantUnitClass, formatUnitClass, type UnitClass,
+} from './qty'
 
 export type DishIngredient = { name: string; quantity?: string | null; category?: string | null }
 
@@ -11,9 +13,16 @@ export type BuiltIngredient = {
   category: ShopCategory
   from_dishes: { dish: string; quantity?: string | null }[]
 }
+export type MixedUnitWarning = { ingredient: string; detail: string }
 export type BuiltList = {
   ingredients: BuiltIngredient[]
   dishesWithoutIngredients: string[]
+  // Populated only by buildShoppingListFromDishIngredients: ingredients whose
+  // dish_ingredients rows used incompatible units (e.g. "2 pcs" in one dish,
+  // "550g" in another) — a dish-data problem, not something to silently
+  // string-concatenate. See dominantUnitClass in qty.ts for how the shown
+  // total is chosen.
+  mixedUnitWarnings?: MixedUnitWarning[]
 }
 
 export function normalizeCategory(c: string | null | undefined): ShopCategory {
@@ -101,7 +110,7 @@ export function buildShoppingListFromDishIngredients(
   const agg = new Map<string, {
     ingredient: string; category: ShopCategory
     from_dishes: BuiltIngredient['from_dishes']
-    byUnit: Map<string, number>
+    classes: Map<string, UnitClass>
   }>()
   const noIng = new Map<string, { name: string; count: number; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }>()
 
@@ -130,22 +139,29 @@ export function buildShoppingListFromDishIngredients(
       if (ing.shelf_stable) continue
       let row = agg.get(ing.id)
       if (!row) {
-        row = { ingredient: ing.name, category: normalizeCategory(ing.category), from_dishes: [], byUnit: new Map() }
+        row = { ingredient: ing.name, category: normalizeCategory(ing.category), from_dishes: [], classes: new Map() }
         agg.set(ing.id, row)
       }
       const amount = link.amount
       const unit = link.unit ?? ing.default_unit ?? null
       row.from_dishes.push({ dish: name, quantity: amount != null && unit ? formatQtyAmount(amount, unit) : null })
-      if (amount != null && unit) row.byUnit.set(unit, (row.byUnit.get(unit) ?? 0) + amount)
+      if (amount != null && unit) addToUnitClasses(row.classes, amount, unit)
     }
   }
 
   const catOrder = (c: ShopCategory) => SHOP_CATEGORIES.indexOf(c)
+  const mixedUnitWarnings: MixedUnitWarning[] = []
   const ingredients: BuiltIngredient[] = [...agg.values()]
-    .map(({ byUnit, ...r }) => ({
-      ...r,
-      quantity: byUnit.size ? [...byUnit.entries()].map(([u, amt]) => formatQtyAmount(amt, u)).join(' + ') : null,
-    }))
+    .map(({ classes, ...r }) => {
+      const dominant = dominantUnitClass(classes)
+      if (classes.size > 1) {
+        const detail = [...classes.values()]
+          .map(c => `${formatUnitClass(c)} (${c.occurrences}x)`)
+          .join(' vs ')
+        mixedUnitWarnings.push({ ingredient: r.ingredient, detail: `mixed units: ${detail} — using ${dominant ? formatUnitClass(dominant) : '?'}` })
+      }
+      return { ...r, quantity: dominant ? formatUnitClass(dominant) : null }
+    })
     .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.ingredient.localeCompare(b.ingredient))
 
   const dishesWithoutIngredients = [...noIng.values()].map(d => {
@@ -153,7 +169,7 @@ export function buildShoppingListFromDishIngredients(
     return d.name
   })
 
-  return { ingredients, dishesWithoutIngredients }
+  return { ingredients, dishesWithoutIngredients, mixedUnitWarnings }
 }
 
 // ---- Non-destructive regenerate --------------------------------------------

@@ -33,6 +33,14 @@ export type WeeklyShoppingItem = { ingredient: string; quantity: string | null; 
 // Raw shape of one entry in dishes.shop_ingredients (see scripts/draft-shopping-ingredients.mjs).
 export type ShopIngredientRow = { item: string; amount: number; unit: string; category: string }
 
+// One meal_plans row, for the weekly-shopping message's meal overview.
+export type WeeklyMealPlanRow = {
+  plan_date: string
+  slot: string
+  dish_name: string | null
+  skipped: boolean
+}
+
 export type DailyPlanRow = {
   slot: string
   role: string

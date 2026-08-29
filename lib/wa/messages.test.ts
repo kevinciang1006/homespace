@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  sumShopIngredients, composeWeeklyShoppingMessage, composeDailyReminderMessage, composePrepThawMessage,
+  sumShopIngredients, composeWeeklyShoppingMessage, composeMealOverview,
+  composeDailyReminderMessage, composePrepThawMessage,
 } from './messages'
 
 describe('sumShopIngredients', () => {
@@ -11,41 +12,64 @@ describe('sumShopIngredients', () => {
     ])
     expect(result).toEqual([{ ingredient: 'Ayam', quantity: '800g', category: 'protein' }])
   })
-  it('keeps different units of the same item separate', () => {
+  it('converts g/kg to one base unit instead of keeping them apart', () => {
+    const result = sumShopIngredients([
+      { item: 'Ayam', amount: 1, unit: 'kg', category: 'protein' },
+      { item: 'ayam', amount: 600, unit: 'g', category: 'protein' },
+    ])
+    expect(result).toEqual([{ ingredient: 'Ayam', quantity: '1.6kg', category: 'protein' }])
+  })
+  it('prefers weight over a count unit when both are present for the same item', () => {
     const result = sumShopIngredients([
       { item: 'Ikan', amount: 2, unit: 'ekor', category: 'protein' },
       { item: 'Ikan', amount: 400, unit: 'g', category: 'protein' },
     ])
-    expect(result).toHaveLength(2)
+    expect(result).toEqual([{ ingredient: 'Ikan', quantity: '400g', category: 'protein' }])
   })
 })
 
 describe('composeWeeklyShoppingMessage', () => {
-  it('renders a flat list sorted protein -> veg -> bumbu -> other, no headers', () => {
+  it('groups protein -> sayur -> bumbu -> buah -> lainnya, with headers, no "+"-joined amounts', () => {
     const msg = composeWeeklyShoppingMessage([
       { ingredient: 'Kangkung', quantity: '400g', category: 'vegetable' },
       { ingredient: 'Bumbu Rendang', quantity: null, category: 'bumbu' },
+      { ingredient: 'Cabai Rawit', quantity: '100g', category: 'vegetable' }, // aromatic -> bumbu group, after packets
       { ingredient: 'Ayam', quantity: '1kg', category: 'protein' },
+      { ingredient: 'Banana', quantity: null, category: 'dish' }, // fruit-slot dish w/ no ingredients
+      { ingredient: 'Yogurt', quantity: null, category: 'dish' }, // not fruit -> lainnya
       { ingredient: 'Tahu', quantity: null, category: 'other' },
     ])
-    expect(msg).not.toContain('*Protein*')
-    expect(msg).not.toContain('*Sayur*')
-    expect(msg).not.toContain('*Bumbu*')
-    expect(msg).not.toContain('*Lainnya*')
+    expect(msg).toContain('🥩 Protein')
+    expect(msg).toContain('🥦 Sayur')
+    expect(msg).toContain('🧂 Bumbu')
+    expect(msg).toContain('🍎 Buah')
+    expect(msg).toContain('🛍️ Lainnya')
     const lines = msg.split('\n').filter(l => l.startsWith('- '))
-    expect(lines).toEqual(['- Ayam 1kg', '- Kangkung 400g', '- Bumbu Rendang', '- Tahu'])
+    expect(lines).toEqual([
+      '- Ayam 1kg', '- Kangkung 400g', '- Bumbu Rendang', '- Cabai Rawit 100g',
+      '- Banana', '- Tahu', '- Yogurt',
+    ])
+    expect(msg).not.toContain('+')
     expect(msg).toContain('🛒 Belanja minggu ini:')
     expect(msg).toContain('Makasih ya 🧡')
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/shopping')
   })
 
-  it('maps "veg" and "pantry" categories into the same sort position as "vegetable" and "other"', () => {
+  it('bumbu packets sort before aromatics within the same Bumbu group', () => {
     const msg = composeWeeklyShoppingMessage([
-      { ingredient: 'Garam khusus', quantity: null, category: 'pantry' },
+      { ingredient: 'Jahe', quantity: '100g', category: 'vegetable' },
+      { ingredient: 'Bumbu Rendang', quantity: null, category: 'bumbu' },
+    ])
+    const lines = msg.split('\n').filter(l => l.startsWith('- '))
+    expect(lines).toEqual(['- Bumbu Rendang', '- Jahe 100g'])
+  })
+
+  it('maps "veg" category the same as "vegetable"', () => {
+    const msg = composeWeeklyShoppingMessage([
       { ingredient: 'Buncis', quantity: '250g', category: 'veg' },
     ])
     const lines = msg.split('\n').filter(l => l.startsWith('- '))
-    expect(lines).toEqual(['- Buncis 250g', '- Garam khusus'])
+    expect(lines).toEqual(['- Buncis 250g'])
   })
 
   it('returns a graceful message when there is nothing to buy, still linking to the shopping page', () => {
@@ -59,6 +83,40 @@ describe('composeWeeklyShoppingMessage', () => {
     expect(withItems).toContain('https://homespace-chi.vercel.app/meals/shopping?week=2026-08-24')
     const empty = composeWeeklyShoppingMessage([], '2026-08-24')
     expect(empty).toContain('https://homespace-chi.vercel.app/meals/shopping?week=2026-08-24')
+  })
+})
+
+describe('composeMealOverview', () => {
+  const weekStart = '2026-08-24' // Monday
+
+  it('orders each day as main -> soup/veg -> helper, skipping breakfast/fruit/desert', () => {
+    const overview = composeMealOverview(weekStart, [
+      { plan_date: '2026-08-24', slot: 'breakfast', dish_name: 'Bubur ayam', skipped: false },
+      { plan_date: '2026-08-24', slot: 'utama', dish_name: 'Ayam bumbu bakar', skipped: false },
+      { plan_date: '2026-08-24', slot: 'pelengkap', dish_name: 'Tahu goreng', skipped: false },
+      { plan_date: '2026-08-24', slot: 'kuah', dish_name: 'Sop bayam jagung', skipped: false },
+      { plan_date: '2026-08-24', slot: 'sayuran', dish_name: 'Cha buncis', skipped: false },
+      { plan_date: '2026-08-24', slot: 'fruit', dish_name: 'Banana', skipped: false },
+      { plan_date: '2026-08-24', slot: 'desert', dish_name: 'Yogurt', skipped: false },
+    ])
+    expect(overview).not.toBeNull()
+    expect(overview).not.toContain('Bubur ayam')
+    expect(overview).not.toContain('Banana')
+    expect(overview).not.toContain('Yogurt')
+    const dayLine = overview!.split('\n').find(l => l.startsWith('Sen'))!
+    expect(dayLine).toBe('Sen 24/8: Ayam bumbu bakar, Sop bayam jagung, Cha buncis, Tahu goreng')
+  })
+
+  it('skips skipped rows and days with nothing planned', () => {
+    const overview = composeMealOverview(weekStart, [
+      { plan_date: '2026-08-24', slot: 'utama', dish_name: 'Ayam', skipped: true },
+      { plan_date: '2026-08-25', slot: 'utama', dish_name: null, skipped: false },
+    ])
+    expect(overview).toBeNull()
+  })
+
+  it('returns null for an empty week', () => {
+    expect(composeMealOverview(weekStart, [])).toBeNull()
   })
 })
 
