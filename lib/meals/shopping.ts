@@ -2,7 +2,7 @@ import { formatQtyAmount } from './qty'
 
 export type DishIngredient = { name: string; quantity?: string | null; category?: string | null }
 
-export const SHOP_CATEGORIES = ['protein', 'vegetable', 'pantry', 'other'] as const
+export const SHOP_CATEGORIES = ['protein', 'vegetable', 'bumbu', 'pantry', 'other'] as const
 export type ShopCategory = (typeof SHOP_CATEGORIES)[number]
 
 export type BuiltIngredient = {
@@ -18,6 +18,7 @@ export type BuiltList = {
 
 export function normalizeCategory(c: string | null | undefined): ShopCategory {
   const lower = (c ?? '').trim().toLowerCase()
+  if (lower === 'veg') return 'vegetable'
   return (SHOP_CATEGORIES as readonly string[]).includes(lower) ? (lower as ShopCategory) : 'other'
 }
 
@@ -70,6 +71,74 @@ export function buildShoppingList(
   const catOrder = (c: ShopCategory) => SHOP_CATEGORIES.indexOf(c)
   const ingredients: BuiltIngredient[] = [...agg.values()]
     .map(({ _quantities, ...r }) => ({ ...r, quantity: _quantities.length ? _quantities.join(' + ') : null }))
+    .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.ingredient.localeCompare(b.ingredient))
+
+  const dishesWithoutIngredients = [...noIng.values()].map(d => {
+    if (d.qty_amount != null && d.qty_unit) return `${d.name} ${formatQtyAmount(d.qty_amount * d.count, d.qty_unit)}`
+    return d.name
+  })
+
+  return { ingredients, dishesWithoutIngredients }
+}
+
+// ---- Aggregation from the normalized ingredients tables --------------------
+// The current source of truth for the shopping list: dish_ingredients (via a
+// week's meal_plans) joined against the canonical ingredients table, instead
+// of the old free-text dishes.ingredients jsonb. Same summing behavior as
+// buildShoppingList (same-unit amounts are summed into one number; different
+// units for the same ingredient are kept as separate "amount unit" segments
+// joined with " + "), just keyed by ingredient_id instead of a normalized
+// name string — the normalization already happened once, at migration time.
+export type IngredientRef = { id: string; name: string; category: string | null; default_unit: string | null }
+export type DishIngredientLink = { ingredient_id: string; amount: number | null; unit: string | null }
+
+export function buildShoppingListFromDishIngredients(
+  plans: { dish_id: string | null; dish_name: string | null }[],
+  dishIngredientsByDish: Map<string, DishIngredientLink[]>,
+  ingredientById: Map<string, IngredientRef>,
+  dishMetaById: Map<string, { name: string; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }>,
+): BuiltList {
+  const agg = new Map<string, {
+    ingredient: string; category: ShopCategory
+    from_dishes: BuiltIngredient['from_dishes']
+    byUnit: Map<string, number>
+  }>()
+  const noIng = new Map<string, { name: string; count: number; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }>()
+
+  for (const p of plans) {
+    if (!p.dish_id) continue
+    const meta = dishMetaById.get(p.dish_id)
+    const name = meta?.name ?? p.dish_name ?? 'Unknown dish'
+    const links = dishIngredientsByDish.get(p.dish_id) ?? []
+
+    if (links.length === 0) {
+      const existing = noIng.get(p.dish_id)
+      if (existing) existing.count += 1
+      else noIng.set(p.dish_id, { name, count: 1, qty_amount: meta?.qty_amount, qty_unit: meta?.qty_unit, qty_note: meta?.qty_note })
+      continue
+    }
+
+    for (const link of links) {
+      const ing = ingredientById.get(link.ingredient_id)
+      if (!ing) continue
+      let row = agg.get(ing.id)
+      if (!row) {
+        row = { ingredient: ing.name, category: normalizeCategory(ing.category), from_dishes: [], byUnit: new Map() }
+        agg.set(ing.id, row)
+      }
+      const amount = link.amount
+      const unit = link.unit ?? ing.default_unit ?? null
+      row.from_dishes.push({ dish: name, quantity: amount != null && unit ? formatQtyAmount(amount, unit) : null })
+      if (amount != null && unit) row.byUnit.set(unit, (row.byUnit.get(unit) ?? 0) + amount)
+    }
+  }
+
+  const catOrder = (c: ShopCategory) => SHOP_CATEGORIES.indexOf(c)
+  const ingredients: BuiltIngredient[] = [...agg.values()]
+    .map(({ byUnit, ...r }) => ({
+      ...r,
+      quantity: byUnit.size ? [...byUnit.entries()].map(([u, amt]) => formatQtyAmount(amt, u)).join(' + ') : null,
+    }))
     .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.ingredient.localeCompare(b.ingredient))
 
   const dishesWithoutIngredients = [...noIng.values()].map(d => {

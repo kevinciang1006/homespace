@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildShoppingList, normalizeCategory, mergeShoppingItems,
+  buildShoppingList, buildShoppingListFromDishIngredients, normalizeCategory, mergeShoppingItems,
   type DishIngredient, type BuiltList, type ExistingShoppingItem, type ShopCategory,
+  type IngredientRef, type DishIngredientLink,
 } from './shopping'
 
 type D = { name: string; ingredients: DishIngredient[] | null; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }
@@ -115,6 +116,64 @@ describe('buildShoppingList', () => {
     const dishById = map([{ id: 'a', name: 'Nasi Goreng', ingredients: null }])
     const out = buildShoppingList([{ dish_id: 'a', dish_name: 'Nasi Goreng' }], dishById)
     expect(out.dishesWithoutIngredients).toEqual(['Nasi Goreng'])
+  })
+})
+
+describe('buildShoppingListFromDishIngredients', () => {
+  const ingredientById = new Map<string, IngredientRef>([
+    ['ayam', { id: 'ayam', name: 'Ayam', category: 'protein', default_unit: 'g' }],
+    ['wortel', { id: 'wortel', name: 'Wortel', category: 'veg', default_unit: 'pcs' }],
+  ])
+  const dishMetaById = new Map([
+    ['a', { name: 'Dish A' }],
+    ['b', { name: 'Dish B' }],
+    ['c', { name: 'Banana', qty_amount: 3, qty_unit: 'pcs' }],
+  ])
+
+  it('sums the same ingredient across dishes when units match', () => {
+    const links = new Map<string, DishIngredientLink[]>([
+      ['a', [{ ingredient_id: 'ayam', amount: 300, unit: 'g' }]],
+      ['b', [{ ingredient_id: 'ayam', amount: 200, unit: 'g' }]],
+    ])
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'a', dish_name: 'Dish A' }, { dish_id: 'b', dish_name: 'Dish B' }],
+      links, ingredientById, dishMetaById,
+    )
+    const ayam = out.ingredients.find(i => i.ingredient === 'Ayam')!
+    expect(ayam.quantity).toBe('500g')
+    expect(ayam.category).toBe('protein')
+    expect(ayam.from_dishes).toEqual([{ dish: 'Dish A', quantity: '300g' }, { dish: 'Dish B', quantity: '200g' }])
+  })
+
+  it('keeps different units of the same ingredient as separate segments', () => {
+    const links = new Map<string, DishIngredientLink[]>([
+      ['a', [{ ingredient_id: 'wortel', amount: 2, unit: 'pcs' }]],
+      ['b', [{ ingredient_id: 'wortel', amount: 100, unit: 'g' }]],
+    ])
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'a', dish_name: 'Dish A' }, { dish_id: 'b', dish_name: 'Dish B' }],
+      links, ingredientById, dishMetaById,
+    )
+    const wortel = out.ingredients.find(i => i.ingredient === 'Wortel')!
+    expect(wortel.quantity).toBe('2 pcs + 100g')
+  })
+
+  it('maps ingredient category veg -> vegetable and sorts protein before veg', () => {
+    const links = new Map<string, DishIngredientLink[]>([
+      ['a', [{ ingredient_id: 'wortel', amount: 1, unit: 'pcs' }, { ingredient_id: 'ayam', amount: 500, unit: 'g' }]],
+    ])
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById,
+    )
+    expect(out.ingredients.map(i => [i.category, i.ingredient])).toEqual([['protein', 'Ayam'], ['vegetable', 'Wortel']])
+  })
+
+  it('tallies a dish with no dish_ingredients rows into dishesWithoutIngredients, summing its qty across repeats', () => {
+    const out = buildShoppingListFromDishIngredients(
+      [{ dish_id: 'c', dish_name: 'Banana' }, { dish_id: 'c', dish_name: 'Banana' }],
+      new Map(), ingredientById, dishMetaById,
+    )
+    expect(out.dishesWithoutIngredients).toEqual(['Banana 6 pcs'])
   })
 })
 

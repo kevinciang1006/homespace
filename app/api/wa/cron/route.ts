@@ -151,8 +151,8 @@ async function runTestMode(to: string): Promise<Response> {
   const weeklyWeekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
   const weeklyItems = await buildWeeklyItems(weeklyWeekStart)
   const weeklyMessage = weeklyItems.length > 0
-    ? composeWeeklyShoppingMessage(weeklyItems)
-    : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS) + SAMPLE_TAG
+    ? composeWeeklyShoppingMessage(weeklyItems, weeklyWeekStart)
+    : composeWeeklyShoppingMessage(SAMPLE_WEEKLY_ITEMS, weeklyWeekStart) + SAMPLE_TAG
 
   const tomorrow = tomorrowOf(today)
   const dailyRows = await buildDailyRows(tomorrow)
@@ -212,7 +212,7 @@ export async function GET(request: Request) {
       const saturday = upcomingSaturday(today)
       const weekStart = shoppingWeekStart(today, settings.weekly_cutoff_dow)
       const items = await buildWeeklyItems(weekStart)
-      const message = composeWeeklyShoppingMessage(items)
+      const message = composeWeeklyShoppingMessage(items, weekStart)
       const sendAt = jakartaDateTimeToUtcIso(saturday, settings.weekly_time)
       const result = await upsertOutbound(
         'weekly_shopping', saturday, sendAt, resolveRecipients(settings.include_kevin), message,

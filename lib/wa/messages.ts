@@ -34,9 +34,9 @@ export function sumShopIngredients(rows: ShopIngredientRow[]): WeeklyShoppingIte
   }))
 }
 
-export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[]): string {
+export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[], weekStart?: string): string {
   if (items.length === 0) {
-    return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl()}`
+    return `🛒 Belum ada yang perlu dibeli minggu ini — santai dulu, ya! 💛\n${shoppingPageUrl(weekStart)}`
   }
 
   const sorted = [...items].sort(
@@ -49,7 +49,7 @@ export function composeWeeklyShoppingMessage(items: WeeklyShoppingItem[]): strin
     ...lines.map(l => `- ${l}`),
     '',
     'Makasih ya 🧡',
-    shoppingPageUrl(),
+    shoppingPageUrl(weekStart),
   ].join('\n')
 }
 

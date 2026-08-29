@@ -1,15 +1,18 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, ListChecks, Trash2, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Plus } from 'lucide-react'
 import { SHOP_CATEGORIES, type ShopCategory } from '@/lib/meals/shopping'
 import { currentMonday, shiftWeek, weekDates } from '@/lib/meals/dates'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
+import type { WeekMealDay } from '@/lib/meals/weekMeals'
 
 const CAT_LABEL: Record<string, string> = {
-  protein: 'Protein', vegetable: 'Vegetable', pantry: 'Pantry', other: 'Other', dish: 'Dishes this week',
+  protein: 'Protein', vegetable: 'Vegetable', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other', dish: 'Dishes this week',
 }
 const CAT_BADGE: Record<string, string> = {
   protein: 'bg-rose-100 text-rose-700', vegetable: 'bg-green-100 text-green-700',
+  bumbu: 'bg-orange-100 text-orange-700',
   pantry: 'bg-amber-100 text-amber-700', other: 'bg-stone-100 text-stone-600', dish: 'bg-stone-100 text-stone-500',
 }
 function label(dateStr: string): string {
@@ -17,36 +20,41 @@ function label(dateStr: string): string {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function ShoppingListClient({ initialWeekStart, initialList, initialItems }: {
+export default function ShoppingListClient({ initialWeekStart, initialList, initialItems, initialMeals }: {
   initialWeekStart: string
   initialList: MealShoppingList | null
   initialItems: MealShoppingItem[]
+  initialMeals: WeekMealDay[]
 }) {
+  const router = useRouter()
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [list, setList] = useState<MealShoppingList | null>(initialList)
   const [items, setItems] = useState<MealShoppingItem[]>(initialItems)
+  const [meals, setMeals] = useState<WeekMealDay[]>(initialMeals)
   const [busy, setBusy] = useState(false)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
 
-  async function loadWeek(ws: string) {
+  // Auto-build on open: the list on screen is always current, no manual click
+  // needed. Non-destructive (mergeShoppingItems keeps ✓/"already have"/manual
+  // rows), so it's safe to run on every mount/week-change.
+  async function refresh(ws: string) {
     setWeekStart(ws)
-    const res = await fetch(`/api/meals/shopping?weekStart=${ws}`)
-    const { list, items } = await res.json()
-    setList(list ?? null); setItems(items ?? [])
-  }
-
-  async function generate() {
-    // Regenerate is non-destructive: it refreshes plan-derived items while
-    // keeping your ✓ marks, "already have" flags, and manually-added items.
+    router.replace(`/meals/shopping?week=${ws}`, { scroll: false })
     setBusy(true)
     try {
       const res = await fetch('/api/meals/shopping/generate', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weekStart: ws }),
       })
-      const { list, items } = await res.json()
-      setList(list ?? null); setItems(items ?? [])
+      const { list, items, meals } = await res.json()
+      setList(list ?? null); setItems(items ?? []); setMeals(meals ?? [])
     } finally { setBusy(false) }
   }
+
+  useEffect(() => {
+    refresh(initialWeekStart)
+    // Auto-build once on mount, using whichever week the page opened to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function patchItem(id: string, fields: Partial<MealShoppingItem>) {
     const prev = items.find(i => i.id === id)
@@ -78,24 +86,26 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
     <div>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex items-center gap-2">
-          <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
+          <button onClick={() => refresh(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
           <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
-          <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
-          <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
+          <button onClick={() => refresh(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
+          <button onClick={() => refresh(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
         </div>
         <div className="flex items-center gap-3">
           {list && <span className="text-sm text-stone-500">{remaining} of {buyable.length} to buy</span>}
-          <button onClick={generate} disabled={busy}
+          <button onClick={() => refresh(weekStart)} disabled={busy}
             className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
-            <ListChecks size={16} /> {busy ? 'Working…' : list ? 'Regenerate' : 'Generate shopping list'}
+            <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Working…' : 'Rebuild'}
           </button>
         </div>
       </div>
 
-      {!list && (
+      <WeekMealsSummary meals={meals} />
+
+      {!list && !busy && (
         <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-500">
           No shopping list for this week yet.<br />
-          <span className="text-sm">Generate one from this week&apos;s meal plan.</span>
+          <span className="text-sm">Add some dishes to the meal plan, then hit Rebuild.</span>
         </div>
       )}
 
@@ -130,6 +140,31 @@ export default function ShoppingListClient({ initialWeekStart, initialList, init
         </section>
       )}
     </div>
+  )
+}
+
+function WeekMealsSummary({ meals }: { meals: WeekMealDay[] }) {
+  const withAnything = meals.filter(d => d.main || d.supports.length > 0)
+  if (withAnything.length === 0) return null
+  return (
+    <section className="mb-6">
+      <h2 className="text-sm font-semibold text-stone-500 mb-2">This week&apos;s meals</h2>
+      <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
+        {withAnything.map(d => (
+          <div key={d.date} className="flex items-center gap-3 px-4 py-2 text-sm">
+            <span className="w-16 shrink-0 text-stone-400">{label(d.date)}</span>
+            <span className="min-w-0 flex-1 text-stone-700 truncate">
+              {d.main && <span className="font-medium">{d.main}</span>}
+              {d.supports.length > 0 && (
+                <span className={d.main ? 'text-stone-400' : ''}>
+                  {d.main ? ' + ' : ''}{d.supports.join(', ')}
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

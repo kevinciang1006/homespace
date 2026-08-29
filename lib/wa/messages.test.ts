@@ -53,6 +53,13 @@ describe('composeWeeklyShoppingMessage', () => {
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/shopping')
     expect(msg).not.toContain('- ')
   })
+
+  it('includes the week param so the link opens to the right week, not just today', () => {
+    const withItems = composeWeeklyShoppingMessage([{ ingredient: 'Ayam', quantity: '1kg', category: 'protein' }], '2026-08-24')
+    expect(withItems).toContain('https://homespace-chi.vercel.app/meals/shopping?week=2026-08-24')
+    const empty = composeWeeklyShoppingMessage([], '2026-08-24')
+    expect(empty).toContain('https://homespace-chi.vercel.app/meals/shopping?week=2026-08-24')
+  })
 })
 
 describe('composeDailyReminderMessage', () => {
