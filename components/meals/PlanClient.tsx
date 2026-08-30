@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, Check, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, Shuffle, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type DailyStaple, type Dish, type MealPlan, type Role, type Slot } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
 import DishImage from './DishImage'
@@ -11,6 +11,7 @@ import DishEditorPanel from './DishEditorPanel'
 import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
 import PlanSidebar from './PlanSidebar'
+import UndoSnackbar from '@/components/UndoSnackbar'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
 export type CookRow = {
@@ -40,6 +41,7 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   const [cookLog, setCookLog] = useState<Record<string, CookRow[]>>({})
   const [genReport, setGenReport] = useState<string[] | null>(null)
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
+  const [undo, setUndo] = useState<{ message: string; row: MealPlan } | null>(null)
   const days = useMemo(() => weekDates(weekStart), [weekStart])
   const overview = useMemo(() => computeWeekOverview(week), [week])
   // Fruit is bought once for the whole week (a banana or papaya covers all
@@ -151,6 +153,22 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
       const copy = [...w]; copy[i] = row; return copy
     })
   }
+  // Undo for a cleared meal cell (MainHero/SupportChip/DessertRow's delete):
+  // re-PATCHes the row's own previous dish_id/dish_name/locked back, rather
+  // than delaying the original delete — simpler to wire through 3 card
+  // components, and functionally the same "put it back" from the user's view.
+  async function restoreCell(row: MealPlan) {
+    replaceCell(row)
+    await fetch(`/api/meals/plan/${row.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dish_id: row.dish_id, dish_name: row.dish_name, locked: row.locked }),
+    })
+  }
+  function undoCellClear() {
+    if (!undo) return
+    restoreCell(undo.row)
+    setUndo(null)
+  }
 
   // Clicking a card opens the same edit drawer the Dishes tab uses, instead of
   // navigating to the recipe page — fetch the full Dish record to populate it.
@@ -179,6 +197,7 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
     <div className="flex flex-col sm:flex-row gap-4 items-start">
       <PlanSidebar
         dayHref={`/meals/day/${isoDate(new Date())}`}
+        generating={generating} onGenerate={generate}
         hasWeek={week.length > 0} clearing={clearing} onClearWeek={clearWeek}
         randomizingBreakfast={randomizingBreakfast} onRandomizeBreakfasts={randomizeBreakfasts}
         randomizingDesserts={randomizingDesserts} onRandomizeDesserts={randomizeDesserts}
@@ -186,17 +205,11 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
       />
 
       <div className="flex-1 min-w-0 w-full">
-        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
-            <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
-            <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
-            <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
-          </div>
-          <button onClick={generate} disabled={generating}
-            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
-            <Sparkles size={16} /> {generating ? 'Generating…' : 'Generate Week'}
-          </button>
+        <div className="flex items-center gap-2 mb-5">
+          <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
+          <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
+          <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
+          <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
         </div>
 
         {weekFruit.length > 0 && (
@@ -229,7 +242,8 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
           {days.map((date, i) => (
             <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
               entries={cookLog[date] ?? []} onCooked={onCooked}
-              onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish} />
+              onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish}
+              onUndoable={row => setUndo({ message: `Removed ${row.dish_name ?? 'dish'}`, row })} />
           ))}
         </div>
 
@@ -240,16 +254,21 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
         <DishEditorPanel dish={editingDish} onClose={() => setEditingDish(null)}
           onPatch={patchDishEverywhere} onSynced={syncDishEverywhere} />
       )}
+
+      {undo && (
+        <UndoSnackbar message={undo.message} onUndo={undoCellClear} onExpire={() => setUndo(null)} />
+      )}
     </div>
   )
 }
 
-function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onReplaceCell, onOpenDish }: {
+function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onReplaceCell, onOpenDish, onUndoable }: {
   date: string; dayName: string; rows: MealPlan[]
   entries: CookRow[]; onCooked: (date: string, entries: CookRow[]) => void
   onReplaceDay: (date: string, rows: MealPlan[]) => void
   onReplaceCell: (row: MealPlan) => void
   onOpenDish: (dishId: string) => void
+  onUndoable: (prevRow: MealPlan) => void
 }) {
   const main = rows.find(r => r.role === 'main')
   // Cleared-but-not-skipped support rows (dish_id null, skipped false) are a
@@ -324,16 +343,16 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
         </div>
       </div>
       {main
-        ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />
+        ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} onUndoable={onUndoable} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}
 
       {supports.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />)}
+          {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} onUndoable={onUndoable} />)}
         </div>
       )}
 
-      {dessert && <DessertRow row={dessert} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />}
+      {dessert && <DessertRow row={dessert} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} onUndoable={onUndoable} />}
 
       {hasPlan && (
         <div className="flex items-center gap-2 border-t border-stone-100 pt-2 mt-0.5">
@@ -352,7 +371,9 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
   )
 }
 
-function useCellControls(date: string, row: MealPlan, onReplaceCell: (r: MealPlan) => void) {
+function useCellControls(
+  date: string, row: MealPlan, onReplaceCell: (r: MealPlan) => void, onUndoable?: (prevRow: MealPlan) => void,
+) {
   const [open, setOpen] = useState(false)
   const [alts, setAlts] = useState<{ id: string; name: string }[] | null>(null)
   async function toggleLock() {
@@ -373,7 +394,8 @@ function useCellControls(date: string, row: MealPlan, onReplaceCell: (r: MealPla
   // just this cell to an empty, re-rollable placeholder (dish_id/name null).
   // Distinct from the engine's own `skipped` rows (e.g. "broth from the
   // main"): this is a user choice, so it stays re-fillable via the same
-  // reroll/"surprise me" flow the card already offers.
+  // reroll/"surprise me" flow the card already offers. Reports the
+  // pre-clear row up to PlanClient so it can offer an Undo snackbar.
   async function clear() {
     const prev = row
     onReplaceCell({ ...row, dish_id: null, dish_name: null, dishes: null, locked: false })
@@ -382,17 +404,19 @@ function useCellControls(date: string, row: MealPlan, onReplaceCell: (r: MealPla
       body: JSON.stringify({ dish_id: null, dish_name: null, locked: false }),
     })
     if (!res.ok) onReplaceCell(prev)
+    else onUndoable?.(prev)
   }
   return { open, setOpen, alts, toggleLock, openAlts, clear }
 }
 
-function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
+function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish, onUndoable }: {
   row: MealPlan; date: string
   onReroll: (dishId?: string) => void
   onReplaceCell: (r: MealPlan) => void
   onOpenDish: (dishId: string) => void
+  onUndoable: (prevRow: MealPlan) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell)
+  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell, onUndoable)
   const tier = row.dishes?.tier; const spicy = row.dishes?.spicy
 
   if (!row.dish_id) {
@@ -418,20 +442,26 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
           </div>
         </div>
       </button>
+      {/* Photo/link/randomize/delete are desktop-only for now — mobile keeps
+          just tap-to-open + lock, per feedback to simplify the mobile cards. */}
       <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
         {row.dish_id && (
-          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []} iconSize={14}
-            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+          <div className="hidden sm:flex gap-1">
+            <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []} iconSize={14}
+              onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+          </div>
         )}
         <button onClick={toggleLock} title={row.locked ? 'Unlock' : 'Lock'}
           className={`p-1 rounded-lg bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-500 hover:text-stone-800'}`}>
           {row.locked ? <Lock size={14} /> : <Unlock size={14} />}
         </button>
-        <button onClick={openAlts} title="Want something else?" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-stone-800"><Shuffle size={14} /></button>
-        <button onClick={clear} title="Remove" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-red-600"><Trash2 size={14} /></button>
+        <div className="hidden sm:flex gap-1">
+          <button onClick={openAlts} title="Want something else?" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-stone-800"><Shuffle size={14} /></button>
+          <button onClick={clear} title="Remove" className="p-1 rounded-lg bg-white/85 backdrop-blur text-stone-500 hover:text-red-600"><Trash2 size={14} /></button>
+        </div>
       </div>
       {row.dish_id && (
-        <div className="absolute top-1.5 left-1.5 z-10">
+        <div className="hidden sm:block absolute top-1.5 left-1.5 z-10">
           <PhotoUploadButton dishId={row.dish_id} variant="overlay"
             label={row.dishes?.recipe_image_url ? 'Change photo' : '📷 add photo'}
             onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
@@ -450,10 +480,11 @@ function MainHero({ row, date, onReroll, onReplaceCell, onOpenDish }: {
   )
 }
 
-function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
+function SupportChip({ row, date, onReplaceCell, onOpenDish, onUndoable }: {
   row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
+  onUndoable: (prevRow: MealPlan) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell)
+  const { open, setOpen, alts, openAlts, toggleLock, clear } = useCellControls(date, row, onReplaceCell, onUndoable)
   const spicy = row.dishes?.spicy
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
@@ -485,19 +516,23 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
         </div>
       </button>
       <div className="absolute top-1 right-1 flex gap-0.5 z-10">
-        {row.dish_id && (
-          <PhotoUploadButton dishId={row.dish_id} variant="icon"
-            label={row.dishes?.recipe_image_url ? 'Change photo' : 'Add photo'}
-            className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
-            onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
-        )}
-        {row.dish_id && (
-          <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []}
-            onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
-        )}
+        <div className="hidden sm:flex gap-0.5">
+          {row.dish_id && (
+            <PhotoUploadButton dishId={row.dish_id} variant="icon"
+              label={row.dishes?.recipe_image_url ? 'Change photo' : 'Add photo'}
+              className="bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"
+              onUploaded={url => onReplaceCell({ ...row, dishes: { ...(row.dishes ?? { tier: 'everyday', spicy: false, richness: 'medium', provides_soup: false, protein: 'none', saltiness: 'normal', difficulty: 'medium', method: null }), recipe_image_url: url } })} />
+          )}
+          {row.dish_id && (
+            <RecipeLinkButton dishId={row.dish_id} links={row.dishes?.recipe_links ?? []}
+              onSaved={next => onReplaceCell({ ...row, dishes: { ...(row.dishes as NonNullable<MealPlan['dishes']>), recipe_links: next } })} />
+          )}
+        </div>
         <button onClick={toggleLock} className={`p-0.5 rounded bg-white/85 backdrop-blur ${row.locked ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`}>{row.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
-        <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
-        <button onClick={clear} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-red-600"><Trash2 size={11} /></button>
+        <div className="hidden sm:flex gap-0.5">
+          <button onClick={openAlts} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-stone-700"><Shuffle size={11} /></button>
+          <button onClick={clear} className="p-0.5 rounded bg-white/85 backdrop-blur text-stone-400 hover:text-red-600"><Trash2 size={11} /></button>
+        </div>
       </div>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
@@ -514,10 +549,11 @@ function SupportChip({ row, date, onReplaceCell, onOpenDish }: {
 // clickable name (opens the dish editor), a reroll die, and a delete. Kept
 // deliberately lighter than the meal cards above: unlike the main/veg/helper
 // trio, dessert doesn't need a picture to be useful at a glance.
-function DessertRow({ row, date, onReplaceCell, onOpenDish }: {
+function DessertRow({ row, date, onReplaceCell, onOpenDish, onUndoable }: {
   row: MealPlan; date: string; onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
+  onUndoable: (prevRow: MealPlan) => void
 }) {
-  const { open, setOpen, alts, openAlts, clear } = useCellControls(date, row, onReplaceCell)
+  const { open, setOpen, alts, openAlts, clear } = useCellControls(date, row, onReplaceCell, onUndoable)
   const spicy = row.dishes?.spicy
   async function swap(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
@@ -543,8 +579,10 @@ function DessertRow({ row, date, onReplaceCell, onOpenDish }: {
         aria-label={`Edit ${row.dish_name}`} className="flex-1 min-w-0 text-left text-xs text-stone-700 truncate">
         🍡 {row.dish_name} {spicy && '🌶️'}
       </button>
-      <button onClick={openAlts} title="Want something else?" className="p-1 rounded text-stone-400 hover:text-stone-700"><Shuffle size={12} /></button>
-      <button onClick={clear} title="Remove" className="p-1 rounded text-stone-400 hover:text-red-600"><Trash2 size={12} /></button>
+      <div className="hidden sm:flex">
+        <button onClick={openAlts} title="Want something else?" className="p-1 rounded text-stone-400 hover:text-stone-700"><Shuffle size={12} /></button>
+        <button onClick={clear} title="Remove" className="p-1 rounded text-stone-400 hover:text-red-600"><Trash2 size={12} /></button>
+      </div>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
           <button onClick={() => swap()} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs">🎲 Surprise me</button>
