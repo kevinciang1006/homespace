@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, ShoppingCart, Check, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Lock, Unlock, Shuffle, Check, Trash2 } from 'lucide-react'
 import { SLOT_LABELS, type DailyStaple, type Dish, type MealPlan, type Role, type Slot } from '@/lib/meals/types'
 import { weekDates, currentMonday, shiftWeek, isoDate } from '@/lib/meals/dates'
 import DishImage from './DishImage'
@@ -10,8 +10,7 @@ import RecipeLinkButton from './RecipeLinkButton'
 import DishEditorPanel from './DishEditorPanel'
 import CookLogSheet from './CookLogSheet'
 import WeekOverview from './WeekOverview'
-import StaplesBanner from './StaplesBanner'
-import ViewToggle from './ViewToggle'
+import PlanSidebar from './PlanSidebar'
 import { computeWeekOverview } from '@/lib/meals/overview'
 
 export type CookRow = {
@@ -177,80 +176,65 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   }
 
   return (
-    <div>
-      <div className="mb-4">
-        <ViewToggle weekHref="/meals" dayHref={`/meals/day/${isoDate(new Date())}`} />
-      </div>
+    <div className="flex flex-col sm:flex-row gap-4 items-start">
+      <PlanSidebar
+        dayHref={`/meals/day/${isoDate(new Date())}`}
+        hasWeek={week.length > 0} clearing={clearing} onClearWeek={clearWeek}
+        randomizingBreakfast={randomizingBreakfast} onRandomizeBreakfasts={randomizeBreakfasts}
+        randomizingDesserts={randomizingDesserts} onRandomizeDesserts={randomizeDesserts}
+        buildingList={buildingList} onBuildList={buildList}
+      />
 
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
-          <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
-          <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
-          <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
-        </div>
-        <div className="flex items-center gap-2">
-          {week.length > 0 && (
-            <button onClick={clearWeek} disabled={clearing}
-              className="flex items-center gap-1.5 text-stone-500 hover:text-stone-800 hover:bg-stone-100 disabled:opacity-60 text-sm font-medium px-3 py-2 rounded-xl transition-colors"
-              title="Empty this week (removes it from next week's variety/spacing rules)">
-              <Trash2 size={15} /> {clearing ? 'Clearing…' : 'Clear week'}
-            </button>
-          )}
-          <button onClick={randomizeBreakfasts} disabled={randomizingBreakfast}
-            className="flex items-center gap-1.5 border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-60 text-sm font-medium px-3 py-2 rounded-xl transition-colors">
-            🎲 {randomizingBreakfast ? 'Randomizing…' : 'Randomize breakfast'}
-          </button>
-          <button onClick={randomizeDesserts} disabled={randomizingDesserts}
-            className="flex items-center gap-1.5 border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-60 text-sm font-medium px-3 py-2 rounded-xl transition-colors">
-            🎲 {randomizingDesserts ? 'Randomizing…' : 'Randomize desserts'}
-          </button>
-          <button onClick={buildList} disabled={buildingList}
-            className="flex items-center gap-2 border border-orange-200 text-orange-700 hover:bg-orange-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-xl transition-colors">
-            <ShoppingCart size={16} /> {buildingList ? 'Building…' : 'Build shopping list'}
-          </button>
+      <div className="flex-1 min-w-0 w-full">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
+            <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
+            <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
+            <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
+          </div>
           <button onClick={generate} disabled={generating}
             className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
             <Sparkles size={16} /> {generating ? 'Generating…' : 'Generate Week'}
           </button>
         </div>
-      </div>
 
-      {weekFruit.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap mb-4">
-          <span className="text-xs font-medium text-stone-400 mr-0.5">🍎 This week&apos;s fruit:</span>
-          {weekFruit.map(f => (
-            <button key={f.id} onClick={() => openDish(f.id)}
-              className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors">
-              {f.name}
-            </button>
+        {weekFruit.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mb-4">
+            <span className="text-xs font-medium text-stone-400 mr-0.5">🍎 This week&apos;s fruit:</span>
+            {weekFruit.map(f => (
+              <button key={f.id} onClick={() => openDish(f.id)}
+                className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors">
+                {f.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {genReport && (
+          <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{genReport.length === 0 ? '✓ Week validated' : `${genReport.length} thing${genReport.length > 1 ? 's' : ''} to note`}</span>
+              <button onClick={() => setGenReport(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
+            </div>
+            {genReport.length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {genReport.map((line, i) => <li key={i}>{line}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {days.map((date, i) => (
+            <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
+              entries={cookLog[date] ?? []} onCooked={onCooked}
+              onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish} />
           ))}
         </div>
-      )}
 
-      {genReport && (
-        <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-medium">{genReport.length === 0 ? '✓ Week validated' : `${genReport.length} thing${genReport.length > 1 ? 's' : ''} to note`}</span>
-            <button onClick={() => setGenReport(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
-          </div>
-          {genReport.length > 0 && (
-            <ul className="mt-1 space-y-0.5 text-xs">
-              {genReport.map((line, i) => <li key={i}>{line}</li>)}
-            </ul>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {days.map((date, i) => (
-          <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
-            entries={cookLog[date] ?? []} onCooked={onCooked}
-            onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish} />
-        ))}
+        <WeekOverview overview={overview} />
       </div>
-
-      <WeekOverview overview={overview} />
 
       {editingDish && (
         <DishEditorPanel dish={editingDish} onClose={() => setEditingDish(null)}
