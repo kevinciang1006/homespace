@@ -68,14 +68,13 @@ export type PrepDishRow = {
   prep_note: string | null
 }
 
-// Input shapes for composeBatchPrepWifeMessage/composeBatchPrepKevinMessage —
-// structurally identical to lib/meals/batchPrep.ts's BatchPrepDishBlock/
-// FruitPrepItem (kept separate so lib/wa never imports lib/meals directly,
-// matching every other message composer in this file).
-export type BatchPrepDishBlockRow = {
-  dish_name: string
-  steps: { ingredient_name: string; instruction: string; amount_display: string | null }[]
-}
+// Input shape for composeBatchPrepKevinMessage — structurally identical to
+// lib/meals/batchPrep.ts's FruitPrepItem (kept separate so lib/wa never
+// imports lib/meals directly, matching every other message composer in this
+// file). composeBatchPrepWifeMessage takes plain { main, soup, veg }: string[]
+// arrays instead — the "what goes on this line" logic all lives in
+// lib/meals/batchPrep.ts's buildMainLines/buildSoupLines/buildVegLines, so
+// there's no dish-shaped row left for the WA side to duplicate.
 export type FruitPrepItemRow = {
   instruction: string
   amount_display: string | null

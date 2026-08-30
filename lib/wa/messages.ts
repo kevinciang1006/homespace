@@ -7,7 +7,7 @@ import { shoppingPageUrl, dayPageUrl, mealsWeekUrl, prepPageUrl } from './config
 import { indonesianDayName } from './schedule'
 import type {
   WeeklyShoppingItem, ShopIngredientRow, DailyPlanRow, PrepDishRow, WeeklyMealPlanRow,
-  BatchPrepDishBlockRow, FruitPrepItemRow,
+  FruitPrepItemRow,
 } from './types'
 
 // ---- Weekly shopping ---------------------------------------------------------
@@ -106,56 +106,40 @@ export function composeMealOverview(weekStart: string, rows: WeeklyMealPlanRow[]
 }
 
 // ---- Weekly batch prep (post-shopping) ---------------------------------------
-// Two independent messages for the SAME weekly prep session: Wife gets the
-// cooking prep grouped by dish, Kevin gets the fruit/yogurt portioning.
-// Deliberately built from already-persisted prep_tasks-shaped rows (not
-// recomputed from scratch) so the message always matches what the /meals/prep
-// page shows. See lib/meals/batchPrep.ts for how those rows are derived.
+// Two independent messages for the SAME weekly prep session: Wife gets a
+// short packing list grouped by COURSE, Kevin gets the fruit/yogurt
+// portioning. The Wife message is deliberately terse — one line per bag —
+// NOT one block per dish with every ingredient spelled out; that read as a
+// wall of text once soups grew a 3-4 ingredient star+base. lib/meals/
+// batchPrep.ts's buildMainLines/buildSoupLines/buildVegLines do the actual
+// "what goes on this line" work; this just numbers and sections them.
 
-function dishEmoji(name: string): string {
-  const n = name.toLowerCase()
-  if (n.includes('ayam')) return '🍗'
-  if (n.includes('babi') || n.includes('iga')) return '🥩'
-  if (n.includes('cumi')) return '🦑'
-  if (n.includes('udang')) return '🦐'
-  if (n.includes('ikan')) return '🐟'
-  if (n.includes('kacang')) return '🫘'
-  return '🥕'
+function courseSection(label: string, lines: string[]): string | null {
+  if (lines.length === 0) return null
+  return [`*${label}*`, ...lines.map((l, i) => `${i + 1}. ${l}`)].join('\n')
 }
 
-function stepText(step: { instruction: string; amount_display: string | null }): string {
-  return step.amount_display ? `${step.instruction} (${step.amount_display})` : step.instruction
-}
-
-// Ingredient name leads each line — a dish with two ingredients under the
-// same instruction (Kentang wortel: both Kentang and Wortel are "potong
-// dadu/sesuai") used to render as two identical, unattributable bullets.
-// Same format as lib/meals/batchPrep.ts's formatStepLine, which the
-// persisted prep_tasks.instruction (the /meals/prep page) also uses —
-// duplicated rather than shared so lib/wa never imports lib/meals directly.
-function ingredientStepLine(step: { ingredient_name: string; instruction: string; amount_display: string | null }): string {
-  const amount = step.amount_display ? ` (${step.amount_display})` : ''
-  return `${step.ingredient_name}${amount} — ${step.instruction}`
-}
-
-// One block per dish: an emoji + bold name header, then each ingredient's
-// step as its own bullet — replaces the old single semicolon-joined line,
-// which got both unreadable and ambiguous once soups grew a 3-4 ingredient
-// star+base (see the kuah normalization pass this followed).
-export function composeBatchPrepWifeMessage(dishBlocks: BatchPrepDishBlockRow[], weekStart: string): string | null {
-  if (dishBlocks.length === 0) return null
-  const blocks = dishBlocks.map(block => [
-    `${dishEmoji(block.dish_name)} *${block.dish_name}*`,
-    ...block.steps.map(s => `• ${ingredientStepLine(s)}`),
-  ].join('\n'))
+export function composeBatchPrepWifeMessage(
+  packingList: { main: string[]; soup: string[]; veg: string[] }, weekStart: string,
+): string | null {
+  const sections = [
+    courseSection('Main', packingList.main),
+    courseSection('Soup', packingList.soup),
+    courseSection('Veg', packingList.veg),
+  ].filter((s): s is string => s !== null)
+  if (sections.length === 0) return null
   return [
-    '🔪 Prep minggu ini (setelah belanja):',
+    '🔪 Prep minggu ini:',
     '',
-    blocks.join('\n\n'),
+    sections.join('\n\n'),
     '',
     'Makasih ya 🧡',
     prepPageUrl(weekStart, 'wife'),
   ].join('\n')
+}
+
+function stepText(step: { instruction: string; amount_display: string | null }): string {
+  return step.amount_display ? `${step.instruction} (${step.amount_display})` : step.instruction
 }
 
 export function composeBatchPrepKevinMessage(fruitItems: FruitPrepItemRow[], weekStart: string): string | null {

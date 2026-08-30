@@ -197,53 +197,36 @@ describe('composePrepThawMessage', () => {
 })
 
 describe('composeBatchPrepWifeMessage', () => {
-  it('returns null when there are no dish blocks', () => {
-    expect(composeBatchPrepWifeMessage([], '2026-08-24')).toBeNull()
+  it('returns null when all three courses are empty', () => {
+    expect(composeBatchPrepWifeMessage({ main: [], soup: [], veg: [] }, '2026-08-24')).toBeNull()
   })
 
-  it('renders a bold dish header, then one bullet per ingredient step', () => {
-    const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Kuah lobak wortel', steps: [
-        { ingredient_name: 'Lobak', instruction: 'potong dadu/sesuai', amount_display: '1 pcs' },
-        { ingredient_name: 'Wortel', instruction: 'potong dadu/sesuai', amount_display: '3 pcs' },
-        { ingredient_name: 'Tulang Ayam', instruction: 'siapkan bareng Bamboe SOP untuk direbus', amount_display: '1 pack' },
-      ] },
-    ], '2026-08-24')
-    expect(msg).toContain('🥕 *Kuah lobak wortel*')
-    expect(msg).toContain('• Lobak (1 pcs) — potong dadu/sesuai')
-    expect(msg).toContain('• Wortel (3 pcs) — potong dadu/sesuai')
-    expect(msg).toContain('• Tulang Ayam (1 pack) — siapkan bareng Bamboe SOP untuk direbus')
+  it('renders Main/Soup/Veg as bold, numbered sections in that order', () => {
+    const msg = composeBatchPrepWifeMessage({
+      main: ['Ayam + bumbu bakar — 1 pack (1kg)', 'Cumi-Cumi potong ring — 2 pack (500g each)'],
+      soup: ['Kacang merah + wortel + ceker', 'Bakso ikan + tahu'],
+      veg: ['Kangkung — potong + cuci'],
+    }, '2026-08-24')
+    expect(msg).toContain('*Main*\n1. Ayam + bumbu bakar — 1 pack (1kg)\n2. Cumi-Cumi potong ring — 2 pack (500g each)')
+    expect(msg).toContain('*Soup*\n1. Kacang merah + wortel + ceker\n2. Bakso ikan + tahu')
+    expect(msg).toContain('*Veg*\n1. Kangkung — potong + cuci')
+    // Main before Soup before Veg
+    expect(msg!.indexOf('*Main*')).toBeLessThan(msg!.indexOf('*Soup*'))
+    expect(msg!.indexOf('*Soup*')).toBeLessThan(msg!.indexOf('*Veg*'))
   })
 
-  it('disambiguates two ingredients sharing the same instruction (the Kentang wortel case)', () => {
-    const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Kentang wortel', steps: [
-        { ingredient_name: 'Kentang', instruction: 'potong dadu/sesuai', amount_display: '2 pcs' },
-        { ingredient_name: 'Wortel', instruction: 'potong dadu/sesuai', amount_display: '2 pcs' },
-      ] },
-    ], '2026-08-24')
-    expect(msg).toContain('• Kentang (2 pcs) — potong dadu/sesuai')
-    expect(msg).toContain('• Wortel (2 pcs) — potong dadu/sesuai')
+  it('omits a section header entirely when that course has nothing', () => {
+    const msg = composeBatchPrepWifeMessage({ main: [], soup: ['Kentang + wortel'], veg: [] }, '2026-08-24')
+    expect(msg).not.toContain('*Main*')
+    expect(msg).toContain('*Soup*\n1. Kentang + wortel')
+    expect(msg).not.toContain('*Veg*')
   })
 
-  it('picks a dish emoji by protein keyword and ends with the wife-view prep link', () => {
-    const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Ayam bakar', steps: [{ ingredient_name: 'Ayam', instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
-      { dish_name: 'Cumi cabe setan', steps: [{ ingredient_name: 'Cumi-Cumi', instruction: 'potong ring', amount_display: '500g' }] },
-    ], '2026-08-24')
-    expect(msg).toContain('🍗 *Ayam bakar*')
-    expect(msg).toContain('• Ayam (600g) — marinate bumbu bakar')
-    expect(msg).toContain('🦑 *Cumi cabe setan*')
-    expect(msg).toContain('• Cumi-Cumi (500g) — potong ring')
+  it('ends with the wife-view prep link, no "(setelah belanja)" suffix on the header', () => {
+    const msg = composeBatchPrepWifeMessage({ main: ['Ayam potong — 1 pack (500g)'], soup: [], veg: [] }, '2026-08-24')
+    expect(msg).toContain('🔪 Prep minggu ini:')
+    expect(msg).not.toContain('setelah belanja')
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/prep?week=2026-08-24&who=wife')
-  })
-
-  it('omits the amount parens when a step has no amount', () => {
-    const msg = composeBatchPrepWifeMessage([
-      { dish_name: 'Bayam tumis', steps: [{ ingredient_name: 'Bayam', instruction: 'potong + cuci', amount_display: null }] },
-    ], '2026-08-24')
-    expect(msg).toContain('• Bayam — potong + cuci')
-    expect(msg).not.toContain('potong + cuci (')
   })
 })
 

@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { weekDates, shiftWeek } from '@/lib/meals/dates'
 import { groupPrepByDate, type PrepCandidate } from '@/lib/meals/prep'
-import { generateWeekBatchPrep } from '@/lib/meals/batchPrepGenerate'
+import { generateWeekBatchPrep, buildWeeklyPackingList } from '@/lib/meals/batchPrepGenerate'
 import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients, WA_NUMBERS } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
@@ -151,10 +151,11 @@ const SAMPLE_PREP_DISHES: PrepDishRow[] = [
     prep_note: 'bisa marinate sekarang, tahan seminggu',
   },
 ]
-const SAMPLE_BATCH_PREP_DISHES = [
-  { dish_name: 'Ayam bakar', steps: [{ ingredient_name: 'Ayam', instruction: 'marinate bumbu bakar', amount_display: '600g' }] },
-  { dish_name: 'Cumi cabe setan', steps: [{ ingredient_name: 'Cumi-Cumi', instruction: 'potong ring', amount_display: '500g' }] },
-]
+const SAMPLE_BATCH_PREP_PACKING_LIST = {
+  main: ['Ayam + bumbu bakar — 1 pack (600g)', 'Cumi-Cumi potong ring — 1 pack (500g)'],
+  soup: ['Kacang merah + wortel + ceker'],
+  veg: ['Kangkung — potong + cuci'],
+}
 const SAMPLE_BATCH_PREP_FRUIT = [
   { instruction: 'potong pepaya, bagi porsi', amount_display: '6 slices' },
   { instruction: 'siapkan yogurt porsi kecil', amount_display: '500ml' },
@@ -192,9 +193,13 @@ async function runTestMode(to: string): Promise<Response> {
     ? composePrepThawMessage(firstBatch)!
     : composePrepThawMessage(SAMPLE_PREP_DISHES)! + SAMPLE_TAG
 
+  // generateWeekBatchPrep still runs (persists prep_tasks for the /meals/prep
+  // page); the WA message itself is built from the separate, terser
+  // packing-list read below.
   const batchPrep = await generateWeekBatchPrep(weeklyWeekStart, today)
-  const batchPrepWifeMessage = composeBatchPrepWifeMessage(batchPrep.dishBlocks, weeklyWeekStart)
-    ?? composeBatchPrepWifeMessage(SAMPLE_BATCH_PREP_DISHES, weeklyWeekStart)! + SAMPLE_TAG
+  const packingList = await buildWeeklyPackingList(weeklyWeekStart)
+  const batchPrepWifeMessage = composeBatchPrepWifeMessage(packingList, weeklyWeekStart)
+    ?? composeBatchPrepWifeMessage(SAMPLE_BATCH_PREP_PACKING_LIST, weeklyWeekStart)! + SAMPLE_TAG
   const batchPrepKevinMessage = composeBatchPrepKevinMessage(batchPrep.fruitItems, weeklyWeekStart)
     ?? composeBatchPrepKevinMessage(SAMPLE_BATCH_PREP_FRUIT, weeklyWeekStart)! + SAMPLE_TAG
 
@@ -310,7 +315,8 @@ export async function GET(request: Request) {
       const batchPrep = await generateWeekBatchPrep(weekStart, today)
 
       if (settings.batch_prep_wife_enabled) {
-        const message = composeBatchPrepWifeMessage(batchPrep.dishBlocks, weekStart)
+        const packingList = await buildWeeklyPackingList(weekStart)
+        const message = composeBatchPrepWifeMessage(packingList, weekStart)
         if (message) {
           const result = await upsertOutbound('batch_prep_wife', sendDate, sendAt, [WA_NUMBERS.wife], message)
           if (result === 'built') built++; else skipped++

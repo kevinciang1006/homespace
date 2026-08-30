@@ -170,3 +170,173 @@ export function deriveBatchPrepTaskDrafts(
   }
   return drafts
 }
+
+// ---- WA "packing list" view: grouped by COURSE, one line per dish/bag -------
+// A completely different shape from the dish-grouped view above. That view
+// (BatchPrepDishBlock, feeding prep_tasks and the /meals/prep page) lists
+// every ingredient as its own checkable step — right for a checklist, but as
+// a WhatsApp message it read as one long, increasingly unreadable line per
+// dish. This is a short PACKING list instead: what bag goes with which
+// course, one line each, built from the dish's FULL ingredient set (not
+// just the ones tagged with a prep_action — a soup's line is "what's in the
+// bag", which includes components like a whole fishball that need no active
+// prep at all, not just the ones that need cutting).
+
+export type PackingIngredient = {
+  ingredient_name: string
+  category: string
+  amount: number | null
+  unit: string | null
+  prep_action: string
+  prep_note: string | null
+}
+
+export type PackingDish = {
+  dish_id: string
+  dish_name: string
+  cook_date: string
+  slot: string
+  bumbu_packet: string | null
+  ingredients: PackingIngredient[]
+}
+
+export type CourseSection = 'main' | 'soup' | 'veg'
+
+// utama (the main) and pelengkap (its fried dish-helper) both pack into the
+// same "Main" course; kuah -> Soup; sayuran -> Veg. Anything else (breakfast,
+// fruit, desert) isn't part of this list at all.
+export function sectionForSlot(slot: string): CourseSection | null {
+  if (slot === 'utama' || slot === 'pelengkap') return 'main'
+  if (slot === 'kuah') return 'soup'
+  if (slot === 'sayuran') return 'veg'
+  return null
+}
+
+// The soup base template (see the kuah normalization pass this followed):
+// every non-clear soup gets ceker ayam or tulang ayam as its bone stock,
+// plus wortel. Shortened labels match how a home cook actually names the
+// bundle ("+ ceker", not "+ Ceker ayam").
+const BASE_LABELS: Record<string, string> = { 'ceker ayam': 'ceker', 'tulang ayam': 'tulang ayam', wortel: 'wortel' }
+// Aromatics that round out a soup's flavor but aren't a discrete "thing" you
+// pack — always garam/merica-adjacent seasoning, not a bundle component.
+const AROMATICS = new Set(['daun bawang', 'daun bawang prei', 'seledri'])
+// Proteins that ride along a main dish (tofu, egg) but aren't what the dish
+// is "about" — excluded from being the headline unless nothing else qualifies.
+const MINOR_PROTEINS = new Set(['tahu', 'tahu kuning', 'telur', 'tempe'])
+
+function sentenceCase(parts: string[]): string {
+  const text = parts.join(' + ')
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+// bumbu_packet already names the real product ("Bumbu Rendang", "PRONAS Saus
+// Barbeque") so it's used as-is; only falls back to guessing from the dish
+// name (bakar/kecap/rendang) when there's no packet linked at all.
+function bumbuLabel(dishName: string, bumbuPacket: string | null): string | null {
+  if (bumbuPacket) return bumbuPacket.toLowerCase()
+  const lower = dishName.toLowerCase()
+  if (lower.includes('bakar')) return 'bumbu bakar'
+  if (lower.includes('rendang')) return 'bumbu rendang'
+  if (lower.includes('kecap')) return 'bumbu kecap'
+  return null
+}
+
+// "potong ring" -> "ring"; a bare "potong" (no style) -> null.
+function extractCutStyle(instruction: string): string | null {
+  const m = /^potong\s+(.+)$/i.exec(instruction.trim())
+  return m ? m[1].trim() : null
+}
+
+// The one ingredient a Main line is "about" — the protein actually being
+// marinated or cut ahead, not a tofu/egg riding along. Falls back to a
+// minor protein only when there's no major candidate at all.
+function pickHeadlineProtein(ingredients: PackingIngredient[]): PackingIngredient | null {
+  const candidates = ingredients.filter(i => i.category === 'protein' && (i.prep_action === 'marinate' || i.prep_action === 'cut'))
+  if (candidates.length === 0) return null
+  const major = candidates.filter(i => !MINOR_PROTEINS.has(i.ingredient_name.toLowerCase()))
+  const pool = major.length > 0 ? major : candidates
+  const weighted = pool.filter(i => i.unit && unitKind(i.unit) === 'weight')
+  return weighted[0] ?? pool[0]
+}
+
+type MainEntry = { key: string; label: string; amount: number | null; unit: string | null }
+
+function mainEntry(dish: PackingDish): MainEntry | null {
+  const star = pickHeadlineProtein(dish.ingredients)
+  if (!star) return null
+  let label: string
+  if (star.prep_action === 'marinate') {
+    const bumbu = bumbuLabel(dish.dish_name, dish.bumbu_packet)
+    label = bumbu ? `${star.ingredient_name} + ${bumbu}` : star.ingredient_name
+  } else if (star.prep_action === 'cut') {
+    const style = extractCutStyle(stepInstruction(star))
+    label = style ? `${star.ingredient_name} potong ${style}` : `${star.ingredient_name} potong`
+  } else {
+    label = star.ingredient_name
+  }
+  return { key: `${label}::${star.amount ?? ''}${star.unit ?? ''}`, label, amount: star.amount, unit: star.unit }
+}
+
+// Different dishes that reduce to the identical headline (two separate cumi
+// dishes, both "potong ring" at 500g) merge into one line with a pack count
+// — "Cumi-Cumi potong ring — 2 pack (500g each)" — rather than repeating the
+// same line twice.
+export function buildMainLines(dishes: PackingDish[]): string[] {
+  const entries = dishes
+    .filter(d => sectionForSlot(d.slot) === 'main')
+    .map(mainEntry)
+    .filter((e): e is MainEntry => e !== null)
+  const grouped = new Map<string, { label: string; amount: number | null; unit: string | null; count: number }>()
+  for (const e of entries) {
+    const existing = grouped.get(e.key)
+    if (existing) existing.count += 1
+    else grouped.set(e.key, { label: e.label, amount: e.amount, unit: e.unit, count: 1 })
+  }
+  return [...grouped.values()].map(g => {
+    const amt = formatIngredientAmount(g.amount, g.unit)
+    if (g.count > 1) return amt ? `${g.label} — ${g.count} pack (${amt} each)` : `${g.label} — ${g.count} pack`
+    return amt ? `${g.label} — 1 pack (${amt})` : `${g.label} — 1 pack`
+  })
+}
+
+// A soup's line is just its bundle contents by name — star ingredient(s)
+// first, then the base (wortel before the bone stock) — no amounts, no
+// verbs, no pantry/aromatics/packets. Not gated on prep_action at all:
+// even a soup with nothing that needs active cutting (Bakso ikan tahu —
+// fishballs and tofu, nothing to prep) still needs its components bagged
+// together, so it still gets a line.
+function soupLine(dish: PackingDish): string | null {
+  const eligible = dish.ingredients.filter(i =>
+    i.category !== 'pantry' && i.category !== 'bumbu' && !AROMATICS.has(i.ingredient_name.toLowerCase()))
+  if (eligible.length === 0) return null
+  const star: string[] = []
+  const base: string[] = []
+  for (const i of eligible) {
+    const label = BASE_LABELS[i.ingredient_name.toLowerCase()]
+    if (label) base.push(label)
+    else star.push(i.ingredient_name.toLowerCase())
+  }
+  base.sort((a, b) => (a === 'wortel' ? -1 : b === 'wortel' ? 1 : 0))
+  const parts = [...star, ...base]
+  return parts.length ? sentenceCase(parts) : null
+}
+
+export function buildSoupLines(dishes: PackingDish[]): string[] {
+  return dishes.filter(d => sectionForSlot(d.slot) === 'soup')
+    .map(soupLine).filter((l): l is string => l !== null)
+}
+
+// A veg line only appears when there's something to actually cut/chop —
+// unlike soup, a vegetable side with nothing tagged (bought pre-cut, or
+// just seasoning) doesn't need a bag prepped ahead.
+function vegLine(dish: PackingDish): string | null {
+  const star = dish.ingredients.find(i =>
+    i.category !== 'pantry' && i.category !== 'bumbu' &&
+    (i.prep_action === 'cut' || i.prep_action === 'chop' || i.prep_action === 'slice'))
+  return star ? `${star.ingredient_name} — ${stepInstruction(star)}` : null
+}
+
+export function buildVegLines(dishes: PackingDish[]): string[] {
+  return dishes.filter(d => sectionForSlot(d.slot) === 'veg')
+    .map(vegLine).filter((l): l is string => l !== null)
+}

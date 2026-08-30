@@ -2,7 +2,8 @@ import { supabase } from '@/lib/supabase'
 import { weekDates } from './dates'
 import {
   groupBatchPrepByDish, deriveFruitPrepItems, deriveBatchPrepTaskDrafts,
-  type BatchPrepIngredientRow, type FruitDishRow, type BatchPrepDishBlock, type FruitPrepItem,
+  buildMainLines, buildSoupLines, buildVegLines,
+  type BatchPrepIngredientRow, type FruitDishRow, type BatchPrepDishBlock, type FruitPrepItem, type PackingDish,
 } from './batchPrep'
 
 // Slots with their own dish_ingredients-driven cooking prep — everything
@@ -112,4 +113,68 @@ export async function generateWeekBatchPrep(weekStart: string, today: string): P
   }
 
   return { dishBlocks, fruitItems, created: toInsert.length, skipped: drafts.length - toInsert.length }
+}
+
+export type WeeklyPackingList = { main: string[]; soup: string[]; veg: string[] }
+
+// Separate read path for the WhatsApp message specifically — see
+// lib/meals/batchPrep.ts's "WA packing list" section for why this needs the
+// dish's FULL ingredient list (not just prep_action-tagged rows the way
+// generateWeekBatchPrep's dishBlocks are scoped): a soup's line lists its
+// whole bundle, including components that need no active prep at all.
+// Doesn't touch prep_tasks — purely a read, composed fresh on every send.
+export async function buildWeeklyPackingList(weekStart: string): Promise<WeeklyPackingList> {
+  const days = weekDates(weekStart)
+  type PlanRow = { plan_date: string; dish_id: string; dish_name: string | null; slot: string }
+  const { data: plansRaw } = await supabase.from('meal_plans')
+    .select('plan_date, dish_id, dish_name, slot')
+    .gte('plan_date', days[0]).lte('plan_date', days[6])
+    .eq('skipped', false).not('dish_id', 'is', null).in('slot', COOKING_SLOTS)
+  const plans = (plansRaw ?? []) as PlanRow[]
+  if (plans.length === 0) return { main: [], soup: [], veg: [] }
+
+  const dishIds = [...new Set(plans.map(p => p.dish_id))]
+  const [{ data: dishesRaw }, { data: ingredientsRaw }] = await Promise.all([
+    supabase.from('dishes').select('id, bumbu_packet').in('id', dishIds),
+    supabase.from('dish_ingredients')
+      .select('dish_id, amount, unit, prep_action, prep_note, ingredients(name, category)')
+      .in('dish_id', dishIds),
+  ])
+
+  const bumbuPacketByDish = new Map<string, string | null>(
+    ((dishesRaw ?? []) as { id: string; bumbu_packet: string | null }[]).map(d => [d.id, d.bumbu_packet]))
+
+  // Earliest cook_date wins for a dish repeated across the week — same
+  // "prep once per unique dish" convention as generateWeekBatchPrep.
+  const metaByDish = new Map<string, { slot: string; dish_name: string; cook_date: string }>()
+  for (const p of plans) {
+    const existing = metaByDish.get(p.dish_id)
+    if (!existing || p.plan_date < existing.cook_date) {
+      metaByDish.set(p.dish_id, { slot: p.slot, dish_name: p.dish_name ?? 'Dish', cook_date: p.plan_date })
+    }
+  }
+
+  // Same to-one embed caveat as elsewhere in this file.
+  type IngredientRow = {
+    dish_id: string; amount: number | null; unit: string | null
+    prep_action: string | null; prep_note: string | null; ingredients: { name: string; category: string } | null
+  }
+  const ingredientsByDish = new Map<string, PackingDish['ingredients']>()
+  for (const r of ((ingredientsRaw ?? []) as unknown as IngredientRow[])) {
+    if (!r.ingredients || !metaByDish.has(r.dish_id)) continue
+    const list = ingredientsByDish.get(r.dish_id) ?? []
+    list.push({
+      ingredient_name: r.ingredients.name, category: r.ingredients.category,
+      amount: r.amount, unit: r.unit, prep_action: r.prep_action ?? 'none', prep_note: r.prep_note,
+    })
+    ingredientsByDish.set(r.dish_id, list)
+  }
+
+  const dishes: PackingDish[] = [...metaByDish.entries()].map(([dish_id, meta]) => ({
+    dish_id, dish_name: meta.dish_name, cook_date: meta.cook_date, slot: meta.slot,
+    bumbu_packet: bumbuPacketByDish.get(dish_id) ?? null,
+    ingredients: ingredientsByDish.get(dish_id) ?? [],
+  }))
+
+  return { main: buildMainLines(dishes), soup: buildSoupLines(dishes), veg: buildVegLines(dishes) }
 }
