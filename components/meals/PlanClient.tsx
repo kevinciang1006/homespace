@@ -216,7 +216,17 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
         </div>
       </div>
 
-      <StaplesBanner initialStaples={initialStaples} />
+      {weekFruit.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-4">
+          <span className="text-xs font-medium text-stone-400 mr-0.5">🍎 This week&apos;s fruit:</span>
+          {weekFruit.map(f => (
+            <button key={f.id} onClick={() => openDish(f.id)}
+              className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors">
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {genReport && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
@@ -240,18 +250,6 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
         ))}
       </div>
 
-      {weekFruit.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap mt-4">
-          <span className="text-xs font-medium text-stone-400 mr-0.5">🍎 This week&apos;s fruit:</span>
-          {weekFruit.map(f => (
-            <button key={f.id} onClick={() => openDish(f.id)}
-              className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors">
-              {f.name}
-            </button>
-          ))}
-        </div>
-      )}
-
       <WeekOverview overview={overview} />
 
       {editingDish && (
@@ -274,9 +272,8 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
   // user delete waiting for a re-randomize — keep them so SupportChip can
   // render its empty-placeholder state. The system's own "skipped" rows
   // (e.g. kuah covered by the main's broth) stay excluded — that's a
-  // designed state with its own caption below, not a deletable slot.
+  // designed state, not a deletable slot, and no longer gets its own caption.
   const supports = rows.filter(r => r.role === 'support' && !r.skipped)
-  const soupSkipped = rows.some(r => r.slot === 'kuah' && r.skipped)
   const dessert = rows.find(r => r.slot === 'desert')
 
   const [rerollingDay, setRerollingDay] = useState(false)
@@ -346,14 +343,9 @@ function DayPlate({ date, dayName, rows, entries, onCooked, onReplaceDay, onRepl
         ? <MainHero row={main} date={date} onReroll={rerollMain} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />
         : <div className="aspect-video rounded-xl bg-gradient-to-br from-stone-100 to-orange-50 flex items-center justify-center text-3xl text-stone-300">🍽️</div>}
 
-      {(supports.length > 0 || soupSkipped) && (
+      {supports.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {supports.map(s => <SupportChip key={s.id} row={s} date={date} onReplaceCell={onReplaceCell} onOpenDish={onOpenDish} />)}
-          {soupSkipped && (
-            <div className="basis-[calc(50%-0.25rem)] max-w-[calc(50%-0.25rem)] min-w-0 text-[11px] text-stone-400 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-2 flex items-center leading-tight">
-              🥣 broth from the main — no extra soup
-            </div>
-          )}
         </div>
       )}
 
