@@ -77,13 +77,18 @@ export default function StockClient({ initialStock, initialIngredients }: {
     const row = await res.json()
     setStock(s => [...s, row as StockItem])
   }
+  // Creating a new ingredient no longer takes a separate "default unit" —
+  // whatever unit she picks for THIS entry (the one field, right next to
+  // amount) is saved as the ingredient's default_unit too, so a future pick
+  // of the same ingredient still prefills correctly. Asking for the unit
+  // twice in one breath was pure friction, not a real second decision.
   async function createAndAdd(
-    name: string, category: IngredientCategory, defaultUnit: string, shelfStable: boolean,
+    name: string, category: IngredientCategory, shelfStable: boolean,
     amount: number, unit: string | null, threshold: number | null,
   ) {
     const res = await fetch('/api/meals/ingredients', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, category, default_unit: defaultUnit || null, shelf_stable: shelfStable }),
+      body: JSON.stringify({ name, category, default_unit: unit, shelf_stable: shelfStable }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -323,7 +328,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
   excludeIds: Set<string>
   onAddExisting: (ingredientId: string, amount: number, unit: string | null, threshold: number | null) => Promise<void>
   onCreateAndAdd: (
-    name: string, category: IngredientCategory, defaultUnit: string, shelfStable: boolean,
+    name: string, category: IngredientCategory, shelfStable: boolean,
     amount: number, unit: string | null, threshold: number | null,
   ) => Promise<void>
 }) {
@@ -331,7 +336,6 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
   const [selected, setSelected] = useState<Ingredient | null>(null)
   const [creating, setCreating] = useState(false)
   const [newCategory, setNewCategory] = useState<IngredientCategory>('other')
-  const [newUnit, setNewUnit] = useState('')
   const [newShelfStable, setNewShelfStable] = useState(false)
   const [amount, setAmount] = useState('')
   const [unit, setUnit] = useState('')
@@ -359,7 +363,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
 
   function reset() {
     setQuery(''); setSelected(null); setCreating(false)
-    setNewCategory('other'); setNewUnit(''); setNewShelfStable(false)
+    setNewCategory('other'); setNewShelfStable(false)
     setAmount(''); setUnit(''); setThreshold(''); setShowThreshold(false)
     setError(null)
     requestAnimationFrame(() => searchRef.current?.focus())
@@ -382,7 +386,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
     try {
       if (creating) {
         if (!query.trim()) { setError('Type a name for the new ingredient'); return }
-        await onCreateAndAdd(query.trim(), newCategory, newUnit.trim(), newShelfStable, amt, u, t)
+        await onCreateAndAdd(query.trim(), newCategory, newShelfStable, amt, u, t)
       } else if (selected) {
         await onAddExisting(selected.id, amt, u, t)
       } else {
@@ -443,11 +447,6 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
           <select value={newCategory} onChange={e => setNewCategory(e.target.value as IngredientCategory)}
             className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
-          </select>
-          <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
-            <option value="">default unit —</option>
-            {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
           <label className="flex items-center gap-1.5 text-sm text-stone-600">
             <input type="checkbox" checked={newShelfStable} onChange={e => setNewShelfStable(e.target.checked)} />
