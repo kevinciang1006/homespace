@@ -10,7 +10,7 @@ import { useDropdown } from '@/components/useDropdown'
 import DropdownBackdrop from '@/components/DropdownBackdrop'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
-  protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
+  protein: 'Protein', veg: 'Veg', fruit: 'Fruit', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
 }
 const LOCATION_META: Record<StockLocation, { emoji: string; label: string }> = {
   freezer: { emoji: '🧊', label: 'Freezer' },
@@ -389,12 +389,19 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
       (i.name.toLowerCase().includes(q) || (i.aliases ?? []).some(a => a.toLowerCase().includes(q)))).slice(0, 8)
   }, [query, selected, creating, catalog, excludeIds])
 
-  // Typical condiments/spices she hasn't tracked in this location yet — tap
-  // instead of type. Only surfaced for Pantry, where "the whole spice rack"
-  // bulk entry benefits most from not typing every name.
+  // A small recurring set she hasn't tracked in this location yet — tap
+  // instead of type. Pantry gets condiments/spices ("the whole spice rack"
+  // bulk entry benefits most from not typing every name); Fridge gets
+  // fruit for the same reason (a handful of names, restocked often).
   const quickPicks = useMemo(() => {
-    if (location !== 'pantry' || query.trim() || selected || creating) return []
-    return catalog.filter(i => !excludeIds.has(i.id) && (i.category === 'bumbu' || i.category === 'pantry')).slice(0, 14)
+    if (query.trim() || selected || creating) return []
+    if (location === 'pantry') {
+      return catalog.filter(i => !excludeIds.has(i.id) && (i.category === 'bumbu' || i.category === 'pantry')).slice(0, 14)
+    }
+    if (location === 'fridge') {
+      return catalog.filter(i => !excludeIds.has(i.id) && i.category === 'fruit').slice(0, 14)
+    }
+    return []
   }, [location, query, selected, creating, catalog, excludeIds])
 
   function reset() {

@@ -7,7 +7,7 @@ import { useDropdown } from '@/components/useDropdown'
 import DropdownBackdrop from '@/components/DropdownBackdrop'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
-  protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
+  protein: 'Protein', veg: 'Veg', fruit: 'Fruit', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
 }
 
 // Normalized replacement for the old free-text ingredients textbox: reads/writes

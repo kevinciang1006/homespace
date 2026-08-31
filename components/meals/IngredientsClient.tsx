@@ -5,7 +5,7 @@ import { INGREDIENT_CATEGORIES, type Ingredient, type IngredientCategory } from 
 import { INGREDIENT_UNITS } from '@/lib/meals/qty'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
-  protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
+  protein: 'Protein', veg: 'Veg', fruit: 'Fruit', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
 }
 
 export default function IngredientsClient({ initialIngredients }: { initialIngredients: Ingredient[] }) {

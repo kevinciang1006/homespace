@@ -81,7 +81,7 @@ export type MealPlan = {
   } | null
 }
 
-export const INGREDIENT_CATEGORIES = ['protein', 'veg', 'bumbu', 'pantry', 'other'] as const
+export const INGREDIENT_CATEGORIES = ['protein', 'veg', 'fruit', 'bumbu', 'pantry', 'other'] as const
 export type IngredientCategory = (typeof INGREDIENT_CATEGORIES)[number]
 
 export type Ingredient = {
