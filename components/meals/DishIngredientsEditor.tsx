@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { INGREDIENT_CATEGORIES, type Ingredient, type DishIngredientDetail, type IngredientCategory } from '@/lib/meals/types'
 import { INGREDIENT_UNITS } from '@/lib/meals/qty'
+import { useDropdown } from '@/components/useDropdown'
+import DropdownBackdrop from '@/components/DropdownBackdrop'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
   protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
@@ -141,6 +143,7 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
   const [newShelfStable, setNewShelfStable] = useState(false)
   const [amount, setAmount] = useState('')
   const [unit, setUnit] = useState('') // pre-filled from the ingredient's default_unit on selection
+  const { open, openDropdown, closeDropdown } = useDropdown()
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -153,6 +156,7 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
     setQuery(''); setSelected(null); setCreating(false)
     setNewCategory('other'); setNewUnit(''); setNewShelfStable(false)
     setAmount(''); setUnit('')
+    closeDropdown()
   }
 
   function submit() {
@@ -172,31 +176,31 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
     <div className="bg-stone-50 border border-stone-200 rounded-xl p-2.5 space-y-2">
       <div className="relative">
         <input value={query}
-          onChange={e => { setQuery(e.target.value); setSelected(null); setCreating(false) }}
+          onChange={e => {
+            const v = e.target.value
+            setQuery(v); setSelected(null); setCreating(false)
+            if (v.trim()) openDropdown(); else closeDropdown()
+          }}
           placeholder="Search ingredients…"
           className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
-        {matches.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-            {matches.map(m => (
-              <button key={m.id} onClick={() => { setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? '') }}
-                className="w-full text-left px-2.5 py-1.5 text-sm hover:bg-orange-50 flex items-center justify-between gap-2">
-                <span className="truncate">{m.name}</span>
-                {m.shelf_stable && <span className="text-[10px] text-amber-600 shrink-0">pantry</span>}
+        {open && (
+          <>
+            <DropdownBackdrop onClose={closeDropdown} />
+            <div className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {matches.map(m => (
+                <button key={m.id}
+                  onClick={() => { setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? ''); closeDropdown() }}
+                  className="w-full text-left px-2.5 py-1.5 text-sm hover:bg-orange-50 flex items-center justify-between gap-2">
+                  <span className="truncate">{m.name}</span>
+                  {m.shelf_stable && <span className="text-[10px] text-amber-600 shrink-0">pantry</span>}
+                </button>
+              ))}
+              <button onClick={() => { setCreating(true); closeDropdown() }}
+                className={`w-full text-left px-2.5 py-1.5 text-sm text-orange-600 hover:bg-orange-50 ${matches.length > 0 ? 'border-t border-stone-100' : ''}`}>
+                <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot; as new ingredient
               </button>
-            ))}
-            <button onClick={() => { setCreating(true) }}
-              className="w-full text-left px-2.5 py-1.5 text-sm text-orange-600 hover:bg-orange-50 border-t border-stone-100">
-              <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot; as new ingredient
-            </button>
-          </div>
-        )}
-        {query.trim() && matches.length === 0 && !selected && !creating && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg">
-            <button onClick={() => setCreating(true)}
-              className="w-full text-left px-2.5 py-1.5 text-sm text-orange-600 hover:bg-orange-50">
-              <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot; as new ingredient
-            </button>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

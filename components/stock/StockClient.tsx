@@ -6,6 +6,8 @@ import { INGREDIENT_CATEGORIES, type Ingredient, type IngredientCategory } from 
 import { INGREDIENT_UNITS } from '@/lib/meals/qty'
 import { STOCK_LOCATIONS, type StockItem, type StockLocation } from '@/lib/stock/types'
 import UndoSnackbar from '@/components/UndoSnackbar'
+import { useDropdown } from '@/components/useDropdown'
+import DropdownBackdrop from '@/components/DropdownBackdrop'
 
 const CAT_LABELS: Record<IngredientCategory, string> = {
   protein: 'Protein', veg: 'Veg', bumbu: 'Bumbu', pantry: 'Pantry', other: 'Other',
@@ -112,6 +114,30 @@ export default function StockClient({ initialStock, initialIngredients }: {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ category }),
     }).then(res => { if (!res.ok) { setStock(prevStock); setCatalog(prevCatalog) } })
   }
+  // Move a mis-tabbed item to a different location without deleting and
+  // re-adding it. Checked locally first (the common case — no need to round
+  // -trip for it), and the server still enforces the same uniqueness as a
+  // fallback for a race; either way she gets a real message, not a silent
+  // failure or a duplicate row.
+  function moveLocation(item: StockItem, newLocation: StockLocation) {
+    if (newLocation === item.location) return
+    const alreadyThere = stock.some(s => s.ingredient_id === item.ingredient_id && s.location === newLocation)
+    if (alreadyThere) {
+      window.alert(`${item.ingredients?.name ?? 'This item'} is already tracked in ${LOCATION_META[newLocation].label} — edit that entry instead of moving this one.`)
+      return
+    }
+    const prev = item.location
+    setStock(s => s.map(it => it.id === item.id ? { ...it, location: newLocation } : it)) // optimistic
+    fetch(`/api/stock/${item.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ location: newLocation }),
+    }).then(async res => {
+      if (!res.ok) {
+        setStock(s => s.map(it => it.id === item.id ? { ...it, location: prev } : it))
+        const body = await res.json().catch(() => ({}))
+        window.alert(body.error || 'Could not move that item — try again')
+      }
+    })
+  }
   function patchItem(id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) {
     const prev = stock.find(s => s.id === id)
     setStock(s => s.map(it => it.id === id ? { ...it, ...fields } : it)) // optimistic
@@ -180,7 +206,8 @@ export default function StockClient({ initialStock, initialIngredients }: {
           onCreateAndAdd={createAndAdd}
         />
 
-        <LocationSection items={itemsForLocation} onPatch={patchItem} onDelete={requestDelete} onEditCategory={patchIngredientCategory} />
+        <LocationSection items={itemsForLocation} onPatch={patchItem} onDelete={requestDelete}
+          onEditCategory={patchIngredientCategory} onMoveLocation={moveLocation} />
       </main>
 
       {pendingDelete && (
@@ -194,11 +221,12 @@ export default function StockClient({ initialStock, initialIngredients }: {
   )
 }
 
-function LocationSection({ items, onPatch, onDelete, onEditCategory }: {
+function LocationSection({ items, onPatch, onDelete, onEditCategory, onMoveLocation }: {
   items: StockItem[]
   onPatch: (id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) => void
   onDelete: (item: StockItem) => void
   onEditCategory: (ingredientId: string, category: IngredientCategory) => void
+  onMoveLocation: (item: StockItem, newLocation: StockLocation) => void
 }) {
   const grouped = useMemo(() => {
     const byCategory = new Map<IngredientCategory, StockItem[]>()
@@ -226,7 +254,8 @@ function LocationSection({ items, onPatch, onDelete, onEditCategory }: {
           </div>
           <div className="space-y-1.5">
             {g.items.map(item => (
-              <StockRow key={item.id} item={item} onPatch={onPatch} onDelete={onDelete} onEditCategory={onEditCategory} />
+              <StockRow key={item.id} item={item} onPatch={onPatch} onDelete={onDelete}
+                onEditCategory={onEditCategory} onMoveLocation={onMoveLocation} />
             ))}
           </div>
         </div>
@@ -235,11 +264,12 @@ function LocationSection({ items, onPatch, onDelete, onEditCategory }: {
   )
 }
 
-function StockRow({ item, onPatch, onDelete, onEditCategory }: {
+function StockRow({ item, onPatch, onDelete, onEditCategory, onMoveLocation }: {
   item: StockItem
   onPatch: (id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) => void
   onDelete: (item: StockItem) => void
   onEditCategory: (ingredientId: string, category: IngredientCategory) => void
+  onMoveLocation: (item: StockItem, newLocation: StockLocation) => void
 }) {
   const [amount, setAmount] = useState(String(item.on_hand))
   const [editingThreshold, setEditingThreshold] = useState(false)
@@ -310,6 +340,11 @@ function StockRow({ item, onPatch, onDelete, onEditCategory }: {
         {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
         {item.unit && !(INGREDIENT_UNITS as readonly string[]).includes(item.unit) && <option value={item.unit}>{item.unit}</option>}
       </select>
+      <select value={item.location} onChange={e => onMoveLocation(item, e.target.value as StockLocation)}
+        title="Move to a different location" aria-label="Move to a different location"
+        className="px-1.5 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
+        {STOCK_LOCATIONS.map(l => <option key={l} value={l}>{LOCATION_META[l].emoji} {LOCATION_META[l].label}</option>)}
+      </select>
       <button onClick={() => onDelete(item)} className="p-1.5 text-stone-300 hover:text-red-500 shrink-0" aria-label="Delete">
         <Trash2 size={16} />
       </button>
@@ -343,6 +378,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
   const [showThreshold, setShowThreshold] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { open, openDropdown, closeDropdown } = useDropdown()
   const searchRef = useRef<HTMLInputElement>(null)
   const amountRef = useRef<HTMLInputElement>(null)
 
@@ -366,10 +402,12 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
     setNewCategory('other'); setNewShelfStable(false)
     setAmount(''); setUnit(''); setThreshold(''); setShowThreshold(false)
     setError(null)
+    closeDropdown()
     requestAnimationFrame(() => searchRef.current?.focus())
   }
   function selectMatch(m: Ingredient) {
     setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? ''); setError(null)
+    closeDropdown()
     requestAnimationFrame(() => amountRef.current?.focus())
   }
   // Every bail-out now sets a visible message instead of quietly doing
@@ -403,31 +441,30 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
     <div className="bg-white border border-stone-200 rounded-2xl p-3 space-y-2">
       <div className="relative">
         <input ref={searchRef} value={query}
-          onChange={e => { setQuery(e.target.value); setSelected(null); setCreating(false) }}
+          onChange={e => {
+            const v = e.target.value
+            setQuery(v); setSelected(null); setCreating(false)
+            if (v.trim()) openDropdown(); else closeDropdown()
+          }}
           placeholder={`Search or add to ${LOCATION_META[location].label.toLowerCase()}…`}
           className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-base text-stone-800 focus:outline-none focus:border-orange-300" />
-        {matches.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
-            {matches.map(m => (
-              <button key={m.id} onClick={() => selectMatch(m)}
-                className="w-full text-left px-3 py-2.5 text-sm hover:bg-orange-50 flex items-center justify-between gap-2">
-                <span className="truncate">{m.name}</span>
-                <span className="text-[10px] text-stone-400 shrink-0">{CAT_LABELS[m.category ?? 'other']}</span>
+        {open && (
+          <>
+            <DropdownBackdrop onClose={closeDropdown} />
+            <div className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+              {matches.map(m => (
+                <button key={m.id} onClick={() => selectMatch(m)}
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-orange-50 flex items-center justify-between gap-2">
+                  <span className="truncate">{m.name}</span>
+                  <span className="text-[10px] text-stone-400 shrink-0">{CAT_LABELS[m.category ?? 'other']}</span>
+                </button>
+              ))}
+              <button onClick={() => { setCreating(true); closeDropdown() }}
+                className={`w-full text-left px-3 py-2.5 text-sm text-orange-600 hover:bg-orange-50 ${matches.length > 0 ? 'border-t border-stone-100' : ''}`}>
+                <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot; as new ingredient
               </button>
-            ))}
-            <button onClick={() => setCreating(true)}
-              className="w-full text-left px-3 py-2.5 text-sm text-orange-600 hover:bg-orange-50 border-t border-stone-100">
-              <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot;
-            </button>
-          </div>
-        )}
-        {query.trim() && matches.length === 0 && !selected && !creating && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg">
-            <button onClick={() => setCreating(true)}
-              className="w-full text-left px-3 py-2.5 text-sm text-orange-600 hover:bg-orange-50">
-              <Plus size={13} className="inline -mt-0.5 mr-1" /> Create &quot;{query.trim()}&quot; as new ingredient
-            </button>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

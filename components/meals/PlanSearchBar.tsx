@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Search, X } from 'lucide-react'
+import { useDropdown } from '@/components/useDropdown'
+import DropdownBackdrop from '@/components/DropdownBackdrop'
 
 type SearchHit = { dish_id: string; dish_name: string; dates: string[] }
 
@@ -16,7 +18,7 @@ export default function PlanSearchBar({ onJump }: { onJump: (date: string) => vo
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchHit[] | null>(null)
   const [loading, setLoading] = useState(false)
-  const [open, setOpen] = useState(false)
+  const { open, openDropdown, closeDropdown } = useDropdown()
 
   // `loading` toggles from the onChange handler below (a user event, not the
   // effect) so this effect only ever calls setState from inside the async
@@ -34,11 +36,11 @@ export default function PlanSearchBar({ onJump }: { onJump: (date: string) => vo
 
   function pick(date: string) {
     onJump(date)
-    setOpen(false)
+    closeDropdown()
     setQuery('')
     setResults(null)
   }
-  function clear() { setQuery(''); setResults(null); setOpen(false) }
+  function clear() { setQuery(''); setResults(null); closeDropdown() }
 
   return (
     <div className="relative mb-4">
@@ -48,10 +50,10 @@ export default function PlanSearchBar({ onJump }: { onJump: (date: string) => vo
           value={query}
           onChange={e => {
             const v = e.target.value
-            setQuery(v); setOpen(true)
+            setQuery(v); openDropdown()
             if (!v.trim()) { setResults(null); setLoading(false) } else { setLoading(true) }
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={openDropdown}
           placeholder="When am I eating… (search a dish)"
           className="flex-1 min-w-0 bg-transparent text-sm text-stone-800 focus:outline-none"
         />
@@ -63,25 +65,28 @@ export default function PlanSearchBar({ onJump }: { onJump: (date: string) => vo
       </div>
 
       {open && query.trim() && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg max-h-72 overflow-y-auto p-1">
-          {loading && <div className="px-3 py-2 text-xs text-stone-400">Searching…</div>}
-          {!loading && results?.length === 0 && (
-            <div className="px-3 py-2 text-xs text-stone-400">No matches in the generated plan.</div>
-          )}
-          {!loading && results?.map(r => (
-            <div key={r.dish_id} className="px-3 py-2">
-              <div className="text-sm text-stone-800 font-medium">{r.dish_name}</div>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {r.dates.map(d => (
-                  <button key={d} onClick={() => pick(d)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-stone-100 hover:bg-orange-100 hover:text-orange-700 text-stone-600 transition-colors">
-                    {dayLabel(d)}
-                  </button>
-                ))}
+        <>
+          <DropdownBackdrop onClose={closeDropdown} />
+          <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg max-h-72 overflow-y-auto p-1">
+            {loading && <div className="px-3 py-2 text-xs text-stone-400">Searching…</div>}
+            {!loading && results?.length === 0 && (
+              <div className="px-3 py-2 text-xs text-stone-400">No matches in the generated plan.</div>
+            )}
+            {!loading && results?.map(r => (
+              <div key={r.dish_id} className="px-3 py-2">
+                <div className="text-sm text-stone-800 font-medium">{r.dish_name}</div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {r.dates.map(d => (
+                    <button key={d} onClick={() => pick(d)}
+                      className="text-xs px-2 py-0.5 rounded-full bg-stone-100 hover:bg-orange-100 hover:text-orange-700 text-stone-600 transition-colors">
+                      {dayLabel(d)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
