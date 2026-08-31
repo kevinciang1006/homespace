@@ -112,9 +112,9 @@ function IngredientLinkRow({ link, onPatch, onRemove }: {
       </div>
       <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} onBlur={saveAmount}
         placeholder="amt"
-        className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none focus:border-orange-300" />
+        className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
       <select value={link.unit ?? ''} onChange={e => onPatch(link.id, { unit: e.target.value || null })}
-        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-500 focus:outline-none focus:border-orange-300">
+        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
         <option value="">—</option>
         {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
         {/* legacy free-text unit from before the dropdown existed — keep it selectable/visible rather than silently blanking it */}
@@ -174,7 +174,7 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
         <input value={query}
           onChange={e => { setQuery(e.target.value); setSelected(null); setCreating(false) }}
           placeholder="Search ingredients…"
-          className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+          className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
         {matches.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
             {matches.map(m => (
@@ -203,11 +203,11 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
       {creating && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <select value={newCategory} onChange={e => setNewCategory(e.target.value as IngredientCategory)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
           </select>
           <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             <option value="">default unit —</option>
             {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
@@ -221,9 +221,9 @@ function AddIngredientRow({ catalog, excludeIds, onAddExisting, onCreateNew }: {
       {(selected || creating) && (
         <div className="flex items-center gap-1.5">
           <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} placeholder="amount"
-            className="w-20 px-2 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+            className="w-20 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
           <select value={unit} onChange={e => setUnit(e.target.value)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             <option value="">—</option>
             {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>

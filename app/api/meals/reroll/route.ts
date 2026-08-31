@@ -302,59 +302,28 @@ export async function POST(request: Request) {
   const { data: existing } = await existingQuery.maybeSingle()
   if (existing?.locked) return Response.json({ error: 'cell is locked' }, { status: 409 })
 
-  // ---- MAIN reroll → re-compose the day ----
+  // ---- MAIN reroll → single-cell pick, same as every other slot below.
+  // Only this one row is touched — a manual pick (or "surprise me") for the
+  // main must never reshuffle the day's kuah/sayuran/pelengkap. Recomposing
+  // the whole day is still available, deliberately, via scope: 'day' above.
   if (slot === 'utama') {
     const { week, allDishes, plans } = await loadWeek(plan_date)
-    const dishById = new Map(allDishes.map(d => [d.id, d]))
-    const dayLocked = plans.filter(p => p.plan_date === plan_date && p.locked)
-    const lockedByCell = new Map(dayLocked.map(l =>
-      [l.slot === 'fruit' ? `${l.plan_date}|${l.slot}|${l.role}` : `${l.plan_date}|${l.slot}`, l]))
-    const weekSet = new Set(week)
-    const { specialDays, hardDays } = deriveDays(week, plans, dishById)
-
-    // runPicks = whole week EXCEPT this day's non-locked rows
-    const runPicks = plans
-      .filter(p => !(p.plan_date === plan_date && !p.locked))
-      .map(p => ({ plan_date: p.plan_date, slot: p.slot as Slot, dish_id: p.dish_id, dish_name: p.dish_name,
-        locked: p.locked, role: (p.role ?? 'support') as Role, skipped: p.skipped ?? false }))
-    const priorPlans = plans.filter(p => !weekSet.has(p.plan_date))
-
-    // explicit main choice → fix it: pre-place as a pick and treat utama as locked for the compose
-    let fixedMain: { id: string; name: string } | null = null
     if (body.dish_id) {
-      const chosen = dishById.get(body.dish_id)
-      if (!chosen) return Response.json({ error: 'dish not found' }, { status: 404 })
-      fixedMain = { id: chosen.id, name: chosen.name }
-      const mainPick = { plan_date, slot: 'utama' as Slot, dish_id: chosen.id, dish_name: chosen.name,
-        locked: false, role: 'main' as Role, skipped: false }
-      runPicks.push(mainPick)
-      lockedByCell.set(`${plan_date}|utama`, { ...mainPick, id: '' } as unknown as MealPlan)
-    }
-
-    const dishesBySlot = Object.fromEntries(
-      SLOTS.map(s => [s, allDishes.filter(d => d.slot === s)]),
-    ) as Record<Slot, Dish[]>
-
-    const breakfastSpecialDays = deriveBreakfastSpecialDays(week, plans, dishById)
-    const dessertBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['dessert_batch', 'dessert_cake'])
-    const eveningFruitBatch = await loadWeekItems(mondayOf(plan_date), allDishes, ['evening_fruit'])
-    const eveningFruitDays = currentEveningFruitDays(plans, plan_date)
-    const created = composeDay({ date: plan_date, dishesBySlot, dishById, priorPlans, runPicks, lockedByCell, specialDays, hardDays, breakfastSpecialDays, dessertBatch, eveningFruitBatch, eveningFruitDays, rng })
-    const toInsert = [...created]
-    if (fixedMain) toInsert.unshift({ plan_date, slot: 'utama' as Slot, dish_id: fixedMain.id,
-      dish_name: fixedMain.name, locked: false, role: 'main' as Role, skipped: false })
-
-    // delete the day's non-locked rows, insert the freshly composed set
-    await supabase.from('meal_plans').delete().eq('plan_date', plan_date).eq('locked', false)
-    if (toInsert.length) {
-      const { error } = await supabase.from('meal_plans').insert(toInsert.map(p => ({
-        plan_date: p.plan_date, slot: p.slot, dish_id: p.dish_id, dish_name: p.dish_name,
-        locked: false, role: p.role, skipped: p.skipped,
-      })))
+      const d = allDishes.find(x => x.id === body.dish_id)
+      if (!d) return Response.json({ error: 'dish not found' }, { status: 404 })
+      const { data, error } = await supabase.from('meal_plans')
+        .upsert({ plan_date, slot: 'utama', dish_id: d.id, dish_name: d.name, locked: false, role: 'main', skipped: false },
+          { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
       if (error) return Response.json({ error: error.message }, { status: 500 })
+      return Response.json({ pick: data as MealPlan })
     }
-    const { data: day } = await supabase.from('meal_plans').select(SELECT).eq('plan_date', plan_date)
-    return Response.json({ day: (day ?? []) as MealPlan[] })
+    const { ctx, slotDishes } = buildSingleContext(plan_date, 'utama', allDishes, plans, week)
+    const p = pickForSlot(slotDishes, ctx, rng)
+    const { data, error } = await supabase.from('meal_plans')
+      .upsert({ plan_date, slot: 'utama', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'main', skipped: false },
+        { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ pick: data as MealPlan })
   }
 
   // ---- BREAKFAST reroll → independent pick honoring the week's breakfast quota ----

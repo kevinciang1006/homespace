@@ -78,7 +78,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     }
   }
 
-  const inputCls = 'w-full text-sm border border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300'
+  const inputCls = 'w-full text-sm border border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300'
   const labelCls = 'block text-xs font-medium text-stone-400 uppercase tracking-wider mb-1'
 
   return (

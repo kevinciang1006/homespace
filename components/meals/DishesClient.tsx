@@ -208,14 +208,14 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.slot} onChange={e => onPatch(dish.id, { slot: e.target.value as Slot })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {SLOTS.map(s => <option key={s} value={s}>{SLOT_LABELS[s]}</option>)}
         </select>
       </td>
       <td className="px-3 py-1.5">
         {dish.slot === 'fruit' ? (
           <select value={dish.fruit_context ?? ''} onChange={e => onPatch(dish.id, { fruit_context: e.target.value || null })}
-            className="bg-transparent text-stone-600 focus:outline-none">
+            className="bg-transparent text-stone-800 focus:outline-none">
             {FRUIT_CONTEXTS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
           </select>
         ) : <span className="text-stone-300">—</span>}
@@ -223,7 +223,7 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
       <td className="px-3 py-1.5">
         {(dish.slot === 'fruit' || dish.slot === 'desert') ? (
           <select value={dish.cadence ?? ''} onChange={e => onPatch(dish.id, { cadence: (e.target.value || null) as Dish['cadence'] })}
-            className="bg-transparent text-stone-600 focus:outline-none">
+            className="bg-transparent text-stone-800 focus:outline-none">
             {CADENCES.map(c => <option key={c} value={c}>{c || '—'}</option>)}
           </select>
         ) : <span className="text-stone-300">—</span>}
@@ -231,14 +231,14 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
       <td className="px-3 py-1.5">
         {(dish.slot === 'fruit' || dish.slot === 'desert') ? (
           <select value={dish.produce_role ?? ''} onChange={e => onPatch(dish.id, { produce_role: (e.target.value || null) as Dish['produce_role'] })}
-            className="bg-transparent text-stone-600 focus:outline-none">
+            className="bg-transparent text-stone-800 focus:outline-none">
             {PRODUCE_ROLES_BY_SLOT[dish.slot].map(r => <option key={r} value={r}>{r || '—'}</option>)}
           </select>
         ) : <span className="text-stone-300">—</span>}
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.prep_type ?? ''} onChange={e => onPatch(dish.id, { prep_type: e.target.value || null })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {PREP_TYPES.map(p => <option key={p} value={p}>{p || '—'}</option>)}
         </select>
       </td>
@@ -254,7 +254,7 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
       <td className="px-3 py-1.5">
         {dish.slot === 'sayuran' ? (
           <select value={dish.veg_style ?? ''} onChange={e => onPatch(dish.id, { veg_style: (e.target.value || null) as Dish['veg_style'] })}
-            className="bg-transparent text-stone-600 focus:outline-none">
+            className="bg-transparent text-stone-800 focus:outline-none">
             {VEG_STYLES.map(v => <option key={v} value={v}>{v || '—'}</option>)}
           </select>
         ) : <span className="text-stone-300">—</span>}
@@ -263,31 +263,31 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
         <input value={baseKey} onChange={e => setBaseKey(e.target.value)}
           onBlur={() => { const v = baseKey.trim() || null; if (v !== dish.base_key) onPatch(dish.id, { base_key: v }) }}
           placeholder="e.g. bakso, tahu…" title="Prevents duplicates on one plate — e.g. never a bakso soup + a bakso helper"
-          className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300" />
+          className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-800 focus:outline-none focus:border-orange-300" />
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {PROTEINS.map(p => <option key={p} value={p}>{p}</option>)}
           {!PROTEINS.includes(dish.protein) && <option value={dish.protein}>{dish.protein}</option>}
         </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.tier} onChange={e => onPatch(dish.id, { tier: e.target.value as Tier })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.method ?? ''} onChange={e => onPatch(dish.id, { method: e.target.value || null })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {METHODS.map(m => <option key={m} value={m}>{m || '—'}</option>)}
           {dish.method && !METHODS.includes(dish.method) && <option value={dish.method}>{dish.method}</option>}
         </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={dish.saltiness} onChange={e => onPatch(dish.id, { saltiness: e.target.value as Dish['saltiness'] })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {SALTINESS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </td>
@@ -350,15 +350,15 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
           <input type="number" min={0} step="any" value={qtyAmount}
             onChange={e => setQtyAmount(e.target.value)} onBlur={saveQtyAmount}
             placeholder="amt"
-            className="w-14 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300" />
+            className="w-14 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-800 focus:outline-none focus:border-orange-300" />
           <select value={dish.qty_unit ?? ''} onChange={e => onPatch(dish.id, { qty_unit: e.target.value || null })}
-            className="bg-transparent text-stone-600 focus:outline-none">
+            className="bg-transparent text-stone-800 focus:outline-none">
             <option value="">—</option>
             {QTY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
           <input value={qtyNote} onChange={e => setQtyNote(e.target.value)} onBlur={saveQtyNote}
             placeholder="note"
-            className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-500 focus:outline-none focus:border-orange-300" />
+            className="w-24 px-1.5 py-1 rounded-lg border border-stone-200 text-stone-800 focus:outline-none focus:border-orange-300" />
         </div>
       </td>
       <td className="px-3 py-1.5">

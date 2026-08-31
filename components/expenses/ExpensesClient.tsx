@@ -134,12 +134,12 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
             type="month"
             value={filterMonth}
             onChange={e => setFilterMonth(e.target.value)}
-            className="text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 bg-stone-50 text-stone-700"
+            className="text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 bg-stone-50 text-stone-800"
           />
           <select
             value={filterBy}
             onChange={e => setFilterBy(e.target.value)}
-            className="text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 bg-stone-50 text-stone-700"
+            className="text-sm border border-stone-200 rounded-lg px-2.5 py-1.5 bg-stone-50 text-stone-800"
           >
             <option value="">All members</option>
             <option value="Kevin">Kevin</option>

@@ -16,6 +16,18 @@ const LOCATION_META: Record<StockLocation, { emoji: string; label: string }> = {
   pantry: { emoji: '🫙', label: 'Pantry' },
 }
 
+// Tolerant number parsing for the amount/threshold fields: a comma decimal
+// separator ("1,5") is normal Indonesian-locale input on a phone keyboard,
+// but `Number("1,5")` is NaN — that was silently failing the add form's
+// submit guard with no feedback (looked exactly like "press Enter, nothing
+// happens"). Returns null for anything that still isn't a valid number.
+function parseQty(raw: string): number | null {
+  const cleaned = raw.trim().replace(',', '.')
+  if (cleaned === '') return null
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : null
+}
+
 // Layer 1: manual stock entry only (see AGENTS request) — input, view, edit,
 // delete. No reservation/auto-deplete, no shopping integration. One always-
 // visible add form per location (no modal) so first-time bulk entry from a
@@ -51,12 +63,19 @@ export default function StockClient({ initialStock, initialIngredients }: {
     [stock, location],
   )
 
+  // Both throw on failure now (instead of silently doing nothing) so
+  // AddStockRow's submit() can show her what actually went wrong.
   async function addExisting(ingredientId: string, amount: number, unit: string | null, threshold: number | null) {
     const res = await fetch('/api/stock', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ingredient_id: ingredientId, location, on_hand: amount, unit, low_threshold: threshold }),
     })
-    if (res.ok) { const row = await res.json(); setStock(s => [...s, row as StockItem]) }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || 'Could not add that item — try again')
+    }
+    const row = await res.json()
+    setStock(s => [...s, row as StockItem])
   }
   async function createAndAdd(
     name: string, category: IngredientCategory, defaultUnit: string, shelfStable: boolean,
@@ -66,10 +85,27 @@ export default function StockClient({ initialStock, initialIngredients }: {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name, category, default_unit: defaultUnit || null, shelf_stable: shelfStable }),
     })
-    if (!res.ok) return
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || 'Could not create that ingredient — try again')
+    }
     const ingredient = await res.json() as Ingredient
     setCatalog(c => [...c, ingredient])
     await addExisting(ingredient.id, amount, unit, threshold)
+  }
+  // Fixes the "can't edit the grouping after adding" complaint — category
+  // lives on the shared ingredients row, not the stock row, so this updates
+  // every stock row (any location) pointing at that ingredient, plus the
+  // search catalog, so the item immediately re-groups under its new category.
+  function patchIngredientCategory(ingredientId: string, category: IngredientCategory) {
+    const prevStock = stock
+    const prevCatalog = catalog
+    setStock(s => s.map(it => it.ingredient_id === ingredientId && it.ingredients
+      ? { ...it, ingredients: { ...it.ingredients, category } } : it))
+    setCatalog(c => c.map(i => i.id === ingredientId ? { ...i, category } : i))
+    fetch(`/api/meals/ingredients/${ingredientId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ category }),
+    }).then(res => { if (!res.ok) { setStock(prevStock); setCatalog(prevCatalog) } })
   }
   function patchItem(id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) {
     const prev = stock.find(s => s.id === id)
@@ -139,7 +175,7 @@ export default function StockClient({ initialStock, initialIngredients }: {
           onCreateAndAdd={createAndAdd}
         />
 
-        <LocationSection items={itemsForLocation} onPatch={patchItem} onDelete={requestDelete} />
+        <LocationSection items={itemsForLocation} onPatch={patchItem} onDelete={requestDelete} onEditCategory={patchIngredientCategory} />
       </main>
 
       {pendingDelete && (
@@ -153,10 +189,11 @@ export default function StockClient({ initialStock, initialIngredients }: {
   )
 }
 
-function LocationSection({ items, onPatch, onDelete }: {
+function LocationSection({ items, onPatch, onDelete, onEditCategory }: {
   items: StockItem[]
   onPatch: (id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) => void
   onDelete: (item: StockItem) => void
+  onEditCategory: (ingredientId: string, category: IngredientCategory) => void
 }) {
   const grouped = useMemo(() => {
     const byCategory = new Map<IngredientCategory, StockItem[]>()
@@ -183,7 +220,9 @@ function LocationSection({ items, onPatch, onDelete }: {
             {CAT_LABELS[g.category]}
           </div>
           <div className="space-y-1.5">
-            {g.items.map(item => <StockRow key={item.id} item={item} onPatch={onPatch} onDelete={onDelete} />)}
+            {g.items.map(item => (
+              <StockRow key={item.id} item={item} onPatch={onPatch} onDelete={onDelete} onEditCategory={onEditCategory} />
+            ))}
           </div>
         </div>
       ))}
@@ -191,14 +230,16 @@ function LocationSection({ items, onPatch, onDelete }: {
   )
 }
 
-function StockRow({ item, onPatch, onDelete }: {
+function StockRow({ item, onPatch, onDelete, onEditCategory }: {
   item: StockItem
   onPatch: (id: string, fields: Partial<Pick<StockItem, 'on_hand' | 'unit' | 'low_threshold'>>) => void
   onDelete: (item: StockItem) => void
+  onEditCategory: (ingredientId: string, category: IngredientCategory) => void
 }) {
   const [amount, setAmount] = useState(String(item.on_hand))
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [threshold, setThreshold] = useState(item.low_threshold != null ? String(item.low_threshold) : '')
+  const [editingCategory, setEditingCategory] = useState(false)
   const isLow = item.low_threshold != null && Number(item.on_hand) <= Number(item.low_threshold)
 
   // No effect syncing local state from `item` on every prop change (matching
@@ -206,14 +247,13 @@ function StockRow({ item, onPatch, onDelete }: {
   // item.on_hand/low_threshold come from this same row's own inputs below,
   // which already keep local state and the optimistic patch in lockstep.
   function saveAmount() {
-    const n = Number(amount)
-    if (Number.isFinite(n) && n !== Number(item.on_hand)) onPatch(item.id, { on_hand: n })
+    const n = parseQty(amount)
+    if (n !== null && n !== Number(item.on_hand)) onPatch(item.id, { on_hand: n })
     else setAmount(String(item.on_hand))
   }
   function saveThreshold() {
-    const raw = threshold.trim()
-    const n = raw === '' ? null : Number(raw)
-    onPatch(item.id, { low_threshold: n === null || Number.isFinite(n) ? n : null })
+    const n = parseQty(threshold)
+    onPatch(item.id, { low_threshold: n })
     setEditingThreshold(false)
   }
 
@@ -224,27 +264,43 @@ function StockRow({ item, onPatch, onDelete }: {
           <span className="truncate">{item.ingredients?.name ?? 'Unknown ingredient'}</span>
           {isLow && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">low</span>}
         </div>
-        {editingThreshold ? (
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-[11px] text-stone-400 shrink-0">low at</span>
-            <input autoFocus type="number" inputMode="decimal" step="any" value={threshold}
-              onChange={e => setThreshold(e.target.value)} onBlur={saveThreshold}
-              onKeyDown={e => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-              className="w-16 px-1.5 py-0.5 rounded border border-stone-200 text-[11px] focus:outline-none focus:border-orange-300" />
-            <span className="text-[11px] text-stone-400 shrink-0">{item.unit ?? ''}</span>
-          </div>
-        ) : (
-          <button onClick={() => setEditingThreshold(true)} className="text-[11px] text-stone-400 hover:text-stone-600 mt-0.5">
-            {item.low_threshold != null ? `low at ${item.low_threshold}${item.unit ?? ''}` : '+ low threshold'}
-          </button>
-        )}
+        <div className="flex items-center gap-2 mt-0.5">
+          {editingCategory ? (
+            <select autoFocus defaultValue={item.ingredients?.category ?? 'other'}
+              onChange={e => { onEditCategory(item.ingredient_id, e.target.value as IngredientCategory); setEditingCategory(false) }}
+              onBlur={() => setEditingCategory(false)}
+              className="text-[11px] px-1 py-0.5 rounded border border-stone-200 text-stone-800 focus:outline-none">
+              {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
+            </select>
+          ) : (
+            <button onClick={() => setEditingCategory(true)}
+              className="text-[11px] text-stone-400 hover:text-stone-600 underline decoration-dotted"
+              title="Move this ingredient to a different group">
+              {CAT_LABELS[item.ingredients?.category ?? 'other']}
+            </button>
+          )}
+          {editingThreshold ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-stone-400 shrink-0">low at</span>
+              <input autoFocus type="text" inputMode="decimal" value={threshold}
+                onChange={e => setThreshold(e.target.value)} onBlur={saveThreshold}
+                onKeyDown={e => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+                className="w-16 px-1.5 py-0.5 rounded border border-stone-200 text-[11px] text-stone-800 focus:outline-none focus:border-orange-300" />
+              <span className="text-[11px] text-stone-400 shrink-0">{item.unit ?? ''}</span>
+            </div>
+          ) : (
+            <button onClick={() => setEditingThreshold(true)} className="text-[11px] text-stone-400 hover:text-stone-600">
+              {item.low_threshold != null ? `low at ${item.low_threshold}${item.unit ?? ''}` : '+ low threshold'}
+            </button>
+          )}
+        </div>
       </div>
-      <input type="number" inputMode="decimal" step="any" value={amount}
+      <input type="text" inputMode="decimal" value={amount}
         onChange={e => setAmount(e.target.value)} onBlur={saveAmount}
         onKeyDown={e => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-        className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-right focus:outline-none focus:border-orange-300" />
+        className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-right text-stone-800 focus:outline-none focus:border-orange-300" />
       <select value={item.unit ?? ''} onChange={e => onPatch(item.id, { unit: e.target.value || null })}
-        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-500 focus:outline-none">
+        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
         <option value="">—</option>
         {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
         {item.unit && !(INGREDIENT_UNITS as readonly string[]).includes(item.unit) && <option value={item.unit}>{item.unit}</option>}
@@ -282,6 +338,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
   const [threshold, setThreshold] = useState('')
   const [showThreshold, setShowThreshold] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const amountRef = useRef<HTMLInputElement>(null)
 
@@ -304,28 +361,37 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
     setQuery(''); setSelected(null); setCreating(false)
     setNewCategory('other'); setNewUnit(''); setNewShelfStable(false)
     setAmount(''); setUnit(''); setThreshold(''); setShowThreshold(false)
+    setError(null)
     requestAnimationFrame(() => searchRef.current?.focus())
   }
   function selectMatch(m: Ingredient) {
-    setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? '')
+    setSelected(m); setQuery(m.name); setUnit(m.default_unit ?? ''); setError(null)
     requestAnimationFrame(() => amountRef.current?.focus())
   }
+  // Every bail-out now sets a visible message instead of quietly doing
+  // nothing — a bad amount (e.g. a comma decimal that failed to parse) used
+  // to look exactly like "press Enter, nothing happens" with zero feedback.
   async function submit() {
     if (saving) return
-    const amt = Number(amount)
-    if (!Number.isFinite(amt) || amt < 0) return
+    setError(null)
+    const amt = parseQty(amount)
+    if (amt === null || amt < 0) { setError('Enter a valid amount'); return }
     const u = unit.trim() || null
-    const th = threshold.trim() === '' ? null : Number(threshold)
-    const t = th === null || Number.isFinite(th) ? th : null
+    const t = parseQty(threshold)
     setSaving(true)
     try {
       if (creating) {
-        if (!query.trim()) return
+        if (!query.trim()) { setError('Type a name for the new ingredient'); return }
         await onCreateAndAdd(query.trim(), newCategory, newUnit.trim(), newShelfStable, amt, u, t)
       } else if (selected) {
         await onAddExisting(selected.id, amt, u, t)
-      } else return
+      } else {
+        setError('Search and pick an ingredient first')
+        return
+      }
       reset()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong — try again')
     } finally { setSaving(false) }
   }
 
@@ -335,7 +401,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
         <input ref={searchRef} value={query}
           onChange={e => { setQuery(e.target.value); setSelected(null); setCreating(false) }}
           placeholder={`Search or add to ${LOCATION_META[location].label.toLowerCase()}…`}
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-base focus:outline-none focus:border-orange-300" />
+          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-base text-stone-800 focus:outline-none focus:border-orange-300" />
         {matches.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
             {matches.map(m => (
@@ -375,11 +441,11 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
       {creating && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <select value={newCategory} onChange={e => setNewCategory(e.target.value as IngredientCategory)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
           </select>
           <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
-            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-600 focus:outline-none">
+            className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none">
             <option value="">default unit —</option>
             {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
@@ -392,20 +458,20 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
 
       {(selected || creating) && (
         <div className="flex items-center gap-1.5 flex-wrap">
-          <input ref={amountRef} type="number" inputMode="decimal" step="any" value={amount}
-            onChange={e => setAmount(e.target.value)}
+          <input ref={amountRef} type="text" inputMode="decimal" value={amount}
+            onChange={e => { setAmount(e.target.value); setError(null) }}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
             placeholder="amount"
-            className="w-24 px-3 py-2.5 rounded-xl border border-stone-200 text-base focus:outline-none focus:border-orange-300" />
+            className="w-24 px-3 py-2.5 rounded-xl border border-stone-200 text-base text-stone-800 focus:outline-none focus:border-orange-300" />
           <select value={unit} onChange={e => setUnit(e.target.value)}
-            className="px-3 py-2.5 rounded-xl border border-stone-200 text-base text-stone-600 focus:outline-none">
+            className="px-3 py-2.5 rounded-xl border border-stone-200 text-base text-stone-800 focus:outline-none">
             <option value="">—</option>
             {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
           {showThreshold ? (
-            <input type="number" inputMode="decimal" step="any" value={threshold} onChange={e => setThreshold(e.target.value)}
+            <input type="text" inputMode="decimal" value={threshold} onChange={e => setThreshold(e.target.value)}
               placeholder="low at…"
-              className="w-24 px-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-orange-300" />
+              className="w-24 px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
           ) : (
             <button onClick={() => setShowThreshold(true)}
               className="text-xs text-stone-400 hover:text-stone-600 underline decoration-dotted">+ low threshold</button>
@@ -417,6 +483,7 @@ function AddStockRow({ location, catalog, excludeIds, onAddExisting, onCreateAnd
           <button onClick={reset} className="text-sm text-stone-400 hover:text-stone-700">Cancel</button>
         </div>
       )}
+      {error && <p className="text-xs text-red-500 px-0.5">{error}</p>}
     </div>
   )
 }

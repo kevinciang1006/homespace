@@ -226,8 +226,8 @@ function AddItem({ onAdd }: { onAdd: (ingredient: string, quantity: string, cate
       <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
         placeholder="Add an item…" className="flex-1 min-w-[8rem] bg-transparent focus:outline-none text-sm text-stone-800 px-1" />
       <input value={qty} onChange={e => setQty(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
-        placeholder="qty" className="w-20 bg-transparent focus:outline-none text-sm text-stone-500 px-1" />
-      <select value={cat} onChange={e => setCat(e.target.value as ShopCategory)} className="text-sm text-stone-600 bg-transparent focus:outline-none">
+        placeholder="qty" className="w-20 bg-transparent focus:outline-none text-sm text-stone-800 px-1" />
+      <select value={cat} onChange={e => setCat(e.target.value as ShopCategory)} className="text-sm text-stone-800 bg-transparent focus:outline-none">
         {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{RAW_CATEGORY_LABEL[c]}</option>)}
       </select>
       <button onClick={submit} className="flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus size={15} /> Add</button>

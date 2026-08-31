@@ -356,12 +356,14 @@ function DayPlate({ date, dayName, rows, highlighted, entries, onCooked, onRepla
     if (!res.ok) onReplaceDay(date, rows)  // revert
   }
 
+  // Single-cell pick — must NOT touch the day's other slots (kuah/sayuran/
+  // pelengkap stay exactly as they are). Whole-day reshuffle is rerollDay below.
   async function rerollMain(dishId?: string) {
     const res = await fetch('/api/meals/reroll', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ plan_date: date, slot: 'utama', ...(dishId ? { dish_id: dishId } : {}) }),
     })
-    if (res.ok) { const { day } = await res.json(); onReplaceDay(date, day) }
+    if (res.ok) { const { pick } = await res.json(); onReplaceCell(pick) }
   }
   async function rerollDay() {
     setRerollingDay(true)
@@ -550,11 +552,15 @@ function MainHero({ row, date, entries, onCooked, onReroll, onReplaceCell, onOpe
         </div>
       )}
       {open && (
-        <div className="absolute z-20 left-2 right-2 bottom-2 bg-white border border-stone-200 rounded-xl shadow-lg p-1.5" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1 border border-stone-200 rounded-lg">
+        // Anchored to the TOP of the card (not below it) and height-bounded with its
+        // own scroll — the alternatives list loads in async and can grow to 5+ rows,
+        // and an unbounded panel growing downward would spill past the card and
+        // overlap the support chips / dessert row / footer buttons underneath it.
+        <div className="absolute z-20 left-2 right-2 top-2 max-h-[calc(100%-1rem)] overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-lg p-1.5" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1 border border-stone-200 rounded-lg bg-white">
             <Search size={12} className="text-stone-400 shrink-0" />
             <input autoFocus value={query} onChange={e => search(e.target.value, ['utama'])}
-              placeholder="Search any main dish…" className="flex-1 min-w-0 text-sm bg-transparent focus:outline-none" />
+              placeholder="Search any main dish…" className="flex-1 min-w-0 text-sm bg-transparent text-stone-900 placeholder:text-stone-400 focus:outline-none" />
           </div>
           {query.trim() ? (
             <>
@@ -647,7 +653,7 @@ function SupportChip({ row, date, entries, onCooked, onReplaceCell, onOpenDish, 
           <div className="flex items-center gap-1 px-1.5 py-1 mb-1 border border-stone-200 rounded-lg">
             <Search size={11} className="text-stone-400 shrink-0" />
             <input autoFocus value={query} onChange={e => search(e.target.value, SUPPORT_SLOTS)}
-              placeholder="Search soup/veg/helper…" className="flex-1 min-w-0 text-xs bg-transparent focus:outline-none" />
+              placeholder="Search soup/veg/helper…" className="flex-1 min-w-0 text-xs bg-transparent text-stone-900 placeholder:text-stone-400 focus:outline-none" />
           </div>
           {query.trim() ? (
             <>

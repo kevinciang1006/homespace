@@ -176,19 +176,19 @@ function IngredientRow({ ingredient, onPatch, onDelete, selected, onToggleSelect
       <td className="px-3 py-1.5">
         <input value={aliases} onChange={e => setAliases(e.target.value)} onBlur={saveAliases}
           placeholder="comma, separated, aliases"
-          className="w-full min-w-[12rem] bg-transparent text-stone-500 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+          className="w-full min-w-[12rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
       </td>
       <td className="px-3 py-1.5">
         <select value={ingredient.category ?? 'other'}
           onChange={e => onPatch(ingredient.id, { category: e.target.value as Ingredient['category'] })}
-          className="bg-transparent text-stone-600 focus:outline-none">
+          className="bg-transparent text-stone-800 focus:outline-none">
           {INGREDIENT_CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
         </select>
       </td>
       <td className="px-3 py-1.5">
         <select value={ingredient.default_unit ?? ''}
           onChange={e => onPatch(ingredient.id, { default_unit: e.target.value || null })}
-          className="px-1.5 py-1 rounded-lg border border-stone-200 text-stone-600 focus:outline-none focus:border-orange-300">
+          className="px-1.5 py-1 rounded-lg border border-stone-200 text-stone-800 focus:outline-none focus:border-orange-300">
           <option value="">—</option>
           {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           {ingredient.default_unit && !(INGREDIENT_UNITS as readonly string[]).includes(ingredient.default_unit) &&

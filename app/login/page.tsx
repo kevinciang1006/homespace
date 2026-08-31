@@ -53,7 +53,7 @@ export default function LoginPage() {
           <select
             value={selectedUserId}
             onChange={e => setSelectedUserId(e.target.value)}
-            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2.5 bg-stone-50 text-stone-700 mb-4 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2.5 bg-stone-50 text-stone-800 mb-4 focus:outline-none focus:ring-2 focus:ring-stone-300"
           >
             <option value="">Select a member…</option>
             {users.map(u => (
@@ -70,7 +70,7 @@ export default function LoginPage() {
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && login()}
             placeholder="Enter your password"
-            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2.5 bg-stone-50 text-stone-700 mb-4 focus:outline-none focus:ring-2 focus:ring-stone-300"
+            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2.5 bg-stone-50 text-stone-800 mb-4 focus:outline-none focus:ring-2 focus:ring-stone-300"
           />
 
           {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
