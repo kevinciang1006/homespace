@@ -467,6 +467,22 @@ function useCellControls(
     } finally { setSearching(false) }
   }
   function resetSearch() { setQuery(''); setSearchResults([]) }
+  // When a search comes up empty, the dropdown offers "add this as a new dish"
+  // instead of a dead end — creates a real dish row (name + slot only, same
+  // defaults as the Dishes tab's "Add dish") and hands it back so the caller
+  // can immediately assign it to this cell.
+  const [creatingDish, setCreatingDish] = useState(false)
+  async function createDish(name: string, slot: Slot): Promise<{ id: string; name: string } | null> {
+    setCreatingDish(true)
+    try {
+      const res = await fetch('/api/meals/dishes', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, slot }),
+      })
+      if (!res.ok) return null
+      return await res.json()
+    } finally { setCreatingDish(false) }
+  }
   // "Delete" a planned dish without touching the rest of the day — clears
   // just this cell to an empty, re-rollable placeholder (dish_id/name null).
   // Distinct from the engine's own `skipped` rows (e.g. "broth from the
@@ -483,7 +499,7 @@ function useCellControls(
     if (!res.ok) onReplaceCell(prev)
     else onUndoable?.(prev)
   }
-  return { open, setOpen, alts, toggleLock, openAlts, clear, query, searchResults, searching, search, resetSearch }
+  return { open, setOpen, alts, toggleLock, openAlts, clear, query, searchResults, searching, search, resetSearch, creatingDish, createDish }
 }
 
 function MainHero({ row, date, entries, onCooked, onReroll, onReplaceCell, onOpenDish, onUndoable }: {
@@ -493,7 +509,7 @@ function MainHero({ row, date, entries, onCooked, onReroll, onReplaceCell, onOpe
   onOpenDish: (dishId: string) => void
   onUndoable: (prevRow: MealPlan) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock, clear, query, searchResults, searching, search, resetSearch } =
+  const { open, setOpen, alts, openAlts, toggleLock, clear, query, searchResults, searching, search, resetSearch, creatingDish, createDish } =
     useCellControls(date, row, onReplaceCell, onUndoable)
   const tier = row.dishes?.tier; const spicy = row.dishes?.spicy
   const dishCooked = isDishCooked(entries, row)
@@ -552,11 +568,10 @@ function MainHero({ row, date, entries, onCooked, onReroll, onReplaceCell, onOpe
         </div>
       )}
       {open && (
-        // Anchored to the TOP of the card (not below it) and height-bounded with its
-        // own scroll — the alternatives list loads in async and can grow to 5+ rows,
-        // and an unbounded panel growing downward would spill past the card and
-        // overlap the support chips / dessert row / footer buttons underneath it.
-        <div className="absolute z-20 left-2 right-2 top-2 max-h-[calc(100%-1rem)] overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-lg p-1.5" onClick={e => e.stopPropagation()}>
+        // Anchored to the TOP of the card (not below it, and not squeezed into a
+        // scrolling box) — sizes to its content, which can spill past the card's
+        // own footprint while open. That's fine: it's a transient overlay.
+        <div className="absolute z-20 left-2 right-2 top-2 bg-white border border-stone-200 rounded-xl shadow-lg p-1.5" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1 border border-stone-200 rounded-lg bg-white">
             <Search size={12} className="text-stone-400 shrink-0" />
             <input autoFocus value={query} onChange={e => search(e.target.value, ['utama'])}
@@ -565,19 +580,23 @@ function MainHero({ row, date, entries, onCooked, onReroll, onReplaceCell, onOpe
           {query.trim() ? (
             <>
               {searching && <div className="px-2 py-1.5 text-xs text-stone-400">Searching…</div>}
-              {!searching && searchResults.length === 0 && <div className="px-2 py-1.5 text-xs text-stone-400">No matching dish</div>}
+              {!searching && searchResults.length === 0 && (
+                <button disabled={creatingDish} onClick={async () => {
+                  const d = await createDish(query.trim(), 'utama')
+                  if (d) { setOpen(false); resetSearch(); onReroll(d.id) }
+                }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-orange-50 text-orange-700 text-sm disabled:opacity-50">
+                  {creatingDish ? 'Adding…' : `+ Add "${query.trim()}" as a new main dish`}
+                </button>
+              )}
               {!searching && searchResults.map(d => (
                 <button key={d.id} onClick={() => { setOpen(false); resetSearch(); onReroll(d.id) }}
                   className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-orange-50 text-stone-700 text-sm truncate">{d.name}</button>
               ))}
             </>
           ) : (
-            <>
-              <button onClick={() => { setOpen(false); onReroll() }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-orange-50 text-orange-700 font-medium text-sm">🎲 Surprise me (new plate)</button>
-              {alts?.map(a => (
-                <button key={a.id} onClick={() => { setOpen(false); onReroll(a.id) }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-stone-50 text-stone-700 text-sm truncate">{a.name}</button>
-              ))}
-            </>
+            alts?.map(a => (
+              <button key={a.id} onClick={() => { setOpen(false); onReroll(a.id) }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-stone-50 text-stone-700 text-sm truncate">{a.name}</button>
+            ))
           )}
           <button onClick={() => { setOpen(false); resetSearch() }} className="w-full text-left px-2 py-1.5 rounded-lg text-stone-400 hover:bg-stone-50 text-sm">Cancel</button>
         </div>
@@ -591,7 +610,7 @@ function SupportChip({ row, date, entries, onCooked, onReplaceCell, onOpenDish, 
   onReplaceCell: (r: MealPlan) => void; onOpenDish: (dishId: string) => void
   onUndoable: (prevRow: MealPlan) => void
 }) {
-  const { open, setOpen, alts, openAlts, toggleLock, clear, query, searchResults, searching, search, resetSearch } =
+  const { open, setOpen, alts, openAlts, toggleLock, clear, query, searchResults, searching, search, resetSearch, creatingDish, createDish } =
     useCellControls(date, row, onReplaceCell, onUndoable)
   const spicy = row.dishes?.spicy
   const dishCooked = isDishCooked(entries, row)
@@ -658,16 +677,20 @@ function SupportChip({ row, date, entries, onCooked, onReplaceCell, onOpenDish, 
           {query.trim() ? (
             <>
               {searching && <div className="px-2 py-1 text-xs text-stone-400">Searching…</div>}
-              {!searching && searchResults.length === 0 && <div className="px-2 py-1 text-xs text-stone-400">No match</div>}
+              {!searching && searchResults.length === 0 && (
+                <button disabled={creatingDish} onClick={async () => {
+                  const d = await createDish(query.trim(), row.slot)
+                  if (d) swap(d.id)
+                }} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs disabled:opacity-50">
+                  {creatingDish ? 'Adding…' : `+ Add "${query.trim()}" as new`}
+                </button>
+              )}
               {!searching && searchResults.map(d => (
                 <button key={d.id} onClick={() => swap(d.id)} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-stone-700 text-xs truncate">{d.name}</button>
               ))}
             </>
           ) : (
-            <>
-              <button onClick={() => swap()} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs">🎲 Surprise me</button>
-              {alts?.map(a => <button key={a.id} onClick={() => swap(a.id)} className="w-full text-left px-2 py-1 rounded-lg hover:bg-stone-50 text-stone-700 text-xs truncate">{a.name}</button>)}
-            </>
+            alts?.map(a => <button key={a.id} onClick={() => swap(a.id)} className="w-full text-left px-2 py-1 rounded-lg hover:bg-stone-50 text-stone-700 text-xs truncate">{a.name}</button>)
           )}
           <button onClick={() => { setOpen(false); resetSearch() }} className="w-full text-left px-2 py-1 rounded-lg text-stone-400 text-xs">Cancel</button>
         </div>
@@ -718,7 +741,6 @@ function DessertRow({ row, date, entries, onCooked, onReplaceCell, onOpenDish, o
       <button onClick={clear} title="Remove" className="p-1 rounded text-stone-400 hover:text-red-600"><Trash2 size={12} /></button>
       {open && (
         <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-lg p-1">
-          <button onClick={() => swap()} className="w-full text-left px-2 py-1 rounded-lg hover:bg-orange-50 text-orange-700 text-xs">🎲 Surprise me</button>
           {alts?.map(a => <button key={a.id} onClick={() => swap(a.id)} className="w-full text-left px-2 py-1 rounded-lg hover:bg-stone-50 text-stone-700 text-xs truncate">{a.name}</button>)}
           <button onClick={() => setOpen(false)} className="w-full text-left px-2 py-1 rounded-lg text-stone-400 text-xs">Cancel</button>
         </div>
