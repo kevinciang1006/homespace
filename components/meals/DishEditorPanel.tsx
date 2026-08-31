@@ -22,6 +22,7 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
   // needs to sync its own local state, not PATCH again. Defaults to a no-op.
   onSynced?: (id: string, fields: Partial<Dish>) => void
 }) {
+  const [name, setName] = useState(dish.name)
   const [imageUrl, setImageUrl] = useState(dish.recipe_image_url ?? '')
   const [steps, setSteps] = useState<string[]>(dish.recipe_steps ?? [])
   const [links, setLinks] = useState<RecipeLink[]>(dish.recipe_links ?? [])
@@ -29,6 +30,11 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
   const [newTitle, setNewTitle] = useState('')
   const [providesSoup, setProvidesSoup] = useState(dish.provides_soup)
 
+  function saveName() {
+    const trimmed = name.trim()
+    if (trimmed && trimmed !== dish.name) onPatch(dish.id, { name: trimmed })
+    else setName(dish.name)
+  }
   function saveSteps(next: string[]) { setSteps(next); onPatch(dish.id, { recipe_steps: next }) }
   function saveLinks(next: RecipeLink[]) { setLinks(next); onPatch(dish.id, { recipe_links: next }) }
   function addLink() {
@@ -54,9 +60,12 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
       <div className="relative bg-white w-full md:w-[30rem] md:h-full rounded-t-2xl md:rounded-none max-h-[92vh] md:max-h-full overflow-y-auto">
         {/* header */}
         <div className="sticky top-0 bg-white border-b border-stone-100 px-5 py-3 flex items-center justify-between z-10">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 mr-2">
             <div className="text-xs text-stone-400">Recipe & ingredients</div>
-            <div className="text-stone-800 font-medium truncate">{dish.name}</div>
+            <input value={name} onChange={e => setName(e.target.value)} onBlur={saveName}
+              onKeyDown={e => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+              aria-label="Dish name"
+              className="w-full text-stone-800 font-medium bg-transparent focus:outline-none focus:bg-stone-50 rounded px-0.5 -mx-0.5 truncate" />
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100" aria-label="Close"><X size={18} /></button>
         </div>
@@ -66,7 +75,7 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
           <section>
             <label className="block text-sm font-medium text-stone-600 mb-2">Photo URL</label>
             <div className="flex items-center gap-3">
-              <DishImage imageUrl={imageUrl.trim() || null} protein={dish.protein} name={dish.name}
+              <DishImage imageUrl={imageUrl.trim() || null} protein={dish.protein} name={name}
                 className="w-14 h-14 shrink-0" rounded="rounded-xl" iconSize={22} />
               <input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
                 onBlur={() => onPatch(dish.id, { recipe_image_url: imageUrl.trim() || null })}

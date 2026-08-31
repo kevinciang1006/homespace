@@ -18,6 +18,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const patch = Object.fromEntries(Object.entries(body).filter(([k]) => FIELDS.includes(k)))
   const { data, error } = await supabase.from('dishes').update(patch).eq('id', id).select().single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // meal_plans.dish_name is a denormalized copy (read directly, not joined,
+  // by /api/meals/week and everything downstream of it) — a rename has to
+  // propagate there too, or the old name silently comes back on next load.
+  // Historical tables that also copy the name at write time (cook_log,
+  // prep_tasks, thaw_reminders, dessert_week_items) are left alone on
+  // purpose: those are point-in-time records of what a dish was called
+  // when the entry was made, not the current plan.
+  if (typeof patch.name === 'string') {
+    const { error: mpErr } = await supabase.from('meal_plans').update({ dish_name: patch.name }).eq('dish_id', id)
+    if (mpErr) return Response.json({ error: mpErr.message }, { status: 500 })
+  }
   return Response.json(data)
 }
 
