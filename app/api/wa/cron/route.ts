@@ -6,12 +6,13 @@ import { getOrCreateSettings } from '@/lib/wa/settings'
 import { resolveRecipients, WA_NUMBERS } from '@/lib/wa/config'
 import { sendWhatsapp } from '@/lib/wa/relay'
 import {
-  jakartaToday, upcomingSaturday, upcomingDow, shoppingWeekStart, tomorrowOf, jakartaDateTimeToUtcIso, isWeekend,
+  jakartaToday, jakartaClock, upcomingSaturday, upcomingDow, shoppingWeekStart, tomorrowOf,
+  jakartaDateTimeToUtcIso, isWeekend,
 } from '@/lib/wa/schedule'
 import {
   composeWeeklyShoppingMessage, composeMealOverview, sumShopIngredients,
   composeDailyReminderMessage, composePrepThawMessage,
-  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
+  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage, composeStandupMessage,
 } from '@/lib/wa/messages'
 import type {
   WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, WeeklyMealPlanRow,
@@ -212,6 +213,9 @@ async function runTestMode(to: string): Promise<Response> {
   const backlogMessage = composeBacklogNudge(backlogCandidate, backlogTail(backlogActive, today))
     ?? (composeBacklogNudge(SAMPLE_BACKLOG_ITEM, [])! + SAMPLE_TAG)
 
+  const { weekday: standupWeekday, prettyDate: standupPretty } = jakartaClock()
+  const standupMessage = composeStandupMessage(standupWeekday, standupPretty)
+
   // Report the true send result per kind — on failure, include *why* (relay
   // HTTP status, response body, or the thrown error) instead of a bare false.
   const sent: Record<string, { ok: boolean; error?: string }> = {}
@@ -222,6 +226,7 @@ async function runTestMode(to: string): Promise<Response> {
     ['batch_prep_wife', batchPrepWifeMessage],
     ['batch_prep_kevin', batchPrepKevinMessage],
     ['backlog_nudge', backlogMessage],
+    ['standup', standupMessage],
   ] as const) {
     const result = await sendWhatsapp(to, message)
     sent[kind] = result.ok ? { ok: true } : { ok: false, error: result.error }
@@ -368,6 +373,28 @@ export async function GET(request: Request) {
       console.error('backlog_nudge build failed:', err)
       skipped++
     }
+  }
+
+  // Morning standup ping — Kevin's personal number, ~7am Asia/Jakarta. Direct
+  // send with its own send-once guard (work_log.pinged_at); not part of the
+  // wa_outbound queue, doesn't touch the built/sent/skipped/failed counters.
+  try {
+    const { hour, weekday, prettyDate } = jakartaClock()
+    if (hour >= 7 && hour < 12) {
+      const { data: workRow } = await supabase.from('work_log')
+        .upsert({ log_date: today }, { onConflict: 'log_date' })
+        .select('pinged_at').single()
+      if (!workRow?.pinged_at) {
+        const to = process.env.STANDUP_WA_TO || WA_NUMBERS.kevin
+        const res = await sendWhatsapp(to, composeStandupMessage(weekday, prettyDate))
+        if (res.ok) {
+          await supabase.from('work_log')
+            .update({ pinged_at: new Date().toISOString() }).eq('log_date', today)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('standup ping failed:', err)
   }
 
   // Claude Code hang-nudge: separate from the wa_outbound queue — sends straight

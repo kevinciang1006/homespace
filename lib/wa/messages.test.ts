@@ -3,6 +3,7 @@ import {
   sumShopIngredients, composeWeeklyShoppingMessage, composeMealOverview,
   composeDailyReminderMessage, composePrepThawMessage,
   composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
+  composeStandupMessage,
 } from './messages'
 
 describe('sumShopIngredients', () => {
@@ -244,5 +245,17 @@ describe('composeBatchPrepKevinMessage', () => {
     expect(msg).toContain('• potong pepaya, bagi porsi (6 slices)')
     expect(msg).toContain('• siapkan yogurt porsi kecil (500ml)')
     expect(msg).toContain('https://homespace-chi.vercel.app/meals/prep?week=2026-08-24&who=kevin')
+  })
+})
+
+describe('composeStandupMessage', () => {
+  it('formats the header, the command to send, and the project link', () => {
+    expect(composeStandupMessage('Tuesday', '1 Sep 2026')).toBe(
+      '🌅 Standup time — Tuesday, 1 Sep 2026\n' +
+      'Open Daily Work → New chat, and send:\n' +
+      'Standup 1 Sep 2026\n' +
+      '\n' +
+      'https://claude.ai/project/01a05a95-5edd-7311-bcb7-429473e7763c',
+    )
   })
 })

@@ -2,6 +2,7 @@ import { shiftWeek, mondayOf } from '../meals/dates'
 
 const JAKARTA_OFFSET_MS = 7 * 3600_000
 const ID_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] // Mon..Sun
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 // Today's date (YYYY-MM-DD) in Asia/Jakarta (fixed UTC+7, no DST), derived
 // from the instant `now` — never from the server process's own timezone.
@@ -61,4 +62,23 @@ export function jakartaDateTimeToUtcIso(dateStr: string, hhmm: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const [hh, mm] = hhmm.split(':').map(Number)
   return new Date(Date.UTC(y, m - 1, d, hh, mm) - JAKARTA_OFFSET_MS).toISOString()
+}
+
+// Wall-clock fields in Asia/Jakarta for the instant `now`, via the real IANA
+// zone rather than a raw offset (Jakarta is UTC+7 year-round with no DST, so it
+// agrees with jakartaToday()). `hour` is 0-23; `weekday` is the English long
+// name ("Tuesday"); `prettyDate` is "1 Sep 2026". Used by the morning standup
+// ping's send-window guard and message.
+export function jakartaClock(now: Date = new Date()): { hour: number; weekday: string; prettyDate: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: '2-digit', hourCycle: 'h23', weekday: 'long',
+  }).formatToParts(now)
+  const get = (t: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === t)?.value ?? ''
+  return {
+    hour: Number(get('hour')),
+    weekday: get('weekday'),
+    prettyDate: `${Number(get('day'))} ${MONTHS_SHORT[Number(get('month')) - 1]} ${get('year')}`,
+  }
 }

@@ -198,3 +198,20 @@ export function composePrepThawMessage(dishes: PrepDishRow[]): string | null {
     dayPageUrl(earliestCookDate),
   ].join('\n')
 }
+
+// ---- Morning standup ping ---------------------------------------------------
+
+// Fixed link to Kevin's "Daily Work" Claude project.
+const DAILY_WORK_PROJECT_URL = 'https://claude.ai/project/01a05a95-5edd-7311-bcb7-429473e7763c'
+
+// Kevin's personal ~7am nudge to start that day's standup entry. English
+// (unlike the household messages). `prettyDate` like "1 Sep 2026".
+export function composeStandupMessage(weekday: string, prettyDate: string): string {
+  return [
+    `🌅 Standup time — ${weekday}, ${prettyDate}`,
+    'Open Daily Work → New chat, and send:',
+    `Standup ${prettyDate}`,
+    '',
+    DAILY_WORK_PROJECT_URL,
+  ].join('\n')
+}

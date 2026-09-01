@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   jakartaToday, upcomingSaturday, upcomingDow, tomorrowOf, shoppingWeekStart,
-  indonesianDayName, jakartaDateTimeToUtcIso,
+  indonesianDayName, jakartaDateTimeToUtcIso, jakartaClock,
 } from './schedule'
 
 describe('jakartaToday', () => {
@@ -70,6 +70,27 @@ describe('indonesianDayName', () => {
     expect(indonesianDayName('2026-08-17')).toBe('Senin') // Monday
     expect(indonesianDayName('2026-08-22')).toBe('Sabtu') // Saturday
     expect(indonesianDayName('2026-08-23')).toBe('Minggu') // Sunday
+  })
+})
+
+describe('jakartaClock', () => {
+  it('reads the Jakarta wall clock (UTC+7) for the instant', () => {
+    // 2026-09-01T00:00:00Z + 7h = 2026-09-01 07:00 Jakarta (a Tuesday)
+    expect(jakartaClock(new Date('2026-09-01T00:00:00Z'))).toEqual({
+      hour: 7, weekday: 'Tuesday', prettyDate: '1 Sep 2026',
+    })
+  })
+  it('gives hour 0-23 (h23) and rolls the date/weekday past Jakarta midnight', () => {
+    // 2026-09-01T17:00:00Z + 7h = 2026-09-02 00:00 Jakarta (a Wednesday)
+    expect(jakartaClock(new Date('2026-09-01T17:00:00Z'))).toEqual({
+      hour: 0, weekday: 'Wednesday', prettyDate: '2 Sep 2026',
+    })
+  })
+  it('marks the edges of the 07:00-11:59 send window', () => {
+    expect(jakartaClock(new Date('2026-08-31T22:00:00Z')).hour).toBe(5)  // 05:00 Jakarta
+    expect(jakartaClock(new Date('2026-09-01T00:00:00Z')).hour).toBe(7)  // 07:00 — in
+    expect(jakartaClock(new Date('2026-09-01T04:59:00Z')).hour).toBe(11) // 11:59 — in
+    expect(jakartaClock(new Date('2026-09-01T05:00:00Z')).hour).toBe(12) // 12:00 — out
   })
 })
 
