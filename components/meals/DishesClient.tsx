@@ -113,29 +113,32 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
             <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
               <table className="w-full text-sm min-w-[720px]">
                 <thead>
+                  {/* Sticky below the meals layout's own sticky header (top-20 matches
+                      PlanSidebar's offset for the same header). The Name cell also stays
+                      sticky-left on desktop, so it sticks to both edges — a frozen corner. */}
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                    <th className="px-3 py-2 font-medium md:sticky md:left-0 md:z-10 bg-white md:border-r md:border-stone-100">Name</th>
-                    <th className="px-3 py-2 font-medium">Group</th>
-                    <th className="px-3 py-2 font-medium">Fruit context</th>
-                    <th className="px-3 py-2 font-medium">Cadence</th>
-                    <th className="px-3 py-2 font-medium">Produce role</th>
-                    <th className="px-3 py-2 font-medium">Prep type</th>
-                    <th className="px-3 py-2 font-medium">Helper</th>
-                    <th className="px-3 py-2 font-medium">Veg style</th>
-                    <th className="px-3 py-2 font-medium">Base key</th>
-                    <th className="px-3 py-2 font-medium">Protein</th>
-                    <th className="px-3 py-2 font-medium">Tier</th>
-                    <th className="px-3 py-2 font-medium">Method</th>
-                    <th className="px-3 py-2 font-medium">Salt</th>
-                    <th className="px-3 py-2 font-medium">Difficulty</th>
-                    <th className="px-3 py-2 font-medium">Spicy</th>
-                    <th className="px-3 py-2 font-medium">Rating</th>
-                    <th className="px-3 py-2 font-medium">Active</th>
-                    <th className="px-3 py-2 font-medium">Garnish</th>
-                    <th className="px-3 py-2 font-medium">Soup</th>
-                    <th className="px-3 py-2 font-medium">Self-sufficient</th>
-                    <th className="px-3 py-2 font-medium">Quantity</th>
-                    <th className="px-3 py-2 font-medium">Recipe</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-20 bg-white md:left-0 md:border-r md:border-stone-100">Name</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Group</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Fruit context</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Cadence</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Produce role</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Prep type</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Helper</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Veg style</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Base key</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Protein</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Tier</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Method</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Salt</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Difficulty</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Spicy</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Rating</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Active</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Garnish</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Soup</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Self-sufficient</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Quantity</th>
+                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
