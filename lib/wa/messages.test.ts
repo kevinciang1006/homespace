@@ -3,7 +3,7 @@ import {
   sumShopIngredients, composeWeeklyShoppingMessage, composeMealOverview,
   composeDailyReminderMessage, composePrepThawMessage,
   composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
-  composeStandupMessage,
+  composeStandupMessage, composeClosingMessage,
 } from './messages'
 
 describe('sumShopIngredients', () => {
@@ -254,6 +254,18 @@ describe('composeStandupMessage', () => {
       '🌅 Standup time — Tuesday, 1 Sep 2026\n' +
       'Open Daily Work → New chat, and send:\n' +
       'Standup 1 Sep 2026\n' +
+      '\n' +
+      'https://claude.ai/project/01a05a95-5edd-7311-bcb7-429473e7763c',
+    )
+  })
+})
+
+describe('composeClosingMessage', () => {
+  it('formats the closing header, the command, and the project link', () => {
+    expect(composeClosingMessage('Tuesday', '1 Sep 2026')).toBe(
+      '🌙 Closing time — Tuesday, 1 Sep 2026\n' +
+      'Open Daily Work → the standup chat (or a new one), and send:\n' +
+      'Closing 1 Sep 2026\n' +
       '\n' +
       'https://claude.ai/project/01a05a95-5edd-7311-bcb7-429473e7763c',
     )

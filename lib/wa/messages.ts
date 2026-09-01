@@ -215,3 +215,14 @@ export function composeStandupMessage(weekday: string, prettyDate: string): stri
     DAILY_WORK_PROJECT_URL,
   ].join('\n')
 }
+
+// Kevin's personal ~8pm nudge to close out and log the day before sleep.
+export function composeClosingMessage(weekday: string, prettyDate: string): string {
+  return [
+    `🌙 Closing time — ${weekday}, ${prettyDate}`,
+    'Open Daily Work → the standup chat (or a new one), and send:',
+    `Closing ${prettyDate}`,
+    '',
+    DAILY_WORK_PROJECT_URL,
+  ].join('\n')
+}

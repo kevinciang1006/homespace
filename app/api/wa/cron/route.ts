@@ -12,7 +12,8 @@ import {
 import {
   composeWeeklyShoppingMessage, composeMealOverview, sumShopIngredients,
   composeDailyReminderMessage, composePrepThawMessage,
-  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage, composeStandupMessage,
+  composeBatchPrepWifeMessage, composeBatchPrepKevinMessage,
+  composeStandupMessage, composeClosingMessage,
 } from '@/lib/wa/messages'
 import type {
   WaOutboundKind, WaOutboundRow, WaSettings, WeeklyShoppingItem, ShopIngredientRow, WeeklyMealPlanRow,
@@ -213,8 +214,9 @@ async function runTestMode(to: string): Promise<Response> {
   const backlogMessage = composeBacklogNudge(backlogCandidate, backlogTail(backlogActive, today))
     ?? (composeBacklogNudge(SAMPLE_BACKLOG_ITEM, [])! + SAMPLE_TAG)
 
-  const { weekday: standupWeekday, prettyDate: standupPretty } = jakartaClock()
-  const standupMessage = composeStandupMessage(standupWeekday, standupPretty)
+  const { weekday: workdayWeekday, prettyDate: workdayPretty } = jakartaClock()
+  const standupMessage = composeStandupMessage(workdayWeekday, workdayPretty)
+  const closingMessage = composeClosingMessage(workdayWeekday, workdayPretty)
 
   // Report the true send result per kind — on failure, include *why* (relay
   // HTTP status, response body, or the thrown error) instead of a bare false.
@@ -227,6 +229,7 @@ async function runTestMode(to: string): Promise<Response> {
     ['batch_prep_kevin', batchPrepKevinMessage],
     ['backlog_nudge', backlogMessage],
     ['standup', standupMessage],
+    ['closing', closingMessage],
   ] as const) {
     const result = await sendWhatsapp(to, message)
     sent[kind] = result.ok ? { ok: true } : { ok: false, error: result.error }
@@ -395,6 +398,27 @@ export async function GET(request: Request) {
     }
   } catch (err) {
     console.error('standup ping failed:', err)
+  }
+
+  // Evening closing ping — mirrors the standup phase, independent send-once
+  // guard (work_log.closing_pinged_at). ~8pm Asia/Jakarta; Kevin sleeps ~9pm.
+  try {
+    const { hour, weekday, prettyDate } = jakartaClock()
+    if (hour >= 20 && hour < 22) {
+      const { data: workRow } = await supabase.from('work_log')
+        .upsert({ log_date: today }, { onConflict: 'log_date' })
+        .select('closing_pinged_at').single()
+      if (!workRow?.closing_pinged_at) {
+        const to = process.env.STANDUP_WA_TO || WA_NUMBERS.kevin
+        const res = await sendWhatsapp(to, composeClosingMessage(weekday, prettyDate))
+        if (res.ok) {
+          await supabase.from('work_log')
+            .update({ closing_pinged_at: new Date().toISOString() }).eq('log_date', today)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('closing ping failed:', err)
   }
 
   // Claude Code hang-nudge: separate from the wa_outbound queue — sends straight
