@@ -14,22 +14,6 @@ import DishesFilterSidebar, { DEFAULT_FILTERS, type DishFilters } from './Dishes
 // still reads group-by-group instead of a random jumble.
 const SLOT_ORDER: Record<Slot, number> = Object.fromEntries(VISIBLE_SLOTS.map((s, i) => [s, i])) as Record<Slot, number>
 
-// Shared column widths for the split header/body tables below — table-fixed
-// + an identical <colgroup> on both is what keeps their columns pixel-aligned
-// even though they're two separate <table> elements (see the render's own
-// comment for why they're split at all). Total also drives the min-width
-// both tables share, so they scroll horizontally in lockstep.
-const COLS = [
-  { label: 'Name', width: 220 },
-  { label: 'Group', width: 110 },
-  { label: 'Protein', width: 110 },
-  { label: 'Tier', width: 100 },
-  { label: 'Active', width: 80 },
-  { label: 'Rating', width: 110 },
-  { label: 'Actions', width: 160 },
-]
-const TABLE_MIN_WIDTH = COLS.reduce((sum, c) => sum + c.width, 0)
-
 export default function DishesClient({ initialDishes, initialEditId = null }:
   { initialDishes: Dish[]; initialEditId?: string | null }) {
   const [dishes, setDishes] = useState<Dish[]>(initialDishes)
@@ -37,16 +21,6 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
   const [editingId, setEditingId] = useState<string | null>(initialEditId)
   const [focusId, setFocusId] = useState<string | null>(null)
   const editing = dishes.find(d => d.id === editingId) ?? null
-  const headerScrollRef = useRef<HTMLDivElement>(null)
-  const bodyScrollRef = useRef<HTMLDivElement>(null)
-  // The header lives in its own div, genuinely sticky to the PAGE (it's a
-  // sibling of, not nested inside, the body's horizontally-scrolling div —
-  // see the render's comment for why that split is necessary). Keeping the
-  // two visually aligned as she scrolls the body sideways just means
-  // copying scrollLeft across on every scroll event.
-  function syncHeaderScroll() {
-    if (headerScrollRef.current && bodyScrollRef.current) headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft
-  }
 
   // Arriving from a recipe page ("Edit in Dishes") opens the editor for that
   // dish and scrolls its row into view.
@@ -118,38 +92,38 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
       <DishesFilterSidebar filters={filters} onChange={setFilters} onAddDish={addDish} />
 
       <div className="flex-1 min-w-0 w-full">
-        {/* Split into two <table>s (header, body) instead of one — a
-            single table can't have BOTH "sticky header while the PAGE
-            scrolls vertically" AND "horizontal scroll contained to the
-            table" at once. Per the CSS overflow spec, any non-visible
-            overflow-x forces overflow-y to compute to auto too, which
-            makes a horizontally-scrolling wrapper a sticky-positioning
-            container in its own right — but since it's never
-            height-bounded (that's the point: the page scrolls, not an
-            inner pane), it never actually scrolls itself, so a sticky
-            <th> inside it would just sit static. Splitting the header out
-            into its OWN div — a sibling of, not nested inside, the
-            scrolling body — sidesteps that entirely: this div has no
-            overflow-x of its own, so it's free to genuinely stick to the
-            page. Its horizontal position is kept in sync with the body's
-            scroll via scrollLeft on every scroll event. table-fixed + an
-            identical <colgroup> on both tables is what keeps every column
-            pixel-aligned between them despite being separate elements. */}
-        <div ref={headerScrollRef} className="sticky top-20 z-20 bg-white border border-stone-200 rounded-t-2xl overflow-x-hidden">
-          <table className="w-full text-sm table-fixed" style={{ minWidth: TABLE_MIN_WIDTH }}>
-            <colgroup>{COLS.map(c => <col key={c.label} style={{ width: c.width }} />)}</colgroup>
+        {/* Bounded height + its OWN scroll (overflow-auto, both axes) —
+            NOT the "page scrolls, table just grows" design from two
+            rounds ago. That design turned out to hit a real, reproducible
+            Chromium rendering bug: an unbounded-height overflow-x-auto
+            wrapper (the CSS spec forces overflow-y to compute to auto too
+            the moment overflow-x isn't visible) would go visibly BLANK
+            once the page scrolled it mostly out of the viewport — even
+            though getBoundingClientRect proved the DOM/layout underneath
+            was completely correct the whole time. Reproduced live with
+            Playwright on both local dev and production, with a REAL
+            scroll (PageDown), not just a JS scrollTo. Confirmed the exact
+            trigger by process of elimination: setting that div's
+            overflow-x to visible made the corruption disappear instantly;
+            reintroducing a genuine bounded scroll pane here (this div
+            actually scrolling itself, same as it did several iterations
+            ago) does not reproduce it at any point. A real browser bug
+            beats a preference — bounded it is. This also means sticky
+            works natively again (top-0, relative to THIS pane), no
+            JS-synced split-header hack needed. */}
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-auto max-h-[calc(100vh-6rem)]">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                <th className="px-3 py-2 font-medium bg-white md:sticky md:left-0 md:z-10 md:border-r md:border-stone-100">Name</th>
-                {COLS.slice(1).map(c => <th key={c.label} className="px-3 py-2 font-medium">{c.label}</th>)}
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white md:border-r md:border-stone-100">Name</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Group</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Protein</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Tier</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Active</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Rating</th>
+                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Actions</th>
               </tr>
             </thead>
-          </table>
-        </div>
-        <div ref={bodyScrollRef} onScroll={syncHeaderScroll}
-          className="bg-white border border-t-0 border-stone-200 rounded-b-2xl overflow-x-auto">
-          <table className="w-full text-sm table-fixed" style={{ minWidth: TABLE_MIN_WIDTH }}>
-            <colgroup>{COLS.map(c => <col key={c.label} style={{ width: c.width }} />)}</colgroup>
             <tbody>
               {filtered.map(d => <DishRow key={d.id} dish={d} onPatch={patch} onSync={syncDish} onEdit={() => setEditingId(d.id)}
                 onDelete={deleteDish} autoFocus={d.id === focusId} highlight={d.id === initialEditId} />)}
@@ -191,7 +165,7 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
   }, [])
   return (
     <tr id={`dish-${dish.id}`} className={`border-b border-stone-50 last:border-0 ${highlight ? 'bg-orange-50/60' : ''}`}>
-      <td className={`px-3 py-1.5 md:sticky md:left-0 md:z-10 md:border-r md:border-stone-100 ${highlight ? 'bg-orange-50' : 'bg-white'}`}>
+      <td className={`px-3 py-1.5 md:border-r md:border-stone-100 ${highlight ? 'bg-orange-50' : 'bg-white'}`}>
         <div className="flex items-center gap-2">
           <div className="relative shrink-0">
             <DishImage imageUrl={dish.recipe_image_url} protein={dish.protein} name={dish.name}
