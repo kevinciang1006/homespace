@@ -234,7 +234,13 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   }
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 items-start">
+    // items-start deliberately omitted — see the identical note in
+    // DishesClient.tsx: without it (i.e. with the default stretch), the
+    // sidebar's containing block stretches to match the day-grid's height,
+    // which is what actually gives position:sticky room to work. With
+    // items-start, the aside was only ever as tall as its own content, so
+    // sticky had nowhere to go and un-stuck itself immediately on scroll.
+    <div className="flex flex-col sm:flex-row gap-4">
       <PlanSidebar
         dayHref={`/meals/day/${isoDate(new Date())}`}
         generating={generating} onGenerate={generate}
