@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
+import { attachAvailability } from '@/lib/stock/ledger'
 
-const SELECT = '*, ingredients(name, category, default_unit, shelf_stable)'
+const SELECT = '*, ingredients(name, category, default_unit, shelf_stable, satisfies_group)'
 const today = () => new Date().toISOString().slice(0, 10)
 
 // PATCH: inline edit (on_hand, unit, low_threshold, and/or location — e.g.
@@ -51,7 +52,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       unit, ref_type: 'manual', ref_date: today(), note: 'manual',
     })
   }
-  return Response.json(data)
+  const [withAvailability] = await attachAvailability([data])
+  return Response.json(withAvailability)
 }
 
 // DELETE: removing a tracked item is itself a correction down to zero —

@@ -1,14 +1,17 @@
 import { supabase } from '@/lib/supabase'
+import { attachAvailability } from '@/lib/stock/ledger'
 
-const SELECT = '*, ingredients(name, category, default_unit, shelf_stable)'
+const SELECT = '*, ingredients(name, category, default_unit, shelf_stable, satisfies_group)'
 const today = () => new Date().toISOString().slice(0, 10)
 
 // GET: the whole stock table, joined for display — small dataset (one row
 // per ingredient per location), fetch once like /api/meals/ingredients.
+// Layer 2 adds `reserved`/`available` per row via attachAvailability — see
+// that function for what those mean for a group (satisfies_group) ingredient.
 export async function GET() {
   const { data, error } = await supabase.from('stock').select(SELECT).order('location')
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json(data)
+  return Response.json(await attachAvailability(data ?? []))
 }
 
 // POST: add a new stock item (an ingredient newly tracked in a location).
@@ -37,5 +40,6 @@ export async function POST(request: Request) {
       ref_type: 'manual', ref_date: today(), note: 'manual',
     })
   }
-  return Response.json(data)
+  const [withAvailability] = await attachAvailability([data])
+  return Response.json(withAvailability)
 }

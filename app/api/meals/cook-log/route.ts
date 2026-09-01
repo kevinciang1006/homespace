@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { weekDates } from '@/lib/meals/dates'
+import { consumeForDish, reconcilePlanDateReservations } from '@/lib/stock/ledger'
 
 function loggedBy(raw?: string): string | null {
   if (!raw) return null
@@ -44,8 +45,29 @@ export async function POST(request: Request) {
 
   const rows = entries.map(e => ({ ...e, cook_date, logged_by: by }))
   if (rows.length === 0) return Response.json({ entries: [] })
+
+  // Only a genuine not-cooked -> cooked transition should deplete stock —
+  // re-saving an already-cooked entry (e.g. she just swapped the actual dish
+  // via CookLogSheet while leaving it checked) must not consume twice.
+  const { data: existingRaw } = await supabase.from('cook_log')
+    .select('slot, role, cooked').eq('cook_date', cook_date)
+    .in('slot', rows.map(r => r.slot))
+  const wasCooked = new Set(
+    (existingRaw ?? []).filter((e: { cooked: boolean }) => e.cooked)
+      .map((e: { slot: string; role: string }) => `${e.slot}|${e.role}`),
+  )
+  const newlyCooked = rows.filter(r => r.cooked && !wasCooked.has(`${r.slot}|${r.role}`))
+
   const { data, error } = await supabase.from('cook_log')
     .upsert(rows, { onConflict: 'cook_date,slot,role' }).select()
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  for (const r of newlyCooked) {
+    const dishId = r.actual_dish_id ?? r.planned_dish_id
+    if (dishId) await consumeForDish(dishId, cook_date).catch(e => console.error(`[stock] consume for ${dishId} failed:`, e))
+  }
+  if (newlyCooked.length) {
+    await reconcilePlanDateReservations(cook_date).catch(e => console.error(`[stock] reconcile ${cook_date} failed:`, e))
+  }
   return Response.json({ entries: data ?? [] })
 }

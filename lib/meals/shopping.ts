@@ -1,6 +1,7 @@
 import {
   formatQtyAmount, addToUnitClasses, dominantUnitClass, formatUnitClass, type UnitClass,
 } from './qty'
+import { availableForIngredient, unitClassBucketKey, type Buckets } from '../stock/availability'
 
 export type DishIngredient = { name: string; quantity?: string | null; category?: string | null }
 
@@ -12,6 +13,18 @@ export type BuiltIngredient = {
   quantity: string | null
   category: ShopCategory
   from_dishes: { dish: string; quantity?: string | null }[]
+  // Set only by buildShoppingListFromDishIngredients when stock availability
+  // is supplied — see the Layer 2 stock<->shopping gap comment there.
+  already_have?: boolean
+}
+// Passed to buildShoppingListFromDishIngredients to turn "needed" into "gap"
+// — on_hand bucketed by ingredient (exact match) and by satisfies_group
+// (pooled match, e.g. any Ikan stock covers a dish's generic "Ikan" need),
+// and net reserved (already spoken for by OTHER planned meals) bucketed by
+// ingredient the same way. See lib/stock/availability.ts.
+export type StockAvailability = {
+  stockBuckets: { byIngredient: Map<string, Buckets>; byGroup: Map<string, Buckets> }
+  reservedByIngredient: Map<string, Map<string, number>>
 }
 export type MixedUnitWarning = { ingredient: string; detail: string }
 export type BuiltList = {
@@ -98,7 +111,10 @@ export function buildShoppingList(
 // units for the same ingredient are kept as separate "amount unit" segments
 // joined with " + "), just keyed by ingredient_id instead of a normalized
 // name string — the normalization already happened once, at migration time.
-export type IngredientRef = { id: string; name: string; category: string | null; default_unit: string | null; shelf_stable?: boolean }
+export type IngredientRef = {
+  id: string; name: string; category: string | null; default_unit: string | null; shelf_stable?: boolean
+  satisfies_group?: string | null
+}
 export type DishIngredientLink = { ingredient_id: string; amount: number | null; unit: string | null }
 
 export function buildShoppingListFromDishIngredients(
@@ -106,9 +122,10 @@ export function buildShoppingListFromDishIngredients(
   dishIngredientsByDish: Map<string, DishIngredientLink[]>,
   ingredientById: Map<string, IngredientRef>,
   dishMetaById: Map<string, { name: string; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }>,
+  stock?: StockAvailability,
 ): BuiltList {
   const agg = new Map<string, {
-    ingredient: string; category: ShopCategory
+    ingredient_id: string; ingredient: string; category: ShopCategory; satisfies_group: string | null
     from_dishes: BuiltIngredient['from_dishes']
     classes: Map<string, UnitClass>
   }>()
@@ -139,7 +156,8 @@ export function buildShoppingListFromDishIngredients(
       if (ing.shelf_stable) continue
       let row = agg.get(ing.id)
       if (!row) {
-        row = { ingredient: ing.name, category: normalizeCategory(ing.category), from_dishes: [], classes: new Map() }
+        row = { ingredient_id: ing.id, ingredient: ing.name, category: normalizeCategory(ing.category),
+          satisfies_group: ing.satisfies_group ?? null, from_dishes: [], classes: new Map() }
         agg.set(ing.id, row)
       }
       const amount = link.amount
@@ -152,7 +170,7 @@ export function buildShoppingListFromDishIngredients(
   const catOrder = (c: ShopCategory) => SHOP_CATEGORIES.indexOf(c)
   const mixedUnitWarnings: MixedUnitWarning[] = []
   const ingredients: BuiltIngredient[] = [...agg.values()]
-    .map(({ classes, ...r }) => {
+    .map(({ classes, ingredient_id, satisfies_group, ...r }) => {
       const dominant = dominantUnitClass(classes)
       if (classes.size > 1) {
         const detail = [...classes.values()]
@@ -160,7 +178,32 @@ export function buildShoppingListFromDishIngredients(
           .join(' vs ')
         mixedUnitWarnings.push({ ingredient: r.ingredient, detail: `mixed units: ${detail} — using ${dominant ? formatUnitClass(dominant) : '?'}` })
       }
-      return { ...r, quantity: dominant ? formatUnitClass(dominant) : null }
+      if (!dominant) return { ...r, quantity: null }
+
+      // Layer 2: needed -> gap. Only the dominant bucket gets stock-matched
+      // (a mixed-unit ingredient's minor classes are already flagged above,
+      // not something to also guess coverage for). Fully covered -> marked
+      // already_have (excluded from the WhatsApp message, still shown on the
+      // app page); partially covered -> the buy quantity shrinks to the gap
+      // and the covered portion is named alongside it.
+      if (stock) {
+        const key = unitClassBucketKey(dominant)
+        const availableBase = availableForIngredient({ id: ingredient_id, satisfies_group }, key, stock.stockBuckets, stock.reservedByIngredient)
+        if (availableBase > 0) {
+          const coveredBase = Math.min(dominant.total, availableBase)
+          const gapBase = dominant.total - coveredBase
+          if (gapBase <= 0) {
+            return { ...r, quantity: formatUnitClass(dominant), already_have: true }
+          }
+          const gapClass: UnitClass = { ...dominant, total: gapBase }
+          const coveredClass: UnitClass = { ...dominant, total: coveredBase }
+          return { ...r, quantity: `${formatUnitClass(gapClass)} (have ${formatUnitClass(coveredClass)} in stock)`, already_have: false }
+        }
+        // availableBase <= 0 (no stock, or fully claimed by other reservations) —
+        // still an explicit false, not left undefined, now that `stock` was given.
+        return { ...r, quantity: formatUnitClass(dominant), already_have: false }
+      }
+      return { ...r, quantity: formatUnitClass(dominant) }
     })
     .sort((a, b) => catOrder(a.category) - catOrder(b.category) || a.ingredient.localeCompare(b.ingredient))
 
@@ -179,6 +222,9 @@ export type ShoppingRow = {
   quantity: string | null
   category: string
   from_dishes: { dish: string; quantity?: string | null }[]
+  // System-computed stock coverage (see StockAvailability above) — refreshed
+  // on every merge, unlike `checked` which stays purely user-owned.
+  already_have: boolean
 }
 
 // Minimal shape the merge needs from an already-persisted item.
@@ -190,7 +236,7 @@ export type ExistingShoppingItem = {
 
 export type ShoppingMerge = {
   toInsert: ShoppingRow[]
-  toUpdate: { id: string; quantity: string | null; category: string; from_dishes: ShoppingRow['from_dishes'] }[]
+  toUpdate: { id: string; quantity: string | null; category: string; from_dishes: ShoppingRow['from_dishes']; already_have: boolean }[]
   toDelete: string[]
 }
 
@@ -200,9 +246,10 @@ export function targetRows(built: BuiltList): ShoppingRow[] {
   return [
     ...built.ingredients.map(i => ({
       ingredient: i.ingredient, quantity: i.quantity, category: i.category as string, from_dishes: i.from_dishes,
+      already_have: i.already_have ?? false,
     })),
     ...built.dishesWithoutIngredients.map(name => ({
-      ingredient: name, quantity: null, category: 'dish', from_dishes: [{ dish: name }],
+      ingredient: name, quantity: null, category: 'dish', from_dishes: [{ dish: name }], already_have: false,
     })),
   ]
 }
@@ -210,7 +257,8 @@ export function targetRows(built: BuiltList): ShoppingRow[] {
 // Reconcile the freshly-built rows against what's already saved, WITHOUT wiping
 // user state. Manual items (from_dishes == null) are never touched. Plan-derived
 // ("auto") items are matched by normalized ingredient name: matches are refreshed
-// (checked/already_have are left alone by not updating them); unmatched auto rows
+// (checked is left alone by not updating it; already_have IS refreshed — it's
+// system-computed stock coverage now, not a manual mark); unmatched auto rows
 // are deleted; brand-new built rows are inserted.
 export function mergeShoppingItems(existing: ExistingShoppingItem[], built: BuiltList): ShoppingMerge {
   const norm = (s: string) => s.trim().toLowerCase()
@@ -233,7 +281,7 @@ export function mergeShoppingItems(existing: ExistingShoppingItem[], built: Buil
     if (matchedKeys.has(key)) continue
     matchedKeys.add(key)
     const match = autoByKey.get(key)
-    if (match) toUpdate.push({ id: match.id, quantity: row.quantity, category: row.category, from_dishes: row.from_dishes })
+    if (match) toUpdate.push({ id: match.id, quantity: row.quantity, category: row.category, from_dishes: row.from_dishes, already_have: row.already_have })
     else toInsert.push(row)
   }
 

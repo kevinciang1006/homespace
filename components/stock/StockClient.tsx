@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { INGREDIENT_CATEGORIES, type Ingredient, type IngredientCategory } from '@/lib/meals/types'
-import { INGREDIENT_UNITS } from '@/lib/meals/qty'
+import { INGREDIENT_UNITS, formatQtyAmount } from '@/lib/meals/qty'
 import { STOCK_LOCATIONS, type StockItem, type StockLocation } from '@/lib/stock/types'
 import UndoSnackbar from '@/components/UndoSnackbar'
 import { useDropdown } from '@/components/useDropdown'
@@ -28,6 +28,25 @@ function parseQty(raw: string): number | null {
   if (cleaned === '') return null
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : null
+}
+
+// Rounds away the float noise unit conversion can leave behind (e.g.
+// 799.9999999998 instead of 800) before showing a reserved/available figure.
+function roundQty(n: number): number {
+  return Math.round(n * 1000) / 1000
+}
+// Layer 2: this week's meal plan has already spoken for some of on_hand.
+// For a group ingredient (satisfies_group set) reserved/available are
+// pooled across every member — see attachAvailability — so this note
+// reads a little differently there ("shared across the group") to avoid
+// implying THIS specific item alone is what's reserved.
+function formatReserveNote(item: StockItem): string {
+  const unit = item.unit ?? ''
+  const available = formatQtyAmount(roundQty(item.available), unit)
+  const reserved = formatQtyAmount(roundQty(item.reserved), unit)
+  return item.ingredients?.satisfies_group
+    ? `${reserved} reserved across the ${item.ingredients.satisfies_group} group — ${available} available`
+    : `${reserved} reserved for planned meals — ${available} available`
 }
 
 // Layer 1: manual stock entry only (see AGENTS request) — input, view, edit,
@@ -275,7 +294,10 @@ function StockRow({ item, onPatch, onDelete, onEditCategory, onMoveLocation }: {
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [threshold, setThreshold] = useState(item.low_threshold != null ? String(item.low_threshold) : '')
   const [editingCategory, setEditingCategory] = useState(false)
-  const isLow = item.low_threshold != null && Number(item.on_hand) <= Number(item.low_threshold)
+  // Low-stock is judged on what's actually AVAILABLE (on_hand minus whatever
+  // this week's meal plan has already reserved), not raw on_hand — an item
+  // can look fully stocked but be functionally low once spoken for.
+  const isLow = item.low_threshold != null && item.available <= Number(item.low_threshold)
 
   // No effect syncing local state from `item` on every prop change (matching
   // DishIngredientsEditor's IngredientLinkRow) — the only writes to
@@ -329,6 +351,11 @@ function StockRow({ item, onPatch, onDelete, onEditCategory, onMoveLocation }: {
             </button>
           )}
         </div>
+        {item.reserved > 0 && (
+          <div className="text-[11px] text-orange-600 mt-0.5">
+            {formatReserveNote(item)}
+          </div>
+        )}
       </div>
       <input type="text" inputMode="decimal" value={amount}
         onChange={e => setAmount(e.target.value)} onBlur={saveAmount}

@@ -4,6 +4,7 @@ import { generateWeek, validateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
 import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 import { deriveWeekPrepTasks, type PlannedDish, type PrepTaskDraft } from '@/lib/meals/prepTasks'
+import { reconcilePlanDateReservations } from '@/lib/stock/ledger'
 
 const rng = () => Math.random()
 const DESSERT_HISTORY_LOOKBACK_WEEKS = 4 // covers both the 3-week cake cooldown and the 2-week monthly-fruit cooldown
@@ -117,6 +118,10 @@ export async function POST(request: Request) {
     const { error } = await supabase.from('meal_plans').insert(rows)
     if (error) return Response.json({ error: error.message }, { status: 500 })
   }
+
+  // Stock reservations for the whole week, now that the plan is settled.
+  // Best-effort — a reservation hiccup shouldn't fail week generation itself.
+  await Promise.all(days.map(d => reconcilePlanDateReservations(d).catch(e => console.error(`[stock] reconcile ${d} failed:`, e))))
 
   const { data: week } = await supabase
     .from('meal_plans')

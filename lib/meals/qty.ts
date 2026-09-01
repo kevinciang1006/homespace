@@ -48,6 +48,17 @@ export function toBaseAmount(amount: number, unit: string): number {
   return amount
 }
 
+// Inverse of toBaseAmount — grams/ml back to a specific stock row's own
+// native unit, so a base-unit deduction (e.g. "consume 300g" computed across
+// a whole ingredient/group) can be applied to that row's on_hand, which is
+// stored in whatever unit that row happens to use (g or kg).
+export function fromBaseAmount(baseAmount: number, unit: string): number {
+  const u = unit.trim().toLowerCase()
+  if (u === 'kg') return baseAmount / 1000
+  if (u === 'l' || u === 'liter' || u === 'litre' || u === 'liters' || u === 'litres') return baseAmount / 1000
+  return baseAmount
+}
+
 // grams -> "300g" below 1000, "1.45kg" (1 decimal, trimmed) at/above 1000.
 // ml -> "300ml" / "1.5L" the same way.
 export function formatBaseAmount(amount: number, kind: 'weight' | 'volume'): string {

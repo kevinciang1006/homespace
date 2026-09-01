@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Plus, Check } from 'lucide-react'
 import { SHOP_CATEGORIES, type ShopCategory } from '@/lib/meals/shopping'
 import {
   classifyShoppingGroup, sectionOf, shoppingSubRank, SHOPPING_SECTION_ORDER, SHOPPING_SECTION_LABEL, type ShoppingSection,
@@ -199,15 +199,28 @@ function ItemRow({ item, onCheck, onDelete }: {
         style={{ transform: `translateX(${dragX}px)`, transition: dragging ? 'none' : 'transform 0.2s' }}
         className="relative bg-white flex items-center gap-3 px-4 py-3"
       >
-        <button onClick={() => onCheck(item.id, { checked: !item.checked })} aria-label="Bought"
-          className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-            item.checked ? 'border-green-400 bg-green-400' : 'border-stone-300 hover:border-stone-400'}`}>
-          {item.checked && <span className="text-white text-xs">✓</span>}
-        </button>
-        <span className={`flex-1 min-w-0 truncate text-sm ${item.checked ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+        {item.already_have ? (
+          <span className="w-5 h-5 rounded-full border-2 border-green-200 bg-green-50 shrink-0 flex items-center justify-center text-green-600" aria-hidden="true">
+            <Check size={12} />
+          </span>
+        ) : (
+          <button onClick={() => onCheck(item.id, { checked: !item.checked })} aria-label="Bought"
+            className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+              item.checked ? 'border-green-400 bg-green-400' : 'border-stone-300 hover:border-stone-400'}`}>
+            {item.checked && <span className="text-white text-xs">✓</span>}
+          </button>
+        )}
+        <span className={`flex-1 min-w-0 truncate text-sm ${item.already_have || item.checked ? 'text-stone-400' : 'text-stone-800'} ${item.checked && !item.already_have ? 'line-through' : ''}`}>
           {item.ingredient}
         </span>
-        {item.quantity && <span className="shrink-0 text-sm text-stone-500">{item.quantity}</span>}
+        {item.already_have ? (
+          <span className="shrink-0 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full whitespace-nowrap"
+            title="Covered by what's already in stock — not on this week's buy list">
+            ✓ in stock
+          </span>
+        ) : (
+          item.quantity && <span className="shrink-0 text-sm text-stone-500">{item.quantity}</span>
+        )}
         <button onClick={() => onDelete(item)} className="hidden sm:inline-flex shrink-0 text-stone-300 hover:text-red-500" aria-label="Delete">
           <Trash2 size={14} />
         </button>

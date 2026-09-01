@@ -8,6 +8,12 @@ import { pickDessertBatch, DESSERT_WEEK_CAP, type DessertBatchOptions } from '@/
 import { pickEveningFruitBatch, EVENING_FRUIT_WEEK_CAP, EVENING_FRUIT_MIN_DAYS, EVENING_FRUIT_MAX_DAYS, type EveningFruitOptions } from '@/lib/meals/eveningFruit'
 import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 import { weekDates, mondayOf } from '@/lib/meals/dates'
+import { reconcilePlanDateReservations } from '@/lib/stock/ledger'
+
+// Best-effort — a reservation hiccup shouldn't fail a reroll itself.
+async function reconcileDates(dates: string[]): Promise<void> {
+  await Promise.all(dates.map(d => reconcilePlanDateReservations(d).catch(e => console.error(`[stock] reconcile ${d} failed:`, e))))
+}
 
 const rng = () => Math.random()
 const SELECT = '*, dishes(tier, spicy, richness, provides_soup, recipe_image_url, protein, saltiness, difficulty, method, slot, recipe_links, qty_amount, qty_unit, qty_note, veg_portions, fruit_portions, self_sufficient_main)'
@@ -152,6 +158,7 @@ export async function POST(request: Request) {
         locked: false, role: p.role, skipped: p.skipped })))
       if (error) return Response.json({ error: error.message }, { status: 500 })
     }
+    await reconcileDates([plan_date])
     const { data: day } = await supabase.from('meal_plans').select(SELECT).eq('plan_date', plan_date)
     return Response.json({ day: (day ?? []) as MealPlan[] })
   }
@@ -201,6 +208,7 @@ export async function POST(request: Request) {
         .upsert({ ...row, locked: false }, { onConflict: 'plan_date,slot,role' })
       if (error) return Response.json({ error: error.message }, { status: 500 })
     }
+    await reconcileDates(week)
     const { data: weekRows } = await supabase.from('meal_plans').select(SELECT).gte('plan_date', week[0]).lte('plan_date', week[6])
     return Response.json({ week: (weekRows ?? []) as MealPlan[] })
   }
@@ -286,6 +294,7 @@ export async function POST(request: Request) {
         if (error) return Response.json({ error: error.message }, { status: 500 })
       }
     }
+    await reconcileDates(week)
     const { data: weekRows } = await supabase.from('meal_plans').select(SELECT).gte('plan_date', week[0]).lte('plan_date', week[6])
     return Response.json({ week: (weekRows ?? []) as MealPlan[] })
   }
@@ -315,7 +324,8 @@ export async function POST(request: Request) {
         .upsert({ plan_date, slot: 'utama', dish_id: d.id, dish_name: d.name, locked: false, role: 'main', skipped: false },
           { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
       if (error) return Response.json({ error: error.message }, { status: 500 })
-      return Response.json({ pick: data as MealPlan })
+      await reconcileDates([plan_date])
+    return Response.json({ pick: data as MealPlan })
     }
     const { ctx, slotDishes } = buildSingleContext(plan_date, 'utama', allDishes, plans, week)
     const p = pickForSlot(slotDishes, ctx, rng)
@@ -323,6 +333,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'utama', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'main', skipped: false },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -336,7 +347,8 @@ export async function POST(request: Request) {
         .upsert({ plan_date, slot: 'breakfast', dish_id: d.id, dish_name: d.name, locked: false, role: 'breakfast', skipped: false },
           { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
       if (error) return Response.json({ error: error.message }, { status: 500 })
-      return Response.json({ pick: data as MealPlan })
+      await reconcileDates([plan_date])
+    return Response.json({ pick: data as MealPlan })
     }
     const { ctx, breakfastPool, isSpecialDay } = buildBreakfastContext(plan_date, allDishes, plans, week)
     const p = pickBreakfast(breakfastPool, ctx, isSpecialDay, rng)
@@ -344,6 +356,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'breakfast', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'breakfast', skipped: false },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -357,6 +370,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'desert', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'optional', skipped: p.skipped },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -369,6 +383,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'breakfast', skipped: p.skipped },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -382,6 +397,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'fruit', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'optional', skipped: p.skipped },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -396,7 +412,8 @@ export async function POST(request: Request) {
         .upsert({ plan_date, slot: 'pelengkap', dish_id: d.id, dish_name: d.name, locked: false, role: 'support', skipped: false },
           { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
       if (error) return Response.json({ error: error.message }, { status: 500 })
-      return Response.json({ pick: data as MealPlan })
+      await reconcileDates([plan_date])
+    return Response.json({ pick: data as MealPlan })
     }
     const helperPool = hAllDishes.filter(d => d.is_dish_helper === true)
     const { ctx } = buildSingleContext(plan_date, 'pelengkap', hAllDishes, hPlans, hWeek, 'pelengkap')
@@ -405,6 +422,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot: 'pelengkap', dish_id: p.dish_id, dish_name: p.dish_name, locked: false, role: 'support', skipped: p.skipped },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
 
@@ -418,6 +436,7 @@ export async function POST(request: Request) {
       .upsert({ plan_date, slot, dish_id: d.id, dish_name: d.name, locked: false, role: rowRole, skipped: false },
         { onConflict: 'plan_date,slot,role' }).select(SELECT).single()
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    await reconcileDates([plan_date])
     return Response.json({ pick: data as MealPlan })
   }
   const { ctx, slotDishes } = buildSingleContext(plan_date, slot as Slot, allDishes, plans, week)

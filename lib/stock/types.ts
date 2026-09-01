@@ -18,7 +18,13 @@ export type StockItem = {
   updated_at: string
   created_at: string
   // Joined for display — same shape as dish_ingredients' join (DishIngredientDetail).
-  ingredients: { name: string; category: IngredientCategory | null; default_unit: string | null; shelf_stable: boolean } | null
+  ingredients: { name: string; category: IngredientCategory | null; default_unit: string | null; shelf_stable: boolean; satisfies_group: string | null } | null
+  // Layer 2 — see lib/stock/ledger.ts's attachAvailability. Pooled across
+  // locations (and across a satisfies_group's members) rather than specific
+  // to this one row; every row sharing an ingredient/group reports the same
+  // figures.
+  reserved: number
+  available: number
 }
 
 export type StockMovement = {

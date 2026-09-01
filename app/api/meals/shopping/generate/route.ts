@@ -2,9 +2,31 @@ import { supabase } from '@/lib/supabase'
 import { weekDates } from '@/lib/meals/dates'
 import {
   buildShoppingListFromDishIngredients, mergeShoppingItems,
-  type IngredientRef, type DishIngredientLink, type ExistingShoppingItem,
+  type IngredientRef, type DishIngredientLink, type ExistingShoppingItem, type StockAvailability,
 } from '@/lib/meals/shopping'
+import { bucketStockOnHand, bucketReserved, type StockRowLite, type ReservedMovementLite } from '@/lib/stock/availability'
 import type { MealShoppingList, MealShoppingItem } from '@/lib/meals/types'
+
+// Stock isn't scoped to a specific week — a fish in the freezer covers
+// whatever week needs it. Reserved (ref_type='meal_plan') is real-time
+// across ALL currently-planned weeks too, so two different weeks' shopping
+// lists both correctly see the same fish as partly-or-fully spoken for.
+async function loadStockAvailability(): Promise<StockAvailability> {
+  const [{ data: stockRaw }, { data: movementsRaw }] = await Promise.all([
+    supabase.from('stock').select('ingredient_id, on_hand, unit, ingredients(satisfies_group)'),
+    supabase.from('stock_movements').select('ingredient_id, kind, amount, unit')
+      .eq('ref_type', 'meal_plan').in('kind', ['reserve', 'release', 'consume']),
+  ])
+  type StockJoinRow = { ingredient_id: string; on_hand: number; unit: string | null; ingredients: { satisfies_group: string | null }[] | { satisfies_group: string | null } | null }
+  const stockRows: StockRowLite[] = ((stockRaw ?? []) as StockJoinRow[]).map(r => {
+    const joined = Array.isArray(r.ingredients) ? r.ingredients[0] : r.ingredients
+    return { ingredient_id: r.ingredient_id, on_hand: Number(r.on_hand), unit: r.unit, satisfies_group: joined?.satisfies_group ?? null }
+  })
+  return {
+    stockBuckets: bucketStockOnHand(stockRows),
+    reservedByIngredient: bucketReserved((movementsRaw ?? []) as ReservedMovementLite[]),
+  }
+}
 
 export async function POST(request: Request) {
   const { weekStart } = await request.json()
@@ -46,13 +68,16 @@ export async function POST(request: Request) {
   }
 
   const ingredientIds = [...new Set((dishIngredientsRaw as DishIngredientRawRow[] ?? []).map(r => r.ingredient_id))]
-  const { data: ingredientsRaw } = ingredientIds.length
-    ? await supabase.from('ingredients').select('id, name, category, default_unit, shelf_stable').in('id', ingredientIds)
-    : { data: [] }
+  const [{ data: ingredientsRaw }, stock] = await Promise.all([
+    ingredientIds.length
+      ? supabase.from('ingredients').select('id, name, category, default_unit, shelf_stable, satisfies_group').in('id', ingredientIds)
+      : Promise.resolve({ data: [] }),
+    loadStockAvailability(),
+  ])
   const ingredientById = new Map<string, IngredientRef>((ingredientsRaw as IngredientRef[] ?? []).map(i => [i.id, i]))
 
   const built = buildShoppingListFromDishIngredients(
-    plans.map(p => ({ dish_id: p.dish_id, dish_name: p.dish_name })), dishIngredientsByDish, ingredientById, dishMetaById,
+    plans.map(p => ({ dish_id: p.dish_id, dish_name: p.dish_name })), dishIngredientsByDish, ingredientById, dishMetaById, stock,
   )
   // Surfaced here (not thrown) — a mixed-unit ingredient still gets a usable
   // total (see dominantUnitClass), this is just a nudge to go fix the dish
@@ -80,7 +105,7 @@ export async function POST(request: Request) {
   if (toInsert.length) {
     const rows = toInsert.map(r => ({
       list_id: list.id, ingredient: r.ingredient, quantity: r.quantity, category: r.category,
-      already_have: false, checked: false, from_dishes: r.from_dishes,
+      already_have: r.already_have, checked: false, from_dishes: r.from_dishes,
     }))
     const { error } = await supabase.from('meal_shopping_items').insert(rows)
     if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -88,7 +113,7 @@ export async function POST(request: Request) {
   if (toUpdate.length) {
     const results = await Promise.all(toUpdate.map(u =>
       supabase.from('meal_shopping_items')
-        .update({ quantity: u.quantity, category: u.category, from_dishes: u.from_dishes })
+        .update({ quantity: u.quantity, category: u.category, from_dishes: u.from_dishes, already_have: u.already_have })
         .eq('id', u.id)))
     const failed = results.find(r => r.error)
     if (failed?.error) return Response.json({ error: failed.error.message }, { status: 500 })

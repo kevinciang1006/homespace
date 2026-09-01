@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   buildShoppingList, buildShoppingListFromDishIngredients, normalizeCategory, mergeShoppingItems,
   type DishIngredient, type BuiltList, type ExistingShoppingItem, type ShopCategory,
-  type IngredientRef, type DishIngredientLink,
+  type IngredientRef, type DishIngredientLink, type StockAvailability,
 } from './shopping'
+import { bucketStockOnHand, bucketReserved } from '../stock/availability'
 
 type D = { name: string; ingredients: DishIngredient[] | null; qty_amount?: number | null; qty_unit?: string | null; qty_note?: string | null }
 function map(dishes: (D & { id: string })[]): Map<string, D> {
@@ -211,6 +212,87 @@ describe('buildShoppingListFromDishIngredients', () => {
   })
 })
 
+describe('buildShoppingListFromDishIngredients: stock gap (Layer 2)', () => {
+  const dishMetaById = new Map([['a', { name: 'Dish A' }]])
+
+  it('a fully-covered ingredient is marked already_have (excluded from the WhatsApp list) but keeps its full quantity for the "in stock" display', () => {
+    const ingredientById = new Map<string, IngredientRef>([
+      ['ayam', { id: 'ayam', name: 'Ayam', category: 'protein', default_unit: 'g' }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([['a', [{ ingredient_id: 'ayam', amount: 500, unit: 'g' }]]])
+    const stock: StockAvailability = {
+      stockBuckets: bucketStockOnHand([{ ingredient_id: 'ayam', on_hand: 800, unit: 'g', satisfies_group: null }]),
+      reservedByIngredient: new Map(),
+    }
+    const out = buildShoppingListFromDishIngredients([{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById, stock)
+    const ayam = out.ingredients.find(i => i.ingredient === 'Ayam')!
+    expect(ayam.already_have).toBe(true)
+    expect(ayam.quantity).toBe('500g')
+  })
+
+  it('partial coverage buys only the gap and names the covered amount ("have 500g, need 800g -> buy 300g")', () => {
+    const ingredientById = new Map<string, IngredientRef>([
+      ['ayam', { id: 'ayam', name: 'Ayam', category: 'protein', default_unit: 'g' }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([['a', [{ ingredient_id: 'ayam', amount: 800, unit: 'g' }]]])
+    const stock: StockAvailability = {
+      stockBuckets: bucketStockOnHand([{ ingredient_id: 'ayam', on_hand: 500, unit: 'g', satisfies_group: null }]),
+      reservedByIngredient: new Map(),
+    }
+    const out = buildShoppingListFromDishIngredients([{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById, stock)
+    const ayam = out.ingredients.find(i => i.ingredient === 'Ayam')!
+    expect(ayam.already_have).toBe(false)
+    expect(ayam.quantity).toBe('300g (have 500g in stock)')
+  })
+
+  it('group match: a dish needing the generic "Ikan" is covered by specific fish stock (Ikan Kerapu/Kakap) sharing satisfies_group', () => {
+    const ingredientById = new Map<string, IngredientRef>([
+      ['ikan', { id: 'ikan', name: 'Ikan', category: 'protein', default_unit: 'ekor', satisfies_group: 'ikan' }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([['a', [{ ingredient_id: 'ikan', amount: 2, unit: 'ekor' }]]])
+    const stock: StockAvailability = {
+      stockBuckets: bucketStockOnHand([
+        { ingredient_id: 'ikan-kerapu', on_hand: 1, unit: 'ekor', satisfies_group: 'ikan' },
+        { ingredient_id: 'ikan-kakap', on_hand: 3, unit: 'ekor', satisfies_group: 'ikan' },
+      ]),
+      reservedByIngredient: new Map(),
+    }
+    const out = buildShoppingListFromDishIngredients([{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById, stock)
+    const ikan = out.ingredients.find(i => i.ingredient === 'Ikan')!
+    expect(ikan.already_have).toBe(true) // pooled 1+3=4 ekor covers the 2 ekor need
+  })
+
+  it('reserved stock (spoken for by another planned meal) reduces what a second need can claim', () => {
+    const ingredientById = new Map<string, IngredientRef>([
+      ['ikan', { id: 'ikan', name: 'Ikan', category: 'protein', default_unit: 'ekor', satisfies_group: 'ikan' }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([['a', [{ ingredient_id: 'ikan', amount: 2, unit: 'ekor' }]]])
+    const stock: StockAvailability = {
+      stockBuckets: bucketStockOnHand([{ ingredient_id: 'ikan-kerapu', on_hand: 2, unit: 'ekor', satisfies_group: 'ikan' }]),
+      reservedByIngredient: bucketReserved([{ ingredient_id: 'ikan', kind: 'reserve', amount: 2, unit: 'ekor' }]),
+    }
+    const out = buildShoppingListFromDishIngredients([{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById, stock)
+    const ikan = out.ingredients.find(i => i.ingredient === 'Ikan')!
+    expect(ikan.already_have).toBe(false)
+    expect(ikan.quantity).toBe('2 ekor') // nothing left available -> the full need still has to be bought
+  })
+
+  it('a need in an incompatible unit (ekor) is left uncovered by stock held in a different bucket (g) — conservative, not guessed', () => {
+    const ingredientById = new Map<string, IngredientRef>([
+      ['ikan', { id: 'ikan', name: 'Ikan', category: 'protein', default_unit: 'ekor', satisfies_group: 'ikan' }],
+    ])
+    const links = new Map<string, DishIngredientLink[]>([['a', [{ ingredient_id: 'ikan', amount: 2, unit: 'ekor' }]]])
+    const stock: StockAvailability = {
+      stockBuckets: bucketStockOnHand([{ ingredient_id: 'ikan-fillet', on_hand: 2000, unit: 'g', satisfies_group: 'ikan' }]),
+      reservedByIngredient: new Map(),
+    }
+    const out = buildShoppingListFromDishIngredients([{ dish_id: 'a', dish_name: 'Dish A' }], links, ingredientById, dishMetaById, stock)
+    const ikan = out.ingredients.find(i => i.ingredient === 'Ikan')!
+    expect(ikan.already_have).toBeFalsy()
+    expect(ikan.quantity).toBe('2 ekor')
+  })
+})
+
 // Build a BuiltList fixture concisely.
 function built(
   ingredients: { ingredient: string; category?: ShopCategory; quantity?: string | null; from?: string[] }[],
@@ -232,12 +314,12 @@ function ex(id: string, ingredient: string, manual = false): ExistingShoppingIte
 }
 
 describe('mergeShoppingItems', () => {
-  it('refreshes a matching auto item instead of recreating it (keeps its id, so checked/already_have survive)', () => {
+  it('refreshes a matching auto item instead of recreating it (keeps its id, so `checked` survives; already_have is refreshed — system-computed stock coverage, not manual)', () => {
     const m = mergeShoppingItems([ex('g1', 'Garlic')],
       built([{ ingredient: 'Garlic', category: 'vegetable', quantity: '2 cloves', from: ['Dish A'] }]))
     expect(m.toInsert).toEqual([])
     expect(m.toDelete).toEqual([])
-    expect(m.toUpdate).toEqual([{ id: 'g1', quantity: '2 cloves', category: 'vegetable', from_dishes: [{ dish: 'Dish A' }] }])
+    expect(m.toUpdate).toEqual([{ id: 'g1', quantity: '2 cloves', category: 'vegetable', from_dishes: [{ dish: 'Dish A' }], already_have: false }])
   })
 
   it('leaves manual items (from_dishes null) untouched', () => {
