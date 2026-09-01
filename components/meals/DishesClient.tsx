@@ -110,35 +110,41 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
               <button onClick={() => addDish(slot)}
                 className="flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus size={15} /> Add dish</button>
             </div>
-            <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
+            {/* Bounded height with its OWN scroll (both axes) — a sticky <th>
+                only sticks within its nearest scrolling ancestor, and
+                overflow-x-auto alone (no bounded height) makes this div
+                that ancestor WITHOUT it ever actually scrolling vertically
+                itself, since the page scrolls instead. That combination is
+                why the header wasn't sticking at all before. */}
+            <div className="bg-white border border-stone-200 rounded-2xl overflow-auto max-h-[70vh]">
               <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   {/* Sticky below the meals layout's own sticky header (top-20 matches
                       PlanSidebar's offset for the same header). The Name cell also stays
                       sticky-left on desktop, so it sticks to both edges — a frozen corner. */}
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                    <th className="px-3 py-2 font-medium sticky top-20 z-20 bg-white md:left-0 md:border-r md:border-stone-100">Name</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Group</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Fruit context</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Cadence</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Produce role</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Prep type</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Helper</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Veg style</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Base key</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Protein</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Tier</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Method</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Salt</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Difficulty</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Spicy</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Rating</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Active</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Garnish</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Soup</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Self-sufficient</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Quantity</th>
-                    <th className="px-3 py-2 font-medium sticky top-20 z-10 bg-white">Recipe</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-20 bg-white md:left-0 md:border-r md:border-stone-100">Name</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Group</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Fruit context</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Cadence</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Produce role</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Prep type</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Helper</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Veg style</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Base key</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Protein</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Tier</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Method</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Salt</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Difficulty</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Spicy</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Rating</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Active</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Garnish</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Soup</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Self-sufficient</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Quantity</th>
+                    <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Recipe</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,9 +208,9 @@ function DishRow({ dish, onPatch, onSync, onEdit, onDelete, autoFocus, highlight
           </div>
           <div className="min-w-0 flex-1">
             <input ref={nameRef} value={name} onChange={e => setName(e.target.value)}
-              placeholder="Dish name…"
+              placeholder="Dish name…" title={name}
               onBlur={() => name.trim() && name !== dish.name && onPatch(dish.id, { name: name.trim() })}
-              className="w-full min-w-[11rem] bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
+              className="w-48 truncate bg-transparent text-stone-800 focus:outline-none focus:bg-stone-50 rounded px-1 py-0.5" />
             {dish.is_garnish && <div className="text-[10px] text-stone-400 px-1">garnish — not auto-planned</div>}
           </div>
         </div>
