@@ -3,9 +3,10 @@ import { attachAvailability } from '@/lib/stock/ledger'
 import { mondayOf } from '@/lib/meals/dates'
 import { jakartaToday } from '@/lib/wa/schedule'
 import {
-  resolveIngredient, resolveStockRows, resolveDish, resolveGeneralShoppingItem,
+  resolveIngredient, stockRowsForIngredient, resolveDish, resolveGeneralShoppingItem,
   getOrCreateMealShoppingListId, resolveMealShoppingItem,
 } from './resolvers'
+import type { MatchResult } from './match'
 import type { ToolContext, ToolDefinition, ToolResult } from './types'
 
 // Every mutating tool here calls the SAME route the matching UI button
@@ -18,6 +19,21 @@ import type { ToolContext, ToolDefinition, ToolResult } from './types'
 
 const ok = (summary: string): ToolResult => ({ ok: true, summary })
 const fail = (summary: string): ToolResult => ({ ok: false, summary })
+
+// Every name-based lookup below (resolveDish, resolveIngredient, the
+// shopping-item resolvers) returns a MatchResult — one/many/none — instead
+// of silently picking a guess. This turns that into either the resolved row
+// or a ToolResult that already says the right thing: a "which one?" listing
+// candidates when the name is ambiguous ("ayam" against a dozen chicken
+// dishes), or "couldn't find X" with a "did you mean" hint when nothing
+// matched. Every call site below stays a two-line check instead of
+// reimplementing this three-way branch per tool.
+function resolveOrFail<T>(match: MatchResult<T>, label: (row: T) => string, noun: string, query: string): { row: T } | { result: ToolResult } {
+  if (match.kind === 'one') return { row: match.row }
+  if (match.kind === 'many') return { result: fail(`Which ${noun} — ${match.rows.map(label).join(', ')}?`) }
+  const hint = match.suggestions.length ? ` Did you mean ${match.suggestions.map(label).join(' or ')}?` : ''
+  return { result: fail(`Couldn't find a ${noun} called "${query}".${hint}`) }
+}
 
 function authHeaders(ctx: ToolContext): Record<string, string> {
   return { 'content-type': 'application/json', ...(ctx.cookie ? { cookie: ctx.cookie } : {}) }
@@ -64,8 +80,9 @@ export const TOOLS: ToolDefinition[] = [
     input_schema: withConfirm({ name: { type: 'string' } }, ['name']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const item = await resolveGeneralShoppingItem(String(input.name))
-      if (!item) return fail(`Couldn't find "${input.name}" on the general shopping list.`)
+      const resolved = resolveOrFail(await resolveGeneralShoppingItem(String(input.name)), r => r.name, 'shopping item', String(input.name))
+      if ('result' in resolved) return resolved.result
+      const item = resolved.row
       const res = await fetch(`${ctx.origin}/api/shopping/items/${item.id}`, { method: 'DELETE', headers: authHeaders(ctx) })
       if (!res.ok) return fail('Could not remove that item.')
       return ok(`Removed "${item.name}" from the general shopping list.`)
@@ -77,8 +94,9 @@ export const TOOLS: ToolDefinition[] = [
     input_schema: schema({ name: { type: 'string' }, checked: { type: 'boolean' } }, ['name', 'checked']),
     requiresConfirmation: false,
     async execute(input, ctx) {
-      const item = await resolveGeneralShoppingItem(String(input.name))
-      if (!item) return fail(`Couldn't find "${input.name}" on the general shopping list.`)
+      const resolved = resolveOrFail(await resolveGeneralShoppingItem(String(input.name)), r => r.name, 'shopping item', String(input.name))
+      if ('result' in resolved) return resolved.result
+      const item = resolved.row
       const res = await fetch(`${ctx.origin}/api/shopping/items/${item.id}`, {
         method: 'PATCH', headers: authHeaders(ctx), body: JSON.stringify({ checked: input.checked }),
       })
@@ -114,8 +132,9 @@ export const TOOLS: ToolDefinition[] = [
     async execute(input, ctx) {
       const listId = await getOrCreateMealShoppingListId(ctx.origin, ctx.cookie, mondayOf(jakartaToday()))
       if (!listId) return fail('No meal shopping list exists for this week.')
-      const item = await resolveMealShoppingItem(listId, String(input.ingredient))
-      if (!item) return fail(`Couldn't find "${input.ingredient}" on this week's meal shopping list.`)
+      const resolved = resolveOrFail(await resolveMealShoppingItem(listId, String(input.ingredient)), r => r.ingredient, 'shopping item', String(input.ingredient))
+      if ('result' in resolved) return resolved.result
+      const item = resolved.row
       const res = await fetch(`${ctx.origin}/api/meals/shopping/items/${item.id}`, { method: 'DELETE', headers: authHeaders(ctx) })
       if (!res.ok) return fail('Could not remove that item.')
       return ok(`Removed "${item.ingredient}" from this week's meal shopping list.`)
@@ -129,8 +148,9 @@ export const TOOLS: ToolDefinition[] = [
     async execute(input, ctx) {
       const listId = await getOrCreateMealShoppingListId(ctx.origin, ctx.cookie, mondayOf(jakartaToday()))
       if (!listId) return fail('No meal shopping list exists for this week.')
-      const item = await resolveMealShoppingItem(listId, String(input.ingredient))
-      if (!item) return fail(`Couldn't find "${input.ingredient}" on this week's meal shopping list.`)
+      const resolved = resolveOrFail(await resolveMealShoppingItem(listId, String(input.ingredient)), r => r.ingredient, 'shopping item', String(input.ingredient))
+      if ('result' in resolved) return resolved.result
+      const item = resolved.row
       const res = await fetch(`${ctx.origin}/api/meals/shopping/items/${item.id}`, {
         method: 'PATCH', headers: authHeaders(ctx), body: JSON.stringify({ checked: input.checked }),
       })
@@ -150,8 +170,9 @@ export const TOOLS: ToolDefinition[] = [
     input_schema: schema({ ingredient: { type: 'string' } }, ['ingredient']),
     requiresConfirmation: false,
     async execute(input) {
-      const ing = await resolveIngredient(String(input.ingredient))
-      if (!ing) return fail(`"${input.ingredient}" isn't a known ingredient.`)
+      const resolved = resolveOrFail(await resolveIngredient(String(input.ingredient)), r => r.name, 'ingredient', String(input.ingredient))
+      if ('result' in resolved) return resolved.result
+      const ing = resolved.row
       const { data } = await supabase.from('stock')
         .select('*, ingredients(name, category, default_unit, shelf_stable, satisfies_group)').eq('ingredient_id', ing.id)
       if (!data || data.length === 0) return fail(`"${ing.name}" isn't tracked in stock.`)
@@ -173,8 +194,10 @@ export const TOOLS: ToolDefinition[] = [
     }, ['ingredient', 'location', 'amount', 'unit']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const ing = await resolveIngredient(String(input.ingredient))
-      if (!ing) return fail(`"${input.ingredient}" isn't a known ingredient yet — add it as an ingredient first.`)
+      const ingMatch = await resolveIngredient(String(input.ingredient))
+      if (ingMatch.kind === 'none') return fail(`"${input.ingredient}" isn't a known ingredient yet — add it as an ingredient first.`)
+      if (ingMatch.kind === 'many') return fail(`Which ingredient — ${ingMatch.rows.map(r => r.name).join(', ')}?`)
+      const ing = ingMatch.row
       const res = await fetch(`${ctx.origin}/api/stock`, {
         method: 'POST', headers: authHeaders(ctx),
         body: JSON.stringify({ ingredient_id: ing.id, location: input.location, on_hand: input.amount, unit: input.unit }),
@@ -196,7 +219,9 @@ export const TOOLS: ToolDefinition[] = [
     }, ['ingredient', 'amount']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const rows = await resolveStockRows(String(input.ingredient))
+      const ingResolved = resolveOrFail(await resolveIngredient(String(input.ingredient)), r => r.name, 'ingredient', String(input.ingredient))
+      if ('result' in ingResolved) return ingResolved.result
+      const rows = await stockRowsForIngredient(ingResolved.row)
       const row = input.location ? rows.find(r => r.location === input.location) : rows.sort((a, b) => b.on_hand - a.on_hand)[0]
       if (!row) return fail(`"${input.ingredient}" isn't tracked in stock yet — add it first.`)
       const res = await fetch(`${ctx.origin}/api/stock/${row.id}`, {
@@ -216,7 +241,9 @@ export const TOOLS: ToolDefinition[] = [
     }, ['ingredient', 'to_location']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const rows = await resolveStockRows(String(input.ingredient))
+      const ingResolved = resolveOrFail(await resolveIngredient(String(input.ingredient)), r => r.name, 'ingredient', String(input.ingredient))
+      if ('result' in ingResolved) return ingResolved.result
+      const rows = await stockRowsForIngredient(ingResolved.row)
       const row = input.from_location ? rows.find(r => r.location === input.from_location) : rows[0]
       if (!row) return fail(`"${input.ingredient}" isn't tracked in stock.`)
       const res = await fetch(`${ctx.origin}/api/stock/${row.id}`, {
@@ -235,7 +262,9 @@ export const TOOLS: ToolDefinition[] = [
     input_schema: withConfirm({ ingredient: { type: 'string' }, location: { type: 'string', enum: ['freezer', 'fridge', 'pantry'] } }, ['ingredient']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const rows = await resolveStockRows(String(input.ingredient))
+      const ingResolved = resolveOrFail(await resolveIngredient(String(input.ingredient)), r => r.name, 'ingredient', String(input.ingredient))
+      if ('result' in ingResolved) return ingResolved.result
+      const rows = await stockRowsForIngredient(ingResolved.row)
       const row = input.location ? rows.find(r => r.location === input.location) : rows[0]
       if (!row) return fail(`"${input.ingredient}" isn't tracked in stock.`)
       const res = await fetch(`${ctx.origin}/api/stock/${row.id}`, { method: 'DELETE', headers: authHeaders(ctx) })
@@ -282,9 +311,9 @@ export const TOOLS: ToolDefinition[] = [
     async execute(input, ctx) {
       let dish_id: string | undefined
       if (input.dish_name) {
-        const d = await resolveDish(String(input.dish_name))
-        if (!d) return fail(`Couldn't find a dish called "${input.dish_name}".`)
-        dish_id = d.id
+        const resolved = resolveOrFail(await resolveDish(String(input.dish_name)), r => r.name, 'dish', String(input.dish_name))
+        if ('result' in resolved) return resolved.result
+        dish_id = resolved.row.id
       }
       const res = await fetch(`${ctx.origin}/api/meals/reroll`, {
         method: 'POST', headers: authHeaders(ctx),
@@ -378,8 +407,12 @@ export const TOOLS: ToolDefinition[] = [
     input_schema: withConfirm({ name: { type: 'string' } }, ['name']),
     requiresConfirmation: true,
     async execute(input, ctx) {
-      const dish = await resolveDish(String(input.name))
-      if (!dish) return fail(`Couldn't find a dish called "${input.name}".`)
+      const resolved = resolveOrFail(await resolveDish(String(input.name)), r => r.name, 'dish', String(input.name))
+      if ('result' in resolved) return resolved.result
+      const dish = resolved.row
+      // Same DELETE the Dishes-tab UI button calls — FK cleanup (meal_plans
+      // references nulled/skipped, dish_ingredients cascaded) happens
+      // exactly the way it already does for a manual delete, not reimplemented here.
       const res = await fetch(`${ctx.origin}/api/meals/dishes/${dish.id}`, { method: 'DELETE', headers: authHeaders(ctx) })
       if (!res.ok) return fail('Could not delete that dish.')
       return ok(`Deleted "${dish.name}".`)
