@@ -24,6 +24,15 @@ export default function VoiceFab() {
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const pointerDownAtRef = useRef<number | null>(null)
+  const recordingStartedAtRef = useRef<number | null>(null)
+
+  // Live waveform — real mic input via AnalyserNode, not a fake loop. See
+  // startAnalyser/stopAnalyser below.
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const barRefs = useRef<(HTMLDivElement | null)[]>([])
+  const BAR_COUNT = 20
 
   // Some browsers populate the voice list asynchronously — nudge it once so
   // speak() below isn't racing an empty list on the very first reply.
@@ -31,6 +40,45 @@ export default function VoiceFab() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
     window.speechSynthesis.getVoices()
   }, [])
+
+  // Reads the mic's real-time frequency data into the bar refs directly
+  // (bypassing React state) so the waveform can update every animation
+  // frame without a re-render per frame — getByteFrequencyData means the
+  // bars genuinely track how loud she's actually speaking, not a canned loop.
+  function startAnalyser(stream: MediaStream) {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const audioCtx = new Ctx()
+    const source = audioCtx.createMediaStreamSource(stream)
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 64
+    analyser.smoothingTimeConstant = 0.6
+    source.connect(analyser)
+    audioCtxRef.current = audioCtx
+    analyserRef.current = analyser
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    const tick = () => {
+      analyser.getByteFrequencyData(data)
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const level = data[i % data.length] / 255 // 0..1, real mic amplitude for this frequency bin
+        const el = barRefs.current[i]
+        if (el) el.style.height = `${8 + level * 92}%`
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    tick()
+  }
+
+  function stopAnalyser() {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    analyserRef.current = null
+    audioCtxRef.current?.close().catch(() => {})
+    audioCtxRef.current = null
+    barRefs.current.forEach(el => { if (el) el.style.height = '8%' })
+  }
+
+  useEffect(() => stopAnalyser, [])
 
   async function startRecording() {
     setError(null)
@@ -42,6 +90,8 @@ export default function VoiceFab() {
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.start()
       mediaRecorderRef.current = mr
+      recordingStartedAtRef.current = Date.now()
+      startAnalyser(stream)
       setOpen(true)
       setTranscript('')
       setReply('')
@@ -56,7 +106,9 @@ export default function VoiceFab() {
   const stopAndSend = useCallback(async () => {
     const mr = mediaRecorderRef.current
     if (!mr) { setMode('idle'); return }
+    stopAnalyser()
     setMode('thinking')
+    const durationMs = recordingStartedAtRef.current ? Date.now() - recordingStartedAtRef.current : null
     const audioBlob: Blob = await new Promise(resolve => {
       mr.onstop = () => resolve(new Blob(chunksRef.current, { type: 'audio/webm' }))
       mr.stop()
@@ -64,10 +116,12 @@ export default function VoiceFab() {
     streamRef.current?.getTracks().forEach(t => t.stop())
     mediaRecorderRef.current = null
     streamRef.current = null
+    recordingStartedAtRef.current = null
 
     try {
       const form = new FormData()
       form.append('audio', audioBlob, 'audio.webm')
+      if (durationMs !== null) form.append('durationMs', String(durationMs))
       const transcribeRes = await fetch('/api/assistant/transcribe', { method: 'POST', body: form })
       const transcribeData = await transcribeRes.json()
       if (!transcribeRes.ok) { setError(transcribeData.error || 'Transcription failed.'); setMode('idle'); return }
@@ -128,11 +182,31 @@ export default function VoiceFab() {
             <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{meta[mode].label}</span>
             <button onClick={() => setOpen(false)} className="p-1 rounded-lg text-stone-400 hover:bg-stone-100" aria-label="Close"><X size={16} /></button>
           </div>
-          {transcript && <p className="text-sm text-stone-500 italic">&quot;{transcript}&quot;</p>}
+
+          {/* Live waveform — real mic amplitude per bar, set directly via
+              refs by the analyser's rAF loop (see startAnalyser), not
+              React state, so it can update every frame without re-rendering. */}
+          {mode === 'listening' && (
+            <div className="flex items-end justify-center gap-[3px] h-14" aria-hidden="true">
+              {Array.from({ length: BAR_COUNT }).map((_, i) => (
+                <div key={i} ref={el => { barRefs.current[i] = el }}
+                  className="w-1.5 rounded-full bg-red-500 transition-[height] duration-75"
+                  style={{ height: '8%' }} />
+              ))}
+            </div>
+          )}
+
+          {transcript && <p className="text-sm text-stone-600"><span className="text-stone-400 font-medium">You: </span>{transcript}</p>}
+          {mode === 'thinking' && !reply && !error && (
+            <p className="text-sm text-stone-400 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Thinking…</p>
+          )}
           {reply && <p className="text-sm text-stone-800">{reply}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {!transcript && !reply && !error && (
-            <p className="text-sm text-stone-400">Tap the mic and ask — shopping, stock, meals, expenses, or backlog.</p>
+          {mode !== 'listening' && !transcript && !reply && !error && (
+            <p className="text-sm text-stone-400">
+              Tap the mic and ask — shopping, stock, meals, expenses, or backlog.{' '}
+              <span className="text-stone-300">Coba: &quot;hapus ayam goreng&quot; atau &quot;tambah stok 1kg ayam&quot;.</span>
+            </p>
           )}
         </div>
       )}
@@ -142,7 +216,7 @@ export default function VoiceFab() {
         onPointerUp={onPointerUp}
         onClick={mode === 'speaking' ? interrupt : undefined}
         aria-label={meta[mode].label}
-        className={`fixed bottom-6 right-4 z-40 w-16 h-16 rounded-full shadow-lg flex items-center justify-center text-white transition-colors ${meta[mode].className} ${mode === 'listening' ? 'animate-pulse' : ''}`}
+        className={`fixed bottom-6 right-4 z-40 w-16 h-16 rounded-full shadow-lg flex items-center justify-center text-white transition-colors ${meta[mode].className} ${mode === 'listening' ? 'animate-pulse' : ''} ${mode === 'speaking' ? 'animate-[speak-pulse_1.1s_ease-in-out_infinite]' : ''}`}
       >
         {mode === 'thinking' ? <Loader2 size={26} className="animate-spin" />
           : mode === 'speaking' ? <Volume2 size={26} />

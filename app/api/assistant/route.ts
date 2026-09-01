@@ -29,6 +29,8 @@ CONFIRMATION: tools that delete something, spend money, or change a stock count 
 
 AMBIGUITY: if a request is genuinely unclear (which list, which dish, which item, missing a number), ask ONE short follow-up question instead of guessing.
 
+TRANSCRIPTION NOISE: the message comes from speech-to-text and can be slightly garbled — a word cut short, a near-miss spelling ("delet", "hapuss", "dilit" for "delete"/"hapus"). If it's close to a known command word, interpret it charitably instead of treating it as gibberish. If the whole message is just a bare action verb with no object ("delete", "hapus", "add", "tambah" and nothing else), don't fail or guess what she means — ask the one-word follow-up naming what's missing, in her language (e.g. "Hapus apa?" / "Add what?").
+
 Never fabricate a result. If a tool fails or returns nothing, say so briefly.`
 
 function parseSession(cookieHeader: string | null): { id: string; name: string; phone: string } | null {
@@ -94,6 +96,11 @@ export async function POST(request: Request) {
     try { response = await callClaude(messages) } catch (e) {
       console.error('[assistant] Claude call failed:', e)
       finalText = "Sorry, I couldn't reach the assistant just now — try again in a moment."
+      // Surface the real cause in dev only — production keeps the generic
+      // message (an API key or upstream error isn't something she can act
+      // on from the voice panel, and Vercel's runtime logs already have it
+      // via the console.error above).
+      if (process.env.NODE_ENV !== 'production') finalText += ` [dev: ${e instanceof Error ? e.message : String(e)}]`
       break
     }
     const toolUses = response.content.filter((b): b is Extract<AnthropicBlock, { type: 'tool_use' }> => b.type === 'tool_use')

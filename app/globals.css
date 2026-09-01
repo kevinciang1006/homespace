@@ -25,3 +25,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* VoiceFab's "speaking" state — a gentle scale pulse, distinct from the
+   opacity-based animate-pulse used for "listening", so the two states read
+   differently at a glance rather than just differing by color. */
+@keyframes speak-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
