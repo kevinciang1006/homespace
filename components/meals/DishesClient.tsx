@@ -119,8 +119,8 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
             <div className="bg-white border border-stone-200 rounded-2xl overflow-auto max-h-[70vh]">
               <table className="w-full text-sm min-w-[720px]">
                 <thead>
-                  {/* Sticky below the meals layout's own sticky header (top-20 matches
-                      PlanSidebar's offset for the same header). The Name cell also stays
+                  {/* top-0 here means "top of this div's own scroll pane" (see the
+                      wrapper comment above), not the page. The Name cell also stays
                       sticky-left on desktop, so it sticks to both edges — a frozen corner. */}
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
                     <th className="px-3 py-2 font-medium sticky top-0 z-20 bg-white md:left-0 md:border-r md:border-stone-100">Name</th>
