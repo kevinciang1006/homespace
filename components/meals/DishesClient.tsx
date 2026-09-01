@@ -86,27 +86,34 @@ export default function DishesClient({ initialDishes, initialEditId = null }:
       <DishesFilterSidebar filters={filters} onChange={setFilters} onAddDish={addDish} />
 
       <div className="flex-1 min-w-0 w-full">
-        {/* Bounded height with its OWN scroll (both axes) — a sticky <th>
-            only sticks within its nearest scrolling ancestor, and
-            overflow-x-auto alone (no bounded height) makes this div that
-            ancestor WITHOUT it ever actually scrolling vertically itself,
-            since the page scrolls instead — the header wouldn't stick
-            without this. */}
-        <div className="bg-white border border-stone-200 rounded-2xl overflow-auto max-h-[75vh]">
+        {/* overflow-x-auto ONLY — no bounded height. Vertical scrolling is
+            the PAGE's (the table just grows as long as it needs to);
+            horizontal scrolling stays contained to the table itself for a
+            long column list on a narrow screen. Tradeoff, and a real CSS
+            constraint, not an oversight: per the CSS overflow spec, ANY
+            non-visible overflow-x forces overflow-y to compute to auto too
+            (you can't have one axis scrollable and the other genuinely
+            "visible") — which makes this div a sticky-positioning container
+            in its own right. Since it isn't height-bounded it never
+            actually scrolls itself, so a sticky <th> here would just sit
+            static and never track the page's scroll position — there's no
+            plain-CSS way to get a header that stays pinned through a full
+            page scroll AND keeps horizontal overflow contained to the
+            table at the same time (that needs a JS-synced frozen header).
+            Given that, the header below is a plain (non-sticky) row. The
+            Name column still freezes horizontally on desktop while
+            scrolling sideways — that part has no such conflict. */}
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
             <thead>
-              {/* top-0 means "top of this div's own scroll pane" (see the
-                  wrapper comment above), not the page. The Name cell also
-                  stays sticky-left on desktop, so it sticks to both edges —
-                  a frozen corner. */}
               <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                <th className="px-3 py-2 font-medium sticky top-0 z-20 bg-white md:left-0 md:border-r md:border-stone-100">Name</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Group</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Protein</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Tier</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Active</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Rating</th>
-                <th className="px-3 py-2 font-medium sticky top-0 z-10 bg-white">Actions</th>
+                <th className="px-3 py-2 font-medium bg-white md:sticky md:left-0 md:z-10 md:border-r md:border-stone-100">Name</th>
+                <th className="px-3 py-2 font-medium">Group</th>
+                <th className="px-3 py-2 font-medium">Protein</th>
+                <th className="px-3 py-2 font-medium">Tier</th>
+                <th className="px-3 py-2 font-medium">Active</th>
+                <th className="px-3 py-2 font-medium">Rating</th>
+                <th className="px-3 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>

@@ -15,7 +15,11 @@ export default async function MealsLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        {/* No max-w cap — a fixed 1024px (max-w-5xl) container was wasting
+            most of the screen on any wider window (a sidebar + wide-table
+            page like Dishes felt cramped for no reason). Full-bleed with
+            just side padding, matching main below. */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="text-2xl font-semibold text-stone-900" style={{ fontFamily: 'DM Serif Display, serif' }}>
               home<span className="text-orange-500 italic">space</span>
@@ -31,7 +35,7 @@ export default async function MealsLayout({ children }: { children: React.ReactN
           </div>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 pb-24 sm:pb-6">{children}</main>
+      <main className="px-4 sm:px-6 py-6 pb-24 sm:pb-6">{children}</main>
       <MealsBottomNav />
     </div>
   )

@@ -1,5 +1,4 @@
 'use client'
-import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { SLOT_LABELS, type Slot, type Tier } from '@/lib/meals/types'
 import { PROTEINS, TIERS, VISIBLE_SLOTS } from '@/lib/meals/dishFields'
@@ -20,8 +19,13 @@ export default function DishesFilterSidebar({ filters, onChange, onAddDish }: {
   onChange: (next: DishFilters) => void
   onAddDish: (slot: Slot) => void
 }) {
-  const [addSlot, setAddSlot] = useState<Slot>('utama')
   const set = <K extends keyof DishFilters>(key: K, value: DishFilters[K]) => onChange({ ...filters, [key]: value })
+  // Adds into whichever group is currently filtered — falls back to Utama
+  // when "All" is selected. No second group picker for this (there was
+  // one at first: a dropdown here alongside the Group pills below —
+  // dropped since it read as two duplicate "group" controls doing the
+  // same job).
+  const addSlot: Slot = filters.slot === 'all' ? 'utama' : filters.slot
 
   return (
     <SidebarShell title="Filters" mobileLabel="Filters">
@@ -29,16 +33,10 @@ export default function DishesFilterSidebar({ filters, onChange, onAddDish }: {
         {/* Add dish — an action, not a filter, but lives here so it's always
             reachable without scrolling back up to a per-section button now
             that there's only one table instead of one per slot. */}
-        <div className="space-y-1.5">
-          <select value={addSlot} onChange={e => setAddSlot(e.target.value as Slot)}
-            className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
-            {VISIBLE_SLOTS.map(s => <option key={s} value={s}>{SLOT_LABELS[s]}</option>)}
-          </select>
-          <button onClick={() => onAddDish(addSlot)}
-            className="w-full flex items-center justify-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
-            <Plus size={15} /> Add dish
-          </button>
-        </div>
+        <button onClick={() => onAddDish(addSlot)}
+          className="w-full flex items-center justify-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
+          <Plus size={15} /> Add {SLOT_LABELS[addSlot]} dish
+        </button>
 
         <div className="border-t border-stone-100 pt-3">
           <input value={filters.search} onChange={e => set('search', e.target.value)} placeholder="Search dishes…"
