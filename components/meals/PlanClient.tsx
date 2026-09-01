@@ -234,66 +234,65 @@ export default function PlanClient({ initialWeekStart, initialWeek, initialStapl
   }
 
   return (
-    <div className="w-full">
-      <PlanSearchBar onJump={jumpToDate} />
+    <div className="flex flex-col sm:flex-row gap-4 items-start">
+      <PlanSidebar
+        dayHref={`/meals/day/${isoDate(new Date())}`}
+        generating={generating} onGenerate={generate}
+        hasWeek={week.length > 0} clearing={clearing} onClearWeek={clearWeek}
+        randomizingBreakfast={randomizingBreakfast} onRandomizeBreakfasts={randomizeBreakfasts}
+        randomizingDesserts={randomizingDesserts} onRandomizeDesserts={randomizeDesserts}
+        buildingList={buildingList} onBuildList={buildList}
+      />
 
-      {/* PlanSidebar is a left-side overlay now (Portal + backdrop, like
-          DishEditorPanel) instead of a sticky column that reserved page
-          width — so its trigger lives inline in the nav row on every
-          breakpoint, not off to the side. */}
-      <div className="flex items-center gap-2 mb-5">
-        <PlanSidebar
-          dayHref={`/meals/day/${isoDate(new Date())}`}
-          generating={generating} onGenerate={generate}
-          hasWeek={week.length > 0} clearing={clearing} onClearWeek={clearWeek}
-          randomizingBreakfast={randomizingBreakfast} onRandomizeBreakfasts={randomizeBreakfasts}
-          randomizingDesserts={randomizingDesserts} onRandomizeDesserts={randomizeDesserts}
-          buildingList={buildingList} onBuildList={buildList}
-        />
-        <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
-        <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
-        <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
-        <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
-      </div>
+      <div className="flex-1 min-w-0 w-full">
+        <PlanSearchBar onJump={jumpToDate} />
 
-      {/* "This week's fruit" pills — hidden per request. Unlike StaplesBanner
-          (a whole page/API/table left in place but unmounted), this was a
-          small derived-state block with nothing behind it worth preserving —
-          the underlying fruit-slot meal-plan data itself is untouched, only
-          this display line and its `weekFruit` derivation are gone. Trivial
-          to recreate (week.filter(r => r.slot === 'fruit'), deduped by
-          dish_id) if she wants it back. */}
-
-      {genReport && (
-        <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-medium">{genReport.length === 0 ? '✓ Week validated' : `${genReport.length} thing${genReport.length > 1 ? 's' : ''} to note`}</span>
-            <button onClick={() => setGenReport(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
-          </div>
-          {genReport.length > 0 && (
-            <ul className="mt-1 space-y-0.5 text-xs">
-              {genReport.map((line, i) => <li key={i}>{line}</li>)}
-            </ul>
-          )}
+        <div className="flex items-center gap-2 mb-5">
+          <button onClick={() => loadWeek(shiftWeek(weekStart, -7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Previous week"><ChevronLeft size={18} /></button>
+          <span className="text-sm font-medium text-stone-700 min-w-[9rem] text-center">{label(days[0])} – {label(days[6])}</span>
+          <button onClick={() => loadWeek(shiftWeek(weekStart, 7))} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600" aria-label="Next week"><ChevronRight size={18} /></button>
+          <button onClick={() => loadWeek(currentMonday())} className="ml-1 text-sm text-stone-500 hover:text-stone-800 px-2 py-1">This week</button>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {days.map((date, i) => (
-          <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
-            highlighted={date === highlightDate}
-            entries={cookLog[date] ?? []} onCooked={onCooked}
-            onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish}
-            onUndoable={row => setUndo({ message: `Removed ${row.dish_name ?? 'dish'}`, row })} />
-        ))}
+        {/* "This week's fruit" pills — hidden per request. Unlike StaplesBanner
+            (a whole page/API/table left in place but unmounted), this was a
+            small derived-state block with nothing behind it worth preserving —
+            the underlying fruit-slot meal-plan data itself is untouched, only
+            this display line and its `weekFruit` derivation are gone. Trivial
+            to recreate (week.filter(r => r.slot === 'fruit'), deduped by
+            dish_id) if she wants it back. */}
+
+        {genReport && (
+          <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm ${genReport.length === 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{genReport.length === 0 ? '✓ Week validated' : `${genReport.length} thing${genReport.length > 1 ? 's' : ''} to note`}</span>
+              <button onClick={() => setGenReport(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
+            </div>
+            {genReport.length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {genReport.map((line, i) => <li key={i}>{line}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {days.map((date, i) => (
+            <DayPlate key={date} date={date} dayName={DAY_NAMES[i]} rows={dayRows(date)}
+              highlighted={date === highlightDate}
+              entries={cookLog[date] ?? []} onCooked={onCooked}
+              onReplaceDay={replaceDay} onReplaceCell={replaceCell} onOpenDish={openDish}
+              onUndoable={row => setUndo({ message: `Removed ${row.dish_name ?? 'dish'}`, row })} />
+          ))}
+        </div>
+
+        {/* WeekOverview — hidden per request, not deleted: the component
+            (components/meals/WeekOverview.tsx) and its computeWeekOverview
+            source (lib/meals/overview.ts) are both untouched, just no longer
+            imported/mounted here — a two-line change (re-add the import and
+            this call, with an `overview = useMemo(() => computeWeekOverview(week), [week])`
+            alongside `days` above) to bring back. */}
       </div>
-
-      {/* WeekOverview — hidden per request, not deleted: the component
-          (components/meals/WeekOverview.tsx) and its computeWeekOverview
-          source (lib/meals/overview.ts) are both untouched, just no longer
-          imported/mounted here — a two-line change (re-add the import and
-          this call, with an `overview = useMemo(() => computeWeekOverview(week), [week])`
-          alongside `days` above) to bring back. */}
 
       {editingDish && (
         <DishEditorPanel dish={editingDish} onClose={() => setEditingDish(null)}

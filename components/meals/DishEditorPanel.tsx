@@ -1,8 +1,13 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
-import type { Dish } from '@/lib/meals/types'
+import { X, Plus, Trash2, ChevronUp, ChevronDown, ExternalLink, Star } from 'lucide-react'
+import { SLOT_LABELS, type Dish, type Slot } from '@/lib/meals/types'
+import { QTY_UNITS } from '@/lib/meals/qty'
+import {
+  PROTEINS, TIERS, METHODS, SALTINESS, DIFFICULTY, FRUIT_CONTEXTS, CADENCES,
+  PRODUCE_ROLES_BY_SLOT, PREP_TYPES, VEG_STYLES, DIFF_LEVEL, DIFF_COLOR, VISIBLE_SLOTS,
+} from '@/lib/meals/dishFields'
 import { detectSource, type RecipeLink } from '@/lib/meals/recipeLinks'
 import DishImage from './DishImage'
 import PhotoUploadButton from './PhotoUploadButton'
@@ -10,6 +15,24 @@ import DishIngredientsEditor from './DishIngredientsEditor'
 import Portal from '@/components/Portal'
 
 const SOURCE_EMOJI: Record<string, string> = { youtube: '▶️', instagram: '📸', tiktok: '🎵', web: '🔗' }
+
+// A same-styled on/off switch — every boolean field below (active, spicy,
+// garnish, dish helper, soup, self-sufficient) used to be its own bespoke
+// toggle button in the table; one shared component instead of six copies.
+function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 text-left">
+      <span className="min-w-0">
+        <span className="block text-sm text-stone-700">{label}</span>
+        {hint && <span className="block text-xs text-stone-400 leading-snug">{hint}</span>}
+      </span>
+      <span className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${checked ? 'bg-orange-500' : 'bg-stone-200'}`}>
+        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${checked ? 'left-4' : 'left-0.5'}`} />
+      </span>
+    </button>
+  )
+}
 
 // Slide-over editor for a dish's photo, ingredients, and recipe steps.
 // Structural edits (add/remove/reorder/category) persist immediately; free-text
@@ -29,11 +52,26 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
   const [newUrl, setNewUrl] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [providesSoup, setProvidesSoup] = useState(dish.provides_soup)
+  const [baseKey, setBaseKey] = useState(dish.base_key ?? '')
+  const [qtyAmount, setQtyAmount] = useState(dish.qty_amount ?? '')
+  const [qtyNote, setQtyNote] = useState(dish.qty_note ?? '')
 
   function saveName() {
     const trimmed = name.trim()
     if (trimmed && trimmed !== dish.name) onPatch(dish.id, { name: trimmed })
     else setName(dish.name)
+  }
+  function saveBaseKey() {
+    const v = baseKey.trim() || null
+    if (v !== dish.base_key) onPatch(dish.id, { base_key: v })
+  }
+  function saveQtyAmount() {
+    const n = qtyAmount === '' ? null : Number(qtyAmount)
+    if (n !== dish.qty_amount) onPatch(dish.id, { qty_amount: n === null || Number.isNaN(n) ? null : n })
+  }
+  function saveQtyNote() {
+    const trimmed = qtyNote.trim()
+    if (trimmed !== (dish.qty_note ?? '')) onPatch(dish.id, { qty_note: trimmed || null })
   }
   function saveSteps(next: string[]) { setSteps(next); onPatch(dish.id, { recipe_steps: next }) }
   function saveLinks(next: RecipeLink[]) { setLinks(next); onPatch(dish.id, { recipe_links: next }) }
@@ -89,22 +127,175 @@ export default function DishEditorPanel({ dish, onClose, onPatch, onSynced }: {
             </div>
           </section>
 
-          {/* provides-soup — utama only: a brothy/soupy main replaces the separate soup slot */}
-          {dish.slot === 'utama' && (
-            <section>
-              <button type="button" role="switch" aria-checked={providesSoup}
-                onClick={() => { const next = !providesSoup; setProvidesSoup(next); onPatch(dish.id, { provides_soup: next }) }}
-                className="w-full flex items-center justify-between gap-3 text-left">
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-stone-700">🥣 Provides its own soup</span>
-                  <span className="block text-xs text-stone-400 leading-snug">A brothy main (tomyam, sup, sop…) — the day skips a separate soup and gets a 2nd vegetable instead.</span>
-                </span>
-                <span className={`shrink-0 w-9 h-5 rounded-full transition-colors relative ${providesSoup ? 'bg-orange-500' : 'bg-stone-200'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${providesSoup ? 'left-4' : 'left-0.5'}`} />
-                </span>
-              </button>
-            </section>
-          )}
+          {/* details — everything that used to be its own column in the
+              Dishes table now lives here: the table stays a quick-scan
+              view (name, group, protein, tier, active, rating), this panel
+              is the single place that edits everything else (and
+              duplicates the table's kept columns too, so this really is
+              "edit everything" in one place). */}
+          <section className="space-y-4">
+            <h3 className="text-sm font-medium text-stone-600">Details</h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Group</label>
+                <select value={dish.slot} onChange={e => onPatch(dish.id, { slot: e.target.value as Slot })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {VISIBLE_SLOTS.map(s => <option key={s} value={s}>{SLOT_LABELS[s]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Protein</label>
+                <select value={dish.protein} onChange={e => onPatch(dish.id, { protein: e.target.value })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {PROTEINS.map(p => <option key={p} value={p}>{p}</option>)}
+                  {!PROTEINS.includes(dish.protein) && <option value={dish.protein}>{dish.protein}</option>}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Tier</label>
+                <select value={dish.tier} onChange={e => onPatch(dish.id, { tier: e.target.value as Dish['tier'] })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Method</label>
+                <select value={dish.method ?? ''} onChange={e => onPatch(dish.id, { method: e.target.value || null })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {METHODS.map(m => <option key={m} value={m}>{m || '—'}</option>)}
+                  {dish.method && !METHODS.includes(dish.method) && <option value={dish.method}>{dish.method}</option>}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Saltiness</label>
+                <select value={dish.saltiness} onChange={e => onPatch(dish.id, { saltiness: e.target.value as Dish['saltiness'] })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {SALTINESS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Prep type</label>
+                <select value={dish.prep_type ?? ''} onChange={e => onPatch(dish.id, { prep_type: e.target.value || null })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {PREP_TYPES.map(p => <option key={p} value={p}>{p || '—'}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <Toggle checked={dish.active} onChange={v => onPatch(dish.id, { active: v })}
+              label="Active" hint="Whether this dish is in the auto-generation rotation." />
+
+            <div>
+              <label className="block text-xs text-stone-400 mb-1">Difficulty</label>
+              <div className="flex items-center gap-1.5" role="group" aria-label="Difficulty">
+                {DIFFICULTY.map((lvl, i) => (
+                  <button key={lvl} onClick={() => onPatch(dish.id, { difficulty: lvl })} aria-label={lvl} title={lvl}
+                    className={`w-4 h-4 rounded-full transition-colors ${
+                      DIFF_LEVEL[dish.difficulty] >= i + 1 ? DIFF_COLOR[dish.difficulty] : 'bg-stone-200'}`} />
+                ))}
+                <span className="text-xs text-stone-400 ml-1 capitalize">{dish.difficulty}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-stone-400 mb-1">Rating</label>
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => onPatch(dish.id, { rating: n })} aria-label={`Rate ${n}`}>
+                    <Star size={18} className={n <= dish.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-300'} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-stone-400 mb-1">Base key</label>
+              <input value={baseKey} onChange={e => setBaseKey(e.target.value)} onBlur={saveBaseKey}
+                placeholder="e.g. bakso, tahu…" title="Prevents duplicates on one plate — e.g. never a bakso soup + a bakso helper"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
+            </div>
+
+            <div>
+              <label className="block text-xs text-stone-400 mb-1">Quantity</label>
+              <div className="flex items-center gap-1.5">
+                <input type="number" min={0} step="any" value={qtyAmount}
+                  onChange={e => setQtyAmount(e.target.value)} onBlur={saveQtyAmount}
+                  placeholder="amt"
+                  className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
+                <select value={dish.qty_unit ?? ''} onChange={e => onPatch(dish.id, { qty_unit: e.target.value || null })}
+                  className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  <option value="">—</option>
+                  {QTY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <input value={qtyNote} onChange={e => setQtyNote(e.target.value)} onBlur={saveQtyNote}
+                  placeholder="note"
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300" />
+              </div>
+            </div>
+
+            <Toggle checked={dish.spicy} onChange={v => onPatch(dish.id, { spicy: v })} label="Spicy" />
+            <Toggle checked={dish.is_garnish} onChange={v => onPatch(dish.id, { is_garnish: v })} label="Garnish"
+              hint="A side note, not an auto-planned dish (e.g. sambal, kerupuk)." />
+
+            {/* fruit-slot specifics */}
+            {dish.slot === 'fruit' && (
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Fruit context</label>
+                <select value={dish.fruit_context ?? ''} onChange={e => onPatch(dish.id, { fruit_context: e.target.value || null })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {FRUIT_CONTEXTS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* fruit/dessert: cadence + produce role */}
+            {(dish.slot === 'fruit' || dish.slot === 'desert') && (
+              <>
+                <div>
+                  <label className="block text-xs text-stone-400 mb-1">Cadence</label>
+                  <select value={dish.cadence ?? ''} onChange={e => onPatch(dish.id, { cadence: (e.target.value || null) as Dish['cadence'] })}
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                    {CADENCES.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-400 mb-1">Produce role</label>
+                  <select value={dish.produce_role ?? ''} onChange={e => onPatch(dish.id, { produce_role: (e.target.value || null) as Dish['produce_role'] })}
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                    {PRODUCE_ROLES_BY_SLOT[dish.slot].map(r => <option key={r} value={r}>{r || '—'}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* sayuran/pelengkap: dish-helper toggle */}
+            {(dish.slot === 'sayuran' || dish.slot === 'pelengkap') && (
+              <Toggle checked={dish.is_dish_helper} onChange={v => onPatch(dish.id, { is_dish_helper: v })}
+                label="Dish helper" hint="Fried, easy-to-make appetite helper (Tahu goreng, Bakwan, Telur dadar…)." />
+            )}
+
+            {/* sayuran: veg style */}
+            {dish.slot === 'sayuran' && (
+              <div>
+                <label className="block text-xs text-stone-400 mb-1">Veg style</label>
+                <select value={dish.veg_style ?? ''} onChange={e => onPatch(dish.id, { veg_style: (e.target.value || null) as Dish['veg_style'] })}
+                  className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-sm text-stone-800 focus:outline-none focus:border-orange-300">
+                  {VEG_STYLES.map(v => <option key={v} value={v}>{v || '—'}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* utama: provides its own soup + self-sufficient main */}
+            {dish.slot === 'utama' && (
+              <>
+                <Toggle checked={providesSoup} onChange={v => { setProvidesSoup(v); onPatch(dish.id, { provides_soup: v }) }}
+                  label="🥣 Provides its own soup" hint="A brothy main (tomyam, sup, sop…) — the day skips a separate soup and gets a 2nd vegetable instead." />
+                <Toggle checked={dish.self_sufficient_main} onChange={v => onPatch(dish.id, { self_sufficient_main: v })}
+                  label="Self-sufficient main" hint="Earns its own soup + veg with no dish-helper — never applies if this main also provides its own soup." />
+              </>
+            )}
+          </section>
 
           {/* ingredients — normalized (dish_ingredients + ingredients tables) */}
           <DishIngredientsEditor dishId={dish.id} />
