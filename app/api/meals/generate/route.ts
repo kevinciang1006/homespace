@@ -4,6 +4,7 @@ import { generateWeek, validateWeek } from '@/lib/meals/engine'
 import { weekDates } from '@/lib/meals/dates'
 import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 import { deriveWeekPrepTasks, type PlannedDish, type PrepTaskDraft } from '@/lib/meals/prepTasks'
+import { loadAllowedDishes } from '@/lib/meals/blacklist'
 import { reconcilePlanDateReservations } from '@/lib/stock/ledger'
 
 const rng = () => Math.random()
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
   dessertHistoryStart.setDate(dessertHistoryStart.getDate() - 7 * DESSERT_HISTORY_LOOKBACK_WEEKS)
 
   const [{ data: dishesRaw }, { data: plansRaw }, { data: dessertHistoryRaw }] = await Promise.all([
-    supabase.from('dishes').select('*').eq('active', true),
+    loadAllowedDishes().then(data => ({ data })),
     supabase.from('meal_plans').select('*').gte('plan_date', historyStart).lte('plan_date', days[6]),
     supabase.from('dessert_week_items').select('week_start, dish_id, kind')
       .gte('week_start', dessertHistoryStart.toISOString().split('T')[0]).lt('week_start', weekStart),

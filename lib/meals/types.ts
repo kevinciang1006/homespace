@@ -91,6 +91,7 @@ export type Ingredient = {
   category: IngredientCategory | null
   default_unit: string | null
   shelf_stable: boolean
+  blacklisted?: boolean
 }
 
 export type DishIngredientRow = {

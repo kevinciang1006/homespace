@@ -120,7 +120,7 @@ export default function IngredientsClient({ initialIngredients }: { initialIngre
           <section key={cat} className="mb-8">
             <h2 className="text-lg text-stone-800 mb-2" style={{ fontFamily: 'DM Serif Display, serif' }}>{CAT_LABELS[cat]}</h2>
             <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
                     <th className="px-3 py-2 font-medium w-8" />
@@ -129,6 +129,7 @@ export default function IngredientsClient({ initialIngredients }: { initialIngre
                     <th className="px-3 py-2 font-medium">Category</th>
                     <th className="px-3 py-2 font-medium">Default unit</th>
                     <th className="px-3 py-2 font-medium">Shelf-stable</th>
+                    <th className="px-3 py-2 font-medium">Blacklist</th>
                     <th className="px-3 py-2 font-medium" />
                   </tr>
                 </thead>
@@ -199,6 +200,13 @@ function IngredientRow({ ingredient, onPatch, onDelete, selected, onToggleSelect
         <button onClick={() => onPatch(ingredient.id, { shelf_stable: !ingredient.shelf_stable })} aria-label="Toggle shelf-stable"
           className={`w-9 h-5 rounded-full transition-colors relative ${ingredient.shelf_stable ? 'bg-orange-500' : 'bg-stone-200'}`}>
           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${ingredient.shelf_stable ? 'left-4' : 'left-0.5'}`} />
+        </button>
+      </td>
+      <td className="px-3 py-1.5">
+        <button onClick={() => onPatch(ingredient.id, { blacklisted: !ingredient.blacklisted })} aria-label="Toggle blacklist"
+          title="Never generate dishes with this ingredient"
+          className={`w-9 h-5 rounded-full transition-colors relative ${ingredient.blacklisted ? 'bg-red-500' : 'bg-stone-200'}`}>
+          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${ingredient.blacklisted ? 'left-4' : 'left-0.5'}`} />
         </button>
       </td>
       <td className="px-3 py-1.5">

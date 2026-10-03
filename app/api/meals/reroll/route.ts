@@ -8,6 +8,7 @@ import { pickDessertBatch, DESSERT_WEEK_CAP, type DessertBatchOptions } from '@/
 import { pickEveningFruitBatch, EVENING_FRUIT_WEEK_CAP, EVENING_FRUIT_MIN_DAYS, EVENING_FRUIT_MAX_DAYS, type EveningFruitOptions } from '@/lib/meals/eveningFruit'
 import { computeCakeEligible, computeLastWeekBatchIds, computeMonthlyFruitEligible, type DessertHistoryRow } from '@/lib/meals/dessertHistory'
 import { weekDates, mondayOf } from '@/lib/meals/dates'
+import { loadAllowedDishes } from '@/lib/meals/blacklist'
 import { reconcilePlanDateReservations } from '@/lib/stock/ledger'
 
 // Best-effort — a reservation hiccup shouldn't fail a reroll itself.
@@ -24,7 +25,7 @@ async function loadWeek(plan_date: string) {
   const start = new Date(week[0]); start.setDate(start.getDate() - 14)
   const historyStart = start.toISOString().split('T')[0]
   const [{ data: dishesRaw }, { data: plansRaw }] = await Promise.all([
-    supabase.from('dishes').select('*').eq('active', true),
+    loadAllowedDishes().then(data => ({ data })),
     supabase.from('meal_plans').select('*').gte('plan_date', historyStart).lte('plan_date', week[6]),
   ])
   return {
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
     const { weekStart } = body
     if (!weekStart) return Response.json({ error: 'weekStart required' }, { status: 400 })
     const week = weekDates(weekStart)
-    const { data: dishesRaw } = await supabase.from('dishes').select('*').eq('active', true)
+    const dishesRaw = await loadAllowedDishes()
     const allDishes = (dishesRaw ?? []) as Dish[]
     const dishById = new Map(allDishes.map(d => [d.id, d]))
     const start = new Date(week[0]); start.setDate(start.getDate() - 14)
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
     const { weekStart } = body
     if (!weekStart) return Response.json({ error: 'weekStart required' }, { status: 400 })
     const week = weekDates(weekStart)
-    const { data: dishesRaw } = await supabase.from('dishes').select('*').eq('active', true)
+    const dishesRaw = await loadAllowedDishes()
     const allDishes = (dishesRaw ?? []) as Dish[]
     const dishById = new Map(allDishes.map(d => [d.id, d]))
     const start = new Date(week[0]); start.setDate(start.getDate() - 14)

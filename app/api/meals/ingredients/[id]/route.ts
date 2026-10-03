@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 
-const FIELDS = ['name', 'aliases', 'category', 'default_unit', 'shelf_stable']
+const FIELDS = ['name', 'aliases', 'category', 'default_unit', 'shelf_stable', 'blacklisted']
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
